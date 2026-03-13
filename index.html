@@ -719,12 +719,24 @@ input[type="text"]:focus,textarea:focus,select.form-select:focus{border-color:va
     <div class="page" id="page-temizlik-plan">
       <div class="form-section" style="margin-bottom:12px">
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-          <select class="form-select" id="tp-durum" onchange="tpRender()" style="max-width:140px">
-            <option value="">Tüm Durumlar</option>
-            <option value="AKTİF">AKTİF</option>
-            <option value="PASİF">PASİF</option>
-            <option value="İPTAL">İPTAL</option>
-          </select>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+            <span style="font-size:11px;font-weight:700;color:var(--text-soft)">DURUM:</span>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #16a34a;color:#16a34a;background:#f0fdf4">
+              <input type="checkbox" value="AKTİF" class="tp-dur-cb" onchange="tpRender()" checked style="cursor:pointer"> AKTİF
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #64748b;color:#64748b;background:#f8fafc">
+              <input type="checkbox" value="PASİF" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> PASİF
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #ef4444;color:#ef4444;background:#fef2f2">
+              <input type="checkbox" value="İPTAL" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> İPTAL
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #f59e0b;color:#f59e0b;background:#fffbeb">
+              <input type="checkbox" value="BEKLEME LİSTESİ" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> BEKLEME
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #94a3b8;color:#94a3b8;background:#f8fafc">
+              <input type="checkbox" value="" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> DİĞER
+            </label>
+          </div>
           <select class="form-select" id="tp-ekip" onchange="tpRender()" style="max-width:130px">
             <option value="">Tüm Ekip</option>
             <option value="Gülin">Gülin</option>
@@ -1112,7 +1124,7 @@ const TP_DATA = [{"isim": "Sevim BEŞLİ", "ekip": "", "mahalle": "Türkmen", "s
 let tpSortDir = 'asc'; // asc = en eski önce
 
 function tpRender() {
-  const durumF = document.getElementById('tp-durum').value;
+  const seciliDurumlar = [...document.querySelectorAll('.tp-dur-cb:checked')].map(cb=>cb.value);
   const ekipF  = document.getElementById('tp-ekip').value;
   const renkF  = document.getElementById('tp-renk').value;
   const araF   = document.getElementById('tp-ara').value.trim().toUpperCase();
@@ -1128,7 +1140,7 @@ function tpRender() {
   });
 
   // Filtrele
-  if(durumF) rows = rows.filter(r=>r.durum===durumF);
+  if(seciliDurumlar.length) rows = rows.filter(r=>seciliDurumlar.includes(r.durum));
   if(ekipF)  rows = rows.filter(r=>r.ekip===ekipF);
   if(araF)   rows = rows.filter(r=>r.isim.toUpperCase().includes(araF));
   if(renkF) {
