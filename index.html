@@ -1130,13 +1130,13 @@ function tpRender() {
   const araF   = document.getElementById('tp-ara').value.trim().toUpperCase();
   const today  = new Date(); today.setHours(0,0,0,0);
 
-  let rows = TP_DATA.map(r => {
+  let rows = TP_DATA.map((r, i) => {
     let gun = null;
     if(r.sonGidilme) {
       const d = new Date(r.sonGidilme); d.setHours(0,0,0,0);
       gun = Math.floor((today - d) / 86400000);
     }
-    return {...r, gun};
+    return {...r, gun, _origIdx: i};
   });
 
   // Filtrele
@@ -1173,7 +1173,7 @@ function tpRender() {
     const gunStr   = r.gun !== null ? `${r.gun} gün` : '—';
     const durumColor = r.durum==='AKTİF'?'#16a34a':r.durum==='PASİF'?'#64748b':'#ef4444';
 
-    const origIdx = TP_DATA.indexOf(r);
+    const origIdx = r._origIdx;
     return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
       <td style="padding:8px 8px;font-weight:700">${dot} ${r.isim}</td>
       <td style="padding:8px 8px;color:var(--text-soft)">${r.mahalle}</td>
