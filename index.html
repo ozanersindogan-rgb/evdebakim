@@ -890,8 +890,11 @@ function initApp() {
 
 // ============ SIDEBAR ============
 function buildSidebar() {
+  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const sonAy = [...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>AY_SIRA.indexOf(b)-AY_SIRA.indexOf(a))[0];
+  const sonAyAktif = allData.filter(r=>r.AY===sonAy && r.DURUM==='AKTİF');
   const byH = {};
-  HIZMET_KEYS.forEach(h => byH[h] = allData.filter(r=>r['HİZMET']===h && r.DURUM==='AKTİF').length);
+  HIZMET_KEYS.forEach(h => byH[h] = sonAyAktif.filter(r=>r['HİZMET']===h).length);
   document.getElementById('sidebar-mini').innerHTML = `
     <div class="mini-stat"><div class="v">${new Set(allData.filter(r=>r.DURUM==='AKTİF'&&r.AY===([...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'].indexOf(b)-['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'].indexOf(a))[0])).map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM)).size}</div><div class="l">Aktif</div></div>
     <div class="mini-stat"><div class="v">${allData.length}</div><div class="l">Toplam</div></div>
