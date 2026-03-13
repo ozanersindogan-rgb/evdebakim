@@ -552,38 +552,50 @@ input[type="text"]:focus,textarea:focus,select.form-select:focus{border-color:va
       <!-- YENİ AYA TAŞI -->
       <div class="form-section" style="margin-bottom:18px">
         <h3>📅 Yeni Aya Taşı</h3>
-        <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Seçilen aydaki tüm <b>aktif</b> vatandaşları bir sonraki aya kopyalar. Tarihler boş gelir. Zaten kayıtlı olanlar tekrar eklenmez.</p>
+        <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Seçilen aydaki aktif vatandaşları listeler. İstediğinizi işaretleyip taşıyın. Tarihler boş gelir, zaten kayıtlı olanlar atlanır.</p>
         <div class="form-row">
           <div class="form-group">
             <label>Kaynak Ay *</label>
-            <select class="form-select" id="ta-kaynak">
+            <select class="form-select" id="ta-kaynak" onchange="taListele()">
               <option value="">— Seçin —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Hizmet Filtresi</label>
+            <select class="form-select" id="ta-hizmet" onchange="taListele()">
+              <option value="">Tüm Hizmetler</option>
+              <option value="KADIN BANYO">Kadın Banyo</option>
+              <option value="ERKEK BANYO">Erkek Banyo</option>
+              <option value="KUAFÖR">Kuaför</option>
+              <option value="TEMİZLİK">Temizlik</option>
             </select>
           </div>
           <div class="form-group">
             <label>Hedef Ay *</label>
             <select class="form-select" id="ta-hedef">
               <option value="">— Seçin —</option>
-              <option value="OCAK">OCAK</option>
-              <option value="ŞUBAT">ŞUBAT</option>
-              <option value="MART">MART</option>
-              <option value="NİSAN">NİSAN</option>
-              <option value="MAYIS">MAYIS</option>
-              <option value="HAZİRAN">HAZİRAN</option>
-              <option value="TEMMUZ">TEMMUZ</option>
-              <option value="AĞUSTOS">AĞUSTOS</option>
-              <option value="EYLÜL">EYLÜL</option>
-              <option value="EKİM">EKİM</option>
-              <option value="KASIM">KASIM</option>
-              <option value="ARALIK">ARALIK</option>
+              <option value="OCAK">OCAK</option><option value="ŞUBAT">ŞUBAT</option>
+              <option value="MART">MART</option><option value="NİSAN">NİSAN</option>
+              <option value="MAYIS">MAYIS</option><option value="HAZİRAN">HAZİRAN</option>
+              <option value="TEMMUZ">TEMMUZ</option><option value="AĞUSTOS">AĞUSTOS</option>
+              <option value="EYLÜL">EYLÜL</option><option value="EKİM">EKİM</option>
+              <option value="KASIM">KASIM</option><option value="ARALIK">ARALIK</option>
             </select>
           </div>
         </div>
-        <div id="ta-preview" style="margin:10px 0;padding:10px 14px;background:var(--bg-soft);border-radius:8px;font-size:12.5px;color:var(--text-soft);min-height:36px">
-          Kaynak ay seçin, taşınacak kayıtlar burada görünür.
+
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <button class="btn" style="padding:4px 12px;font-size:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer" onclick="taTumunuSec(true)">Tümünü Seç</button>
+          <button class="btn" style="padding:4px 12px;font-size:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer" onclick="taTumunuSec(false)">Seçimi Kaldır</button>
+          <span id="ta-secilen" style="font-size:12px;color:var(--text-soft);margin-left:4px">0 seçili</span>
         </div>
-        <div style="display:flex;gap:9px;margin-top:4px">
-          <button class="btn btn-primary" onclick="taUygula()">📅 Yeni Aya Taşı</button>
+
+        <div id="ta-liste" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--card)">
+          <div style="padding:16px;color:var(--text-soft);font-size:13px;text-align:center">Kaynak ay seçin</div>
+        </div>
+
+        <div style="display:flex;gap:9px;margin-top:12px">
+          <button class="btn btn-primary" onclick="taUygula()">📅 Seçilenleri Taşı</button>
         </div>
       </div>
 
@@ -1550,66 +1562,68 @@ function taInit() {
     .sort((a,b)=>AY_LISTESI.indexOf(a)-AY_LISTESI.indexOf(b));
   kaynak.innerHTML = '<option value="">— Seçin —</option>' +
     mevcutAylar.map(a=>`<option value="${a}">${a}</option>`).join('');
-  kaynak.onchange = taPreview;
-  document.getElementById('ta-hedef').onchange = taPreview;
 }
 
-function taPreview() {
-  const kaynak = document.getElementById('ta-kaynak').value;
-  const hedef  = document.getElementById('ta-hedef').value;
-  const prev   = document.getElementById('ta-preview');
-  if(!kaynak) { prev.innerHTML='Kaynak ay seçin, taşınacak kayıtlar burada görünür.'; return; }
+function taListele() {
+  const kaynak  = document.getElementById('ta-kaynak').value;
+  const hizmet  = document.getElementById('ta-hizmet').value;
+  const liste   = document.getElementById('ta-liste');
+  if(!kaynak) { liste.innerHTML='<div style="padding:16px;color:var(--text-soft);font-size:13px;text-align:center">Kaynak ay seçin</div>'; return; }
 
-  const aktifler = allData.filter(r=>r.AY===kaynak && r.DURUM==='AKTİF');
-  const hedefKayitlar = hedef ? allData.filter(r=>r.AY===hedef) : [];
-  const hedefIsimler = new Set(hedefKayitlar.map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM));
+  const hedef = document.getElementById('ta-hedef').value;
+  const hedefIsimler = new Set(hedef ? allData.filter(r=>r.AY===hedef).map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM) : []);
 
-  const yeniOlacak = aktifler.filter(r=>!hedefIsimler.has(r['HİZMET']+'|'+r.ISIM_SOYISIM));
-  const zatenVar   = aktifler.length - yeniOlacak.length;
+  const kayitlar = allData.filter(r=>r.AY===kaynak && r.DURUM==='AKTİF' && (!hizmet||r['HİZMET']===hizmet));
+  if(!kayitlar.length) { liste.innerHTML='<div style="padding:16px;color:var(--text-soft);font-size:13px;text-align:center">Bu ayda aktif kayıt yok</div>'; return; }
 
-  const hizmetler = {};
-  yeniOlacak.forEach(r=>hizmetler[r['HİZMET']]=(hizmetler[r['HİZMET']]||0)+1);
-  const hizStr = Object.entries(hizmetler).map(([h,c])=>`<strong>${h}</strong>: ${c}`).join(' &nbsp;|&nbsp; ');
+  const HC = {'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100'};
+  liste.innerHTML = kayitlar.map((r,i) => {
+    const key = r['HİZMET']+'|'+r.ISIM_SOYISIM;
+    const zatenVar = hedefIsimler.has(key);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:${zatenVar?'default':'pointer'};opacity:${zatenVar?0.4:1}">
+      <input type="checkbox" data-idx="${allData.indexOf(r)}" ${zatenVar?'disabled':''} onchange="taSecilenGuncelle()" style="width:15px;height:15px;cursor:pointer">
+      <span style="font-size:10px;font-weight:800;color:${HC[r['HİZMET']]||'#455A64'};min-width:70px">${r['HİZMET']}</span>
+      <span style="font-weight:700;flex:1">${r.ISIM_SOYISIM}</span>
+      <span style="font-size:11px;color:var(--text-soft)">${r.MAHALLE}</span>
+      ${zatenVar?'<span style="font-size:10px;color:#f59e0b">zaten var</span>':''}
+    </label>`;
+  }).join('');
+  taSecilenGuncelle();
+}
 
-  prev.innerHTML = `
-    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-      <span style="font-size:22px;font-weight:900;color:var(--primary)">${yeniOlacak.length}</span>
-      <span>kayıt taşınacak &nbsp;•&nbsp; ${hizStr||'—'}</span>
-      ${zatenVar>0?`<span style="color:#f59e0b;font-size:12px">⚠️ ${zatenVar} kayıt zaten ${hedef||'hedef ayda'} mevcut, atlanacak</span>`:''}
-      ${hedef?`<span style="margin-left:auto;color:var(--green);font-weight:700">📅 ${kaynak} → ${hedef}</span>`:'<span style="color:#f59e0b;font-size:12px">⚠️ Hedef ay seçin</span>'}
-    </div>`;
+function taSecilenGuncelle() {
+  const secilen = document.querySelectorAll('#ta-liste input[type=checkbox]:checked').length;
+  document.getElementById('ta-secilen').textContent = secilen + ' seçili';
+}
+
+function taTumunuSec(sec) {
+  document.querySelectorAll('#ta-liste input[type=checkbox]:not(:disabled)').forEach(cb=>cb.checked=sec);
+  taSecilenGuncelle();
 }
 
 async function taUygula() {
+  const hedef = document.getElementById('ta-hedef').value;
+  if(!hedef) { showToast('⚠️ Hedef ay seçin'); return; }
+
+  const seciliIdxler = [...document.querySelectorAll('#ta-liste input[type=checkbox]:checked')]
+    .map(cb=>parseInt(cb.dataset.idx));
+  if(!seciliIdxler.length) { showToast('⚠️ En az bir vatandaş seçin'); return; }
+
   const kaynak = document.getElementById('ta-kaynak').value;
-  const hedef  = document.getElementById('ta-hedef').value;
-  if(!kaynak) { showToast('⚠️ Kaynak ay seçin'); return; }
-  if(!hedef)  { showToast('⚠️ Hedef ay seçin'); return; }
   if(kaynak===hedef) { showToast('⚠️ Kaynak ve hedef aynı olamaz'); return; }
+  if(!confirm(`${seciliIdxler.length} kayıt ${hedef} ayına taşınacak. Onaylıyor musunuz?`)) return;
 
-  const aktifler = allData.filter(r=>r.AY===kaynak && r.DURUM==='AKTİF');
-  const hedefIsimler = new Set(allData.filter(r=>r.AY===hedef).map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM));
-  const yeniOlacak = aktifler.filter(r=>!hedefIsimler.has(r['HİZMET']+'|'+r.ISIM_SOYISIM));
+  showToast(`⏳ ${seciliIdxler.length} kayıt taşınıyor...`);
 
-  if(!yeniOlacak.length) { showToast('⚠️ Taşınacak yeni kayıt yok'); return; }
-  if(!confirm(`${yeniOlacak.length} kayıt ${hedef} ayına taşınacak. Onaylıyor musunuz?`)) return;
-
-  showToast(`⏳ ${yeniOlacak.length} kayıt taşınıyor...`);
-
-  for(let i=0; i<yeniOlacak.length; i+=400) {
-    const chunk = yeniOlacak.slice(i, i+400);
-    await Promise.all(chunk.map(async r => {
+  for(let i=0; i<seciliIdxler.length; i+=400) {
+    const chunk = seciliIdxler.slice(i,i+400);
+    await Promise.all(chunk.map(async idx => {
+      const r = allData[idx];
       const yeniKayit = {
-        ISIM_SOYISIM: r.ISIM_SOYISIM,
-        MAHALLE:      r.MAHALLE,
-        'HİZMET':     r['HİZMET'],
-        AY:           hedef,
-        DURUM:        'AKTİF',
-        CİNSİYET:     r.CİNSİYET||'',
-        ONAY_TARIHI:  r.ONAY_TARIHI||'',
-        IPTAL_NEDEN:  '',
-        IPTAL_TARIHI: '',
-        NOT1: '', NOT2: '', NOT3: '',
+        ISIM_SOYISIM: r.ISIM_SOYISIM, MAHALLE: r.MAHALLE,
+        'HİZMET': r['HİZMET'], AY: hedef, DURUM: 'AKTİF',
+        CİNSİYET: r.CİNSİYET||'', ONAY_TARIHI: r.ONAY_TARIHI||'',
+        IPTAL_NEDEN:'', IPTAL_TARIHI:'', NOT1:'', NOT2:'', NOT3:'',
         BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'',
         SAC1:'', SAC2:'', TIRNAK1:'', TIRNAK2:'', SAKAL1:'', SAKAL2:'',
       };
@@ -1619,9 +1633,8 @@ async function taUygula() {
     }));
   }
 
-  refreshAll();
-  taPreview();
-  showToast(`✅ ${yeniOlacak.length} kayıt ${hedef} ayına taşındı!`);
+  refreshAll(); taListele();
+  showToast(`✅ ${seciliIdxler.length} kayıt ${hedef} ayına taşındı!`);
 }
 
 function arInitMahalleler() {
