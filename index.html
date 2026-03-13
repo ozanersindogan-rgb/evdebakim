@@ -275,6 +275,11 @@ input[type="text"]:focus,textarea:focus,select.form-select:focus{border-color:va
   <div class="topbar">
     <span class="topbar-title" id="page-title">Genel Bakış</span>
     <div class="topbar-right">
+      <div id="user-badge" style="display:none;align-items:center;gap:8px;margin-right:4px">
+        <div style="text-align:right"><div id="ub-ad" style="font-size:11px;font-weight:800;color:#1A237E"></div><div id="ub-rol" style="font-size:10px;color:#64748b"></div></div>
+        <div id="ub-avatar" style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#1A237E,#1565C0);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px"></div>
+        <button onclick="doLogout()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;padding:3px 8px;font-size:11px;cursor:pointer;color:#475569">Çıkış</button>
+      </div>
       <span class="date-badge" id="current-date"></span>
       <button class="btn btn-primary btn-sm" onclick="navTo('yeni-vatandas',null)">+ Yeni Vatandaş</button>
     </div>
@@ -696,12 +701,18 @@ function doLogout() {
 firebase.auth().onAuthStateChanged( user => {
   if(user) {
     currentUser = { uid: user.uid, ...USERS_MAP[user.uid] };
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app-root').style.display = '';
-    document.getElementById('user-badge').style.display = 'flex';
-    document.getElementById('ub-ad').textContent  = currentUser.ad;
-    document.getElementById('ub-rol').textContent = currentUser.rol;
-    document.getElementById('ub-avatar').textContent = currentUser.ad.charAt(0);
+    const ls = document.getElementById('login-screen');
+    const ar = document.getElementById('app-root');
+    const ub = document.getElementById('user-badge');
+    if(ls) ls.style.display = 'none';
+    if(ar) ar.style.display = '';
+    if(ub) { ub.style.display = 'flex'; }
+    const ubAd = document.getElementById('ub-ad');
+    const ubRol = document.getElementById('ub-rol');
+    const ubAv = document.getElementById('ub-avatar');
+    if(ubAd) ubAd.textContent = currentUser.ad;
+    if(ubRol) ubRol.textContent = currentUser.rol;
+    if(ubAv) ubAv.textContent = currentUser.ad.charAt(0);
     initApp();
   } else {
     currentUser = null;
