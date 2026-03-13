@@ -257,22 +257,22 @@ input[type="text"]:focus,textarea:focus,select.form-select:focus{border-color:va
       <div style="display:flex;flex-direction:column;gap:8px">
         <label id="li-u-ozan" onclick="liSelectUser('ozan@evdebakim.com','li-u-ozan')"
           style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:2px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:border .15s">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1A237E,#1565C0);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;flex-shrink:0">O</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#1A237E,#1565C0);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/6.png" style="width:34px;height:34px;object-fit:contain;image-rendering:pixelated"></div>
           <div><div style="font-weight:800;font-size:13px;color:#1e293b">Ozan Ersin DOĞAN</div><div style="font-size:11px;color:#94a3b8">Amir</div></div>
         </label>
         <label id="li-u-safak" onclick="liSelectUser('safak@evdebakim.com','li-u-safak')"
           style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:2px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:border .15s">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#0e7490,#0284c7);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;flex-shrink:0">Ş</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#0e7490,#0284c7);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/7.png" style="width:34px;height:34px;object-fit:contain;image-rendering:pixelated"></div>
           <div><div style="font-weight:800;font-size:13px;color:#1e293b">Şafak SAYAR</div><div style="font-size:11px;color:#94a3b8">Amir Yrd.</div></div>
         </label>
         <label id="li-u-sezgin" onclick="liSelectUser('sezgin@evdebakim.com','li-u-sezgin')"
           style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:2px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:border .15s">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#15803d,#16a34a);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;flex-shrink:0">S</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#15803d,#16a34a);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png" style="width:34px;height:34px;object-fit:contain;image-rendering:pixelated"></div>
           <div><div style="font-weight:800;font-size:13px;color:#1e293b">Sezgin TAŞ</div><div style="font-size:11px;color:#94a3b8">Amir Yrd.</div></div>
         </label>
         <label id="li-u-aysegul" onclick="liSelectUser('aysegul@evdebakim.com','li-u-aysegul')"
           style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:2px solid #e2e8f0;border-radius:10px;cursor:pointer;transition:border .15s">
-          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#9333ea);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;flex-shrink:0">A</div>
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#9333ea);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/39.png" style="width:34px;height:34px;object-fit:contain;image-rendering:pixelated"></div>
           <div><div style="font-weight:800;font-size:13px;color:#1e293b">Ayşegül TULĞAN</div><div style="font-size:11px;color:#94a3b8">Hemşire</div></div>
         </label>
       </div>
@@ -1423,7 +1423,7 @@ function buildMahFilter() {
 function updateFormForHizmet() {} // legacy stub — not used
 function gkUpdateIsimler() {
   const hizmet = document.getElementById('gk-hizmet').value;
-  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet).map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
+  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet && r.DURUM==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
   gkIsimFiltrele('');
   const searchEl = document.getElementById('gk-isim-search');
   if(searchEl) searchEl.value='';
