@@ -102,29 +102,26 @@ function saveEdit() {
   r.ADRES        = document.getElementById('ed-adres')?.value.trim() || '';
   r.NOT1         = document.getElementById('ed-not1').value;
   r.NOT2         = document.getElementById('ed-not2').value;
+  // Tarih alanları: input değerini direkt al (boş = sil)
+  const getDate = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
   if(isKuafor) {
-    const getVal = (id, eski) => {
-      const el = document.getElementById(id);
-      if (!el) return eski || '';
-      return el.value !== '' ? el.value : eski || '';
-    };
-    r.SAC1   = getVal('ed-sac1',    r.SAC1);
-    r.SAC2   = getVal('ed-sac2',    r.SAC2);
-    r.TIRNAK1= getVal('ed-tirnak1', r.TIRNAK1);
-    r.TIRNAK2= getVal('ed-tirnak2', r.TIRNAK2);
-    r.SAKAL1 = getVal('ed-sakal1',  r.SAKAL1);
-    r.SAKAL2 = getVal('ed-sakal2',  r.SAKAL2);
+    r.SAC1   = getDate('ed-sac1');
+    r.SAC2   = getDate('ed-sac2');
+    r.TIRNAK1= getDate('ed-tirnak1');
+    r.TIRNAK2= getDate('ed-tirnak2');
+    r.SAKAL1 = getDate('ed-sakal1');
+    r.SAKAL2 = getDate('ed-sakal2');
   } else {
-    const getVal = (id, eski) => {
-      const el = document.getElementById(id);
-      if (!el) return eski || '';
-      return el.value !== '' ? el.value : eski || '';
-    };
-    r.BANYO1 = getVal('ed-b1', r.BANYO1);
-    r.BANYO2 = getVal('ed-b2', r.BANYO2);
-    r.BANYO3 = getVal('ed-b3', r.BANYO3);
-    r.BANYO4 = getVal('ed-b4', r.BANYO4);
-    r.BANYO5 = getVal('ed-b5', r.BANYO5);
+    r.BANYO1 = getDate('ed-b1');
+    r.BANYO2 = getDate('ed-b2');
+    r.BANYO3 = getDate('ed-b3');
+    r.BANYO4 = getDate('ed-b4');
+    r.BANYO5 = getDate('ed-b5');
+  }
+  if (!r._fbId) {
+    showToast('⚠️ Bu kayıt Firebase ID\'si yok, kaydedilemedi');
+    closeEditModal();
+    return;
   }
   fbUpdateDoc(editIdx, Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
   closeEditModal();

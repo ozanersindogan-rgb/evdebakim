@@ -117,6 +117,66 @@ function renderTakvim() {
   grid.innerHTML = html;
 }
 
+// ── HİZMET VERİLEMEDİ — TAKVİM KAYDEDER ──
+// tarih+isim bazlı, Firebase'e yazılır (allData'daki kayda NOT olarak eklenir)
+const _hizmetVerilemedenSet = new Set();
+
+function toggleHizmetVerilemedi(tarihStr, isim, btn) {
+  const key = tarihStr + '|' + isim;
+  const kart = btn.closest('div[data-kisi]');
+
+  if (_hizmetVerilemedenSet.has(key)) {
+    // Geri al — NOT'tan bu satırı çıkar
+    _hizmetVerilemedenSet.delete(key);
+    _hvKaydet(tarihStr, isim, false);
+    btn.textContent = '✗ Hizmet Verilemedi';
+    btn.style.background = '#fee2e2';
+    btn.style.color = '#dc2626';
+    if (kart) { kart.style.opacity = '1'; kart.style.background = '#f8fafc'; }
+  } else {
+    // İşaretle — NOT'a yaz ve Firebase'e kaydet
+    _hizmetVerilemedenSet.add(key);
+    _hvKaydet(tarihStr, isim, true);
+    btn.textContent = '↩ Geri Al';
+    btn.style.background = '#fef3c7';
+    btn.style.color = '#b45309';
+    if (kart) { kart.style.opacity = '0.65'; kart.style.background = '#fffbeb'; }
+  }
+}
+
+function _hvKaydet(tarihStr, isim, ekle) {
+  // O güne + o isme ait allData kaydını bul
+  const rec = allData.find(r => {
+    if (r.ISIM_SOYISIM !== isim) return false;
+    const tarihler = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
+                      r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2];
+    return tarihler.some(t => {
+      if (!t) return false;
+      const d = parseDate(t);
+      if (!d) return false;
+      const iso = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      return iso === tarihStr;
+    });
+  });
+  if (!rec) { showToast('Kayıt bulunamadı'); return; }
+
+  const [y,m,g] = tarihStr.split('-');
+  const tarihTR = g+'.'+m+'.'+y;
+  const hizmetEt = (rec['HİZMET']||'').replace('İ','I').replace('Ş','S').replace('Ö','O').replace('Ü','U').replace('Ğ','G').replace('Ç','C');
+  const notMetin = tarihTR + ' HİZMET VERİLEMEDİ (' + (rec['HİZMET']||'') + ')';
+
+  if (ekle) {
+    rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
+  } else {
+    // Geri al: o notu sil
+    if (rec.NOT1) rec.NOT1 = rec.NOT1.replace(' | ' + notMetin, '').replace(notMetin, '').trim().replace(/^\| /, '').trim();
+  }
+
+  const idx = allData.indexOf(rec);
+  fbUpdateDoc(idx, Object.fromEntries(Object.entries(rec).filter(([k]) => !k.startsWith('_'))));
+  showToast(ekle ? isim + ' — hizmet verilemedi kaydedildi' : 'İşaret geri alındı');
+}
+
 function takvimGunTikla(tarihStr) {
   const detayDiv = document.getElementById('takvim-detay');
   const baslikEl = document.getElementById('takvim-detay-baslik');
@@ -156,15 +216,32 @@ function takvimGunTikla(tarihStr) {
           <span style="width:10px;height:10px;background:${renk};border-radius:50%;display:inline-block"></span>
           ${HIZMET_ICONS[hizmet]||''} ${hizmet} (${kayitlar.length} kişi)
         </div>
-        ${kayitlar.map(r => `
-          <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border-radius:8px;margin-bottom:6px;cursor:pointer"
-            onclick="showDetail('${r.ISIM_SOYISIM.replace(/'/g,"\'")}','${r['HİZMET']}','${r.AY}')">
-            <div style="flex:1">
-              <div style="font-weight:800;font-size:13px;color:#0f172a">${r.ISIM_SOYISIM}</div>
-              <div style="font-size:11px;color:#64748b">📍 ${r.MAHALLE} ${gecmis ? '<span style="color:#16a34a;font-weight:700">✓ Gerçekleşti</span>' : ''}</div>
+        ${kayitlar.map(r => {
+          const _hvKey = tarihStr + '|' + r.ISIM_SOYISIM;
+          const [_y,_m,_g] = tarihStr.split('-');
+          const _tarihTR = _g+'.'+_m+'.'+_y;
+          const _notHV = (_tarihTR + ' HİZMET VERİLEMEDİ');
+          const _isHVdb = !!(r.NOT1 && r.NOT1.includes(_notHV)) || !!(r.NOT2 && r.NOT2.includes(_notHV));
+          if (_isHVdb) _hizmetVerilemedenSet.add(_hvKey);
+          const _isHV = _hizmetVerilemedenSet.has(_hvKey);
+          return `
+          <div data-kisi="${r.ISIM_SOYISIM.replace(/"/g,'&quot;')}" style="background:${_isHV?'#fffbeb':'#f8fafc'};border-radius:8px;margin-bottom:6px;opacity:${_isHV?'0.65':'1'};transition:all .2s">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer"
+              onclick="showDetail('${r.ISIM_SOYISIM.replace(/'/g,"\'")}','${r['HİZMET']}','${r.AY}')">
+              <div style="flex:1">
+                <div style="font-weight:800;font-size:13px;color:#0f172a">${r.ISIM_SOYISIM}${_isHV?' <span style=\'font-size:10px;color:#b45309\'>⚠ Hizmet Verilemedi</span>':''}</div>
+                <div style="font-size:11px;color:#64748b">📍 ${r.MAHALLE} ${gecmis ? '<span style="color:#16a34a;font-weight:700">✓ Gerçekleşti</span>' : ''}</div>
+              </div>
+              <span style="font-size:11px;color:#94a3b8">›</span>
             </div>
-            <span style="font-size:11px;color:#94a3b8">›</span>
-          </div>`).join('')}
+            <div style="padding:0 12px 8px">
+              <button onclick="event.stopPropagation();toggleHizmetVerilemedi('${tarihStr}','${r.ISIM_SOYISIM.replace(/'/g,"\'")}',this)"
+                style="font-size:10px;font-weight:700;padding:3px 10px;border:none;border-radius:20px;cursor:pointer;background:${_isHV?'#fef3c7':'#fee2e2'};color:${_isHV?'#b45309':'#dc2626'};transition:all .15s">
+                ${_isHV?'↩ Geri Al':'✗ Hizmet Verilemedi'}
+              </button>
+            </div>
+          </div>`;
+        }).join('')}
       </div>`;
     }).join('');
   }
