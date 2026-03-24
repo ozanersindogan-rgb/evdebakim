@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Evde Bakım Sistemi</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase Compat SDK (file:// ile çalışır) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SIDEBAR
+════════════════════════════════════════════════════════════ -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="icon">🏥</div>
+    <h1>Evde Bakım<br>Yönetim Sistemi</h1>
+    <p>4 Hizmet Kategorisi</p>
+  </div>
+
+  <!-- sidebar-mini: app.js için gerekli ama gizli -->
+  <div id="sidebar-mini" style="display:none"></div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="icon">🏠</span>Ana Sayfa</div>
+    <div class="nav-item" onclick="navTo('adres-guncelle',this)"><span class="icon">📞</span>Adres & Telefon</div>
+    <div class="nav-section">İşlemler</div>
+    <div class="nav-item" onclick="navTo('gunluk-kayit',this)"><span class="icon">📝</span>Günlük Hizmet Kaydı</div>
+    <div class="nav-item" onclick="navTo('yeni-vatandas',this)"><span class="icon">➕</span>Yeni Vatandaş Kaydı</div>
+    <div class="nav-item" onclick="navTo('durum',this)"><span class="icon">🔄</span>Durum Güncelle</div>
+    <div class="nav-item" onclick="navTo('temizlik-plan',this)"><span class="icon">🧹</span>Temizlik Planı</div>
+
+    <div class="nav-section">Raporlar</div>
+    <div class="nav-item" onclick="navTo('takvim',this)"><span class="icon">📆</span>Ziyaret Takvimi</div>
+    <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
+    <div class="nav-item" onclick="navTo('vatandaslar',this)"><span class="icon">👥</span>Vatandaşlar</div>
+    <div class="nav-section">Hizmetler</div>
+    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
+    <div class="nav-item" onclick="quickFilter('ERKEK BANYO',this)"><span class="icon">🚿</span>Erkek Banyo<span class="hizmet-tag tag-erkek">EB</span></div>
+    <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
+    <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
+    <div class="nav-section">Veri & Raporlama</div>
+    <div class="nav-item" onclick="navTo('mahalle',this)"><span class="icon">📍</span>Mahalle Raporu</div>
+    <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
+    <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">📊</span>Sayı Ver</div>
+    <div class="nav-item" onclick="navTo('islem-log',this)"><span class="icon">📋</span>İşlem Logu</div>
+    <div class="nav-item" id="nav-yedekler" onclick="navTo('yedekler',this)" style="display:none"><span class="icon">💾</span>Yedekler</div>
+  </nav>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     GİRİŞ EKRANI
+════════════════════════════════════════════════════════════ -->
+<style>
+#login-screen {
+  background: #f0f4ff;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(26,35,126,0.07) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(21,101,192,0.07) 0%, transparent 50%);
+}
+.li-card {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px 14px;
+  border:2px solid #e2e8f0;
+  border-radius:14px;
+  cursor:pointer;
+  background:#fff;
+  transition:all .18s ease;
+  box-shadow:0 1px 3px rgba(0,0,0,.04);
+  box-sizing:border-box;
+  overflow:hidden;
+  min-width:0;
+}
+.li-card:hover {
+  border-color:#93c5fd;
+  box-shadow:0 4px 12px rgba(26,35,126,.08);
+  transform:translateY(-1px);
+}
+.li-card.selected {
+  border-color:#1A237E;
+  background:linear-gradient(135deg,#eef2ff,#e8f0fe);
+  box-shadow:0 4px 16px rgba(26,35,126,.15);
+}
+.li-card.selected .li-check { opacity:1; transform:scale(1); }
+.li-check {
+  width:18px; height:18px; border-radius:50%;
+  background:#1A237E; color:#fff; font-size:10px;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transform:scale(0.5);
+  transition:all .18s ease;
+  flex-shrink:0;
+  margin-left:auto;
+}
+.li-avatar {
+  width:40px; height:40px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; overflow:hidden;
+}
+.li-avatar img {
+  width:36px; height:36px;
+  object-fit:contain;
+  image-rendering:pixelated;
+  display:block;
+}
+.li-info { flex:1; min-width:0; overflow:hidden; }
+.li-info-name {
+  font-weight:800; font-size:12px; color:#0f172a;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.li-info-rol {
+  font-size:10px; color:#64748b; margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.li-pass-wrap { position:relative; }
+.li-pass-wrap input {
+  width:100%; padding:13px 44px 13px 16px;
+  border:2px solid #e2e8f0; border-radius:12px;
+  font-size:15px; outline:none; box-sizing:border-box;
+  background:#fff; transition:border .18s; font-family:inherit; letter-spacing:2px;
+}
+.li-pass-wrap input:focus { border-color:#1A237E; }
+.li-pass-wrap input::placeholder { letter-spacing:0; }
+.li-pass-toggle {
+  position:absolute; right:14px; top:50%; transform:translateY(-50%);
+  background:none; border:none; cursor:pointer; font-size:16px; color:#94a3b8; padding:0;
+}
+</style>
+
+<div id="login-screen" style="display:flex;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:24px;padding:44px 40px;width:440px;max-width:95vw;box-shadow:0 8px 40px rgba(26,35,126,.12),0 1px 3px rgba(0,0,0,.06)">
+
+    <!-- Başlık -->
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#1A237E,#1565C0);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:30px;box-shadow:0 4px 16px rgba(26,35,126,.3)">🏥</div>
+      <div style="font-size:22px;font-weight:900;color:#0f172a;letter-spacing:-0.3px">Evde Bakım Sistemi</div>
+      <div style="font-size:13px;color:#94a3b8;margin-top:5px;font-weight:500">Kuşadası Belediyesi</div>
+    </div>
+
+    <!-- Kullanıcı Seçimi -->
+    <div style="margin-bottom:24px">
+      <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:1px;margin-bottom:10px">KİM SİNİZ?</div>
+      <div id="li-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+        <div id="li-u-ozan" class="li-card" onclick="liSelectUser('ozan.ersin@kusadasi.bel.tr','li-u-ozan')">
+          <div class="li-avatar" style="background:linear-gradient(135deg,#1A237E,#1565C0)"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/6.png"></div>
+          <div class="li-info">
+            <div class="li-info-name">Ozan Ersin</div>
+            <div class="li-info-rol">Birim Sorumlusu</div>
+          </div>
+          <div class="li-check">✓</div>
+        </div>
+
+        <div id="li-u-safak" class="li-card" onclick="liSelectUser('safak.sayar@kusadasi.bel.tr','li-u-safak')">
+          <div class="li-avatar" style="background:linear-gradient(135deg,#0e7490,#0284c7)"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/5.png"></div>
+          <div class="li-info">
+            <div class="li-info-name">Şafak Sayar</div>
+            <div class="li-info-rol">Temizlik - Banyo</div>
+          </div>
+          <div class="li-check">✓</div>
+        </div>
+
+        <div id="li-u-sezgin" class="li-card" onclick="liSelectUser('sezgin.tas@kusadasi.bel.tr','li-u-sezgin')">
+          <div class="li-avatar" style="background:linear-gradient(135deg,#15803d,#16a34a)"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/4.png"></div>
+          <div class="li-info">
+            <div class="li-info-name">Sezgin Taş</div>
+            <div class="li-info-rol">Kuaför</div>
+          </div>
+          <div class="li-check">✓</div>
+        </div>
+
+        <div id="li-u-aysegul" class="li-card" onclick="liSelectUser('aysegul.tulgan@kusadasi.bel.tr','li-u-aysegul')">
+          <div class="li-avatar" style="background:linear-gradient(135deg,#7c3aed,#9333ea)"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/39.png"></div>
+          <div class="li-info">
+            <div class="li-info-name">Ayşegül Tulğan</div>
+            <div class="li-info-rol">Hemşire</div>
+          </div>
+          <div class="li-check">✓</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Şifre -->
+    <div style="margin-bottom:10px">
+      <div style="font-size:11px;font-weight:800;color:#94a3b8;letter-spacing:1px;margin-bottom:10px">ŞİFRE</div>
+      <div class="li-pass-wrap">
+        <input id="li-pass" type="password" placeholder="Şifrenizi girin"
+          onkeydown="if(event.key==='Enter')doLogin()">
+        <button class="li-pass-toggle" onclick="(function(){const i=document.getElementById('li-pass');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'}).call(this)">👁️</button>
+      </div>
+    </div>
+
+    <div id="li-err" style="color:#ef4444;font-size:12px;margin:8px 0 12px;min-height:16px;text-align:center;font-weight:600"></div>
+
+    <button onclick="doLogin()" id="li-btn"
+      style="width:100%;padding:14px;background:linear-gradient(135deg,#1A237E,#1565C0);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;opacity:0.4;transition:opacity .18s,transform .1s;letter-spacing:0.3px"
+      disabled>
+      Giriş Yap →
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ANA UYGULAMA
+════════════════════════════════════════════════════════════ -->
+<div id="app-root" style="display:none">
+  <div class="main">
+    <div class="topbar">
+      <button id="mob-menu-btn" onclick="mobMenuAc()">☰</button>
+      <span class="topbar-title" id="page-title">Ana Sayfa</span>
+
+      <!-- GLOBAL ARAMA -->
+      <div id="global-search-wrap" style="position:relative;flex:1;max-width:320px;margin:0 16px">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none">🔍</span>
+        <input id="global-search-input" type="text" placeholder="İsim, TC, mahalle ara..."
+          oninput="globalSearchRun(this.value)"
+          onkeydown="globalSearchKey(event)"
+          autocomplete="off"
+          style="width:100%;padding:7px 12px 7px 32px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;outline:none;box-sizing:border-box;font-family:inherit;transition:border .15s;background:#f8fafc"
+          onfocus="this.style.borderColor='#1A237E';this.style.background='#fff';globalSearchRun(this.value)"
+          onblur="setTimeout(()=>{this.style.borderColor='#e2e8f0';this.style.background='#f8fafc';globalSearchHide()},200)">
+        <div id="global-search-results"
+          style="display:none;position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:9000;max-height:380px;overflow-y:auto"></div>
+      </div>
+
+      <div class="topbar-right">
+        <span class="date-badge" id="current-date"></span>
+        <button class="btn btn-sm" onclick="navTo('plan',null)" style="background:linear-gradient(135deg,#7c3aed,#9333ea);color:#fff;font-size:11px">🤖 Akıllı Plan</button>
+        <button class="btn btn-primary btn-sm" onclick="navTo('yeni-vatandas',null)">+ Yeni Vatandaş</button>
+        <button onclick="navTo('araclar',null)" title="Araçlar" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:5px 9px;font-size:15px;cursor:pointer;line-height:1;display:flex;align-items:center">🔑</button>
+        <div id="user-badge" style="display:none;align-items:center;gap:8px;margin-left:2px">
+          <div style="text-align:right">
+            <div id="ub-ad" style="font-size:11px;font-weight:800;color:#1A237E"></div>
+            <div id="ub-rol" style="font-size:10px;color:#64748b"></div>
+          </div>
+          <div id="ub-avatar" style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#1A237E,#1565C0);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:11px"></div>
+          <button onclick="doLogout()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;padding:3px 8px;font-size:11px;cursor:pointer;color:#475569">Çıkış</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ─── DASHBOARD ─── -->
+      <div class="page active" id="page-dashboard">
+        <!-- EKİP KANBAN PANOSУ -->
+        <div class="table-card" style="margin-bottom:18px">
+          <div class="table-header" style="flex-wrap:wrap;gap:8px">
+            <span class="table-title">📋 Ekip Görev Panosu</span>
+            <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;align-items:center">
+              <select id="kanban-oncelik" class="filter" style="font-size:12px;padding:5px 10px">
+                <option value="normal">🟡 Normal</option>
+                <option value="acil">🔴 Acil</option>
+              </select>
+              <input id="kanban-input" type="text" placeholder="Yeni görev / not yaz..."
+                style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;outline:none;min-width:220px;font-family:inherit"
+                onfocus="this.style.borderColor='#1A237E'" onblur="this.style.borderColor='#e2e8f0'"
+                onkeydown="if(event.key==='Enter')kanbanEkle()">
+              <button onclick="kanbanEkle()" class="btn btn-primary btn-sm">+ Ekle</button>
+            </div>
+          </div>
+          <div id="kanban-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px">
+            <!-- Bekliyor -->
+            <div>
+              <div style="font-size:11px;font-weight:800;color:#d97706;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;background:#f59e0b;border-radius:50%;display:inline-block"></span>
+                BEKLIYOR <span id="kanban-bekliyor-count" style="background:#fef3c7;color:#d97706;padding:1px 7px;border-radius:10px;font-size:10px">0</span>
+              </div>
+              <div id="kanban-bekliyor" style="min-height:80px;display:flex;flex-direction:column;gap:8px"></div>
+            </div>
+            <!-- Yapıldı -->
+            <div>
+              <div style="font-size:11px;font-weight:800;color:#16a34a;letter-spacing:1px;margin-bottom:10px;display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;background:#22c55e;border-radius:50%;display:inline-block"></span>
+                YAPILDI <span id="kanban-yapildi-count" style="background:#dcfce7;color:#16a34a;padding:1px 7px;border-radius:10px;font-size:10px">0</span>
+              </div>
+              <div id="kanban-yapildi" style="min-height:80px;display:flex;flex-direction:column;gap:8px"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Uzun Süredir Ziyaret Edilmeyenler -->
+        <div class="table-card" style="margin-bottom:18px">
+          <div class="table-header">
+            <span class="table-title">⚠️ Uzun Süredir Ziyaret Edilmeyenler <span style="font-size:11px;color:#94a3b8;font-weight:400">(30+ gün, aktif)</span></span>
+          </div>
+          <div class="scroll-table"><div id="ch-uzunsure"></div></div>
+        </div>
+        <div class="stat-grid" id="stats-grid"></div>
+        <!-- Trend Grafiği -->
+        <div class="chart-card" style="margin-bottom:18px">
+          <h3>📈 Aylık Aktif Vatandaş Trendi (Son 6 Ay)</h3>
+          <div id="ch-trend"></div>
+        </div>
+        <!-- Hizmet Dağılımı -->
+        <div class="chart-card" style="margin-bottom:18px">
+          <h3>🩺 Hizmet Türüne Göre Dağılım</h3>
+          <div id="ch-hizmet"></div>
+        </div>
+      </div>
+
+      <!-- ─── ZİYARET TAKVİMİ ─── -->
+      <div class="page" id="page-takvim">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <button onclick="takvimAyDegistir(-1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:7px 14px;font-size:16px;cursor:pointer">‹</button>
+            <span id="takvim-baslik" style="font-size:16px;font-weight:900;color:#1A237E;min-width:160px;text-align:center"></span>
+            <button onclick="takvimAyDegistir(1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:7px 14px;font-size:16px;cursor:pointer">›</button>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#ec4899"><span style="width:10px;height:10px;background:#ec4899;border-radius:50%;display:inline-block"></span>Kadın Banyo</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6"><span style="width:10px;height:10px;background:#3b82f6;border-radius:50%;display:inline-block"></span>Erkek Banyo</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#f59e0b"><span style="width:10px;height:10px;background:#f59e0b;border-radius:50%;display:inline-block"></span>Kuaför</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#22c55e"><span style="width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block"></span>Temizlik</span>
+          </div>
+        </div>
+        <div class="table-card" style="overflow:hidden">
+          <div id="takvim-grid" style="padding:0"></div>
+        </div>
+        <!-- Gün detay paneli -->
+        <div id="takvim-detay" style="display:none;margin-top:18px">
+          <div style="text-align:center;margin-bottom:12px">
+            <button id="takvim-wp-btn" onclick="" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:11px 28px;font-size:13px;font-weight:800;cursor:pointer;display:none">
+              WhatsApp'ta Paylas
+            </button>
+          </div>
+          <div class="table-card">
+            <div class="table-header">
+              <span class="table-title" id="takvim-detay-baslik">Gun Detayi</span>
+              <button onclick="document.getElementById('takvim-detay').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">×</button>
+            </div>
+            <div id="takvim-detay-icerik" style="padding:14px"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── AKILLI PLANLAMA ─── -->
+      <div class="page" id="page-plan">
+        <div style="margin-bottom:20px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#7c3aed,#9333ea);display:flex;align-items:center;justify-content:center;font-size:22px">🤖</div>
+            <div>
+              <div style="font-size:18px;font-weight:900;color:#0f172a">Akıllı Ziyaret Planlaması</div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:2px">Geçmiş ziyaret periyotlarına göre otomatik öneri</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px" id="plan-ozet-grid"></div>
+        <div class="table-card">
+          <div class="table-header" style="flex-wrap:wrap;gap:8px">
+            <span class="table-title">📋 Bu Hafta Ziyaret Edilmesi Önerilen Vatandaşlar</span>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <select id="plan-hizmet-fil" class="filter" onchange="renderPlan()">
+                <option value="">Tüm Hizmetler</option>
+                <option value="KADIN BANYO">Kadın Banyo</option>
+                <option value="ERKEK BANYO">Erkek Banyo</option>
+                <option value="KUAFÖR">Kuaför</option>
+              </select>
+              <select id="plan-oncelik-fil" class="filter" onchange="renderPlan()">
+                <option value="">Tüm Öncelikler</option>
+                <option value="acil">🔴 Gecikmiş</option>
+                <option value="bu-hafta">🟡 Bu Hafta</option>
+                <option value="gelecek">🟢 Gelecek Hafta</option>
+              </select>
+            </div>
+          </div>
+          <div id="plan-liste"></div>
+        </div>
+      </div>
+
+      <!-- ─── GÜNLÜK LİSTE ─── -->
+      <div class="page" id="page-gunluk">
+        <div class="date-selector">
+          <input type="date" id="gun-date" onchange="renderGunluk()">
+          <div class="daily-count" id="gun-total">0 ziyaret</div>
+          <div id="gun-chips"></div>
+          <button class="btn btn-green btn-sm" style="margin-left:auto" onclick="exportGunluk()">⬇ Excel İndir</button>
+        </div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title" id="gun-title">Günlük Ziyaret Listesi</span>
+            <select class="filter" id="gun-hizmet" onchange="renderGunluk()">
+              <option value="">Tüm Hizmetler</option>
+              <option value="KADIN BANYO">Kadın Banyo</option>
+              <option value="ERKEK BANYO">Erkek Banyo</option>
+              <option value="KUAFÖR">Kuaför</option>
+              <option value="TEMİZLİK">Temizlik</option>
+            </select>
+          </div>
+          <div class="scroll-table"><table id="gun-table"></table></div>
+        </div>
+      </div>
+
+      <!-- ─── VATANDAŞLAR ─── -->
+      <div class="page" id="page-vatandaslar">
+        <div class="hizmet-tabs" id="hizmet-tabs-vat"></div>
+        <div class="ay-tab" id="ay-tab-vat"></div>
+        <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
+          <input class="search-box" id="vat-search" placeholder="İsim ara..." oninput="filterVat()">
+          <select class="filter" id="vat-mah" onchange="filterVat()"><option value="">Tüm Mahalleler</option></select>
+          <select class="filter" id="vat-durum" onchange="filterVat()">
+            <option value="">Tüm Durumlar</option>
+            <option>AKTİF</option><option>İPTAL</option><option>VEFAT</option><option>BEKLEME</option><option>PASİF</option>
+          </select>
+        </div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title" id="vat-title">Vatandaş Listesi</span>
+            <span class="page-info" id="vat-count"></span>
+          </div>
+          <div class="scroll-table"><table id="vat-table"></table></div>
+          <div class="pagination" id="vat-pag"></div>
+        </div>
+      </div>
+
+      <!-- ─── MAHALLE ─── -->
+      <div class="page" id="page-mahalle">
+        <div class="form-section">
+          <h3>📍 Mahalle Raporu</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Mahallelere göre vatandaş ve hizmet istatistikleri.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">AY</label>
+              <select id="mah-ay" class="form-select" style="min-width:120px" onchange="renderMahalle()">
+                <option value="">Tüm Aylar</option>
+                <option value="OCAK">Ocak</option>
+                <option value="ŞUBAT">Şubat</option>
+                <option value="MART">Mart</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">HİZMET</label>
+              <select id="mah-hizmet" class="form-select" style="min-width:160px" onchange="renderMahalle()">
+                <option value="">Tüm Hizmetler</option>
+                <option value="KADIN BANYO">🛁 Kadın Banyo</option>
+                <option value="ERKEK BANYO">🚿 Erkek Banyo</option>
+                <option value="KUAFÖR">✂️ Kuaför</option>
+                <option value="TEMİZLİK">🧹 Temizlik</option>
+              </select>
+            </div>
+            <div style="margin-top:18px">
+              <button class="btn btn-primary" onclick="mahIndir()" style="padding:9px 18px;font-size:13px">⬇️ Excel İndir</button>
+            </div>
+          </div>
+          <div id="mah-tablo" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <!-- ─── GÜNLÜK HİZMET KAYDI ─── -->
+      <div class="page" id="page-gunluk-kayit">
+        <div class="form-section">
+          <h3>📝 Günlük Hizmet Kaydı</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Mevcut vatandaşa bugünkü hizmet tarihini ekleyin.</p>
+
+          <div id="gk-normal-form">
+          <div class="form-row">
+            <div class="form-group"><label>Hizmet Türü *</label>
+              <select class="form-select" id="gk-hizmet" onchange="gkUpdateIsimler()">
+                <option value="KADIN BANYO">Kadın Banyo</option>
+                <option value="ERKEK BANYO">Erkek Banyo</option>
+                <option value="KUAFÖR">Kuaför</option>
+                <option value="TEMİZLİK">Temizlik</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Vatandaş *</label>
+              <input type="text" id="gk-isim-search" placeholder="İsim ara..." autocomplete="off"
+                oninput="gkIsimFiltrele(this.value)"
+                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px 8px 0 0;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+              <select id="gk-isim" size="5" onchange="gkIsimSecildi()"
+                style="width:100%;border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;font-family:inherit;font-size:13px;padding:4px;max-height:140px;overflow-y:auto;display:none">
+              </select>
+            </div>
+
+            <!-- Hizmet Verilemedi -->
+            <div class="form-group full" style="padding:12px 14px;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:12px">
+              <div style="display:flex;align-items:center;gap:10px">
+                <input type="checkbox" id="gk-verilemedi-cb" onchange="gkVerilemediToggle()" style="width:16px;height:16px;cursor:pointer;accent-color:#f59e0b">
+                <label for="gk-verilemedi-cb" id="gk-verilemedi-label" style="font-size:13px;font-weight:800;color:#b45309;cursor:pointer">⚠️ Hizmet Verilemedi</label>
+              </div>
+              <div id="gk-verilemedi-form" style="display:none;margin-top:10px">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#92400e;display:block;margin-bottom:4px">Tarih *</label>
+                    <input type="date" id="gk-verilemedi-tarih" style="width:100%;padding:7px 10px;border:1.5px solid #fed7aa;border-radius:8px;font-size:13px;box-sizing:border-box;background:#fffbf5">
+                  </div>
+                  <div>
+                    <label style="font-size:11px;font-weight:700;color:#92400e;display:block;margin-bottom:4px">Açıklama *</label>
+                    <input type="text" id="gk-verilemedi-aciklama" placeholder="Evde yoktu, hastanede..." style="width:100%;padding:7px 10px;border:1.5px solid #fed7aa;border-radius:8px;font-size:13px;box-sizing:border-box;background:#fffbf5">
+                  </div>
+                </div>
+                <button onclick="gkVerilemediKaydet()" style="padding:8px 20px;background:#f59e0b;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer">💾 Kaydet</button>
+              </div>
+            </div>
+
+            <div class="form-group"><label>Mahalle</label>
+              <input type="text" id="gk-mah" readonly style="background:var(--bg-soft);color:var(--text-soft)" placeholder="Otomatik dolacak">
+            </div>
+            <div class="form-group"><label>Mevcut Durum</label>
+              <input type="text" id="gk-durum-mevcut" readonly style="background:var(--bg-soft);color:var(--text-soft)" placeholder="Otomatik dolacak">
+            </div>
+            <div class="form-group"><label>Hizmet Tarihi *</label><input type="date" id="gk-tarih"></div>
+            <div class="form-group" id="gk-tip-wrap"><label>Hizmet Türü (Kuaför)</label>
+              <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
+                  <input type="checkbox" id="gk-tip-sac" value="SAC" style="width:15px;height:15px;accent-color:#7c3aed"> ✂️ Saç
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
+                  <input type="checkbox" id="gk-tip-tirnak" value="TIRNAK" style="width:15px;height:15px;accent-color:#7c3aed"> 💅 Tırnak
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600">
+                  <input type="checkbox" id="gk-tip-sakal" value="SAKAL" style="width:15px;height:15px;accent-color:#7c3aed"> 🪒 Sakal
+                </label>
+              </div>
+            </div>
+            <div class="form-group full"><label>Not (opsiyonel)</label><input type="text" id="gk-not" placeholder="Varsa not ekleyin..."></div>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:6px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="gkKaydet()">💾 Hizmet Tarihi Ekle</button>
+            <button class="btn btn-cancel" onclick="gkTemizle()">Temizle</button>
+          </div>
+          </div>
+
+          
+          <!-- Günlük Liste Düzenleme Modalı -->
+          <div id="gun-duzenle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+            <div style="background:#fff;border-radius:16px;padding:28px 24px;width:460px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.15)">
+              <div style="font-size:16px;font-weight:900;color:#1A237E;margin-bottom:16px">✏️ Kayıt Düzenle</div>
+              <div style="font-size:13px;font-weight:700;color:#475569;margin-bottom:14px" id="gd-baslik"></div>
+              <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:5px">Tarih</label>
+              <input type="date" id="gd-tarih" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:12px;box-sizing:border-box">
+              <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:5px">Not 1</label>
+              <input type="text" id="gd-not1" placeholder="Not 1..." style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:10px;box-sizing:border-box">
+              <label style="font-size:12px;font-weight:700;color:#475569;display:block;margin-bottom:5px">Not 2</label>
+              <input type="text" id="gd-not2" placeholder="Not 2..." style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:12px;box-sizing:border-box">
+              <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fff7ed;border:1.5px solid #fed7aa;border-radius:8px;margin-bottom:16px">
+                <input type="checkbox" id="gd-yaptirilamadi" style="width:16px;height:16px;cursor:pointer;accent-color:#f59e0b">
+                <label for="gd-yaptirilamadi" style="font-size:13px;font-weight:700;color:#b45309;cursor:pointer;flex:1">⚠️ Bu tarihte banyo yaptırılamadı</label>
+              </div>
+              <div id="gd-yaptirilamadi-neden-wrap" style="display:none;margin-bottom:16px">
+                <label style="font-size:12px;font-weight:700;color:#b45309;display:block;margin-bottom:5px">Yaptırılamama nedeni</label>
+                <input type="text" id="gd-yaptirilamadi-neden" placeholder="Örn: Evde yoktu, hastanede..." style="width:100%;padding:8px 10px;border:1.5px solid #fed7aa;border-radius:8px;font-size:13px;box-sizing:border-box">
+              </div>
+              <div style="display:flex;gap:9px">
+                <button onclick="gunlukDuzenleKaydet()" style="flex:1;padding:10px;background:linear-gradient(135deg,#1A237E,#1565C0);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer">💾 Kaydet</button>
+                <button onclick="gunlukDuzenleKapat()" style="padding:10px 18px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">İptal</button>
+              </div>
+              <script>
+                document.getElementById('gd-yaptirilamadi').addEventListener('change', function() {
+                  document.getElementById('gd-yaptirilamadi-neden-wrap').style.display = this.checked ? 'block' : 'none';
+                });
+              </script>
+            </div>
+          </div>
+
+<!-- Banyo Yaptırılamadı Modal kaldırıldı -->
+        </div>
+        <div class="table-card">
+          <div class="table-header"><span class="table-title">Bu Oturumda İşlenenler</span><span class="page-info" id="gk-count">0 kayıt</span></div>
+          <div class="scroll-table"><table id="gk-table"></table></div>
+        </div>
+      </div>
+
+      <!-- ─── YENİ VATANDAŞ KAYDI ─── -->
+      <div class="page" id="page-yeni-vatandas">
+        <div class="form-section">
+          <h3>➕ Yeni Vatandaş Kaydı</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Hizmete yeni başlayacak vatandaşı sisteme kaydedin.</p>
+          <div class="form-row">
+            <div class="form-group full"><label>Hizmet Türü * <span style="font-weight:400;color:var(--text-soft)">(birden fazla seçilebilir)</span></label>
+              <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:#C2185B">
+                  <input type="checkbox" id="fh-kadin" value="KADIN BANYO" style="width:16px;height:16px;cursor:pointer"> Kadın Banyo
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:#1565C0">
+                  <input type="checkbox" id="fh-erkek" value="ERKEK BANYO" style="width:16px;height:16px;cursor:pointer"> Erkek Banyo
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:#2E7D32">
+                  <input type="checkbox" id="fh-kuafor" value="KUAFÖR" style="width:16px;height:16px;cursor:pointer"> Kuaför
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:600;color:#E65100">
+                  <input type="checkbox" id="fh-temizlik" value="TEMİZLİK" style="width:16px;height:16px;cursor:pointer"> Temizlik
+                </label>
+              </div>
+            </div>
+            <div class="form-group"><label>Ay *</label>
+              <select class="form-select" id="f-ay">
+                <option value="">Yükleniyor...</option>
+              </select>
+            </div>
+            <div class="form-group"><label>İsim Soyisim *</label>
+              <input type="text" id="f-isim" placeholder="Vatandaşın adı soyadı..." autocomplete="off">
+            </div>
+            <div class="form-group"><label>Mahalle *</label><select class="form-select" id="f-mah"></select></div>
+            <div class="form-group"><label>Cinsiyet</label>
+              <select class="form-select" id="f-cins"><option value="">—</option><option>KADIN</option><option>ERKEK</option></select>
+            </div>
+            <div class="form-group"><label>Hizmet Onay Tarihi</label><input type="date" id="f-onay"></div>
+            <div class="form-group"><label>Doğum Tarihi</label><input type="date" id="f-dogum"></div>
+            <div class="form-group"><label>📞 1. Telefon</label>
+              <input type="tel" id="f-tel" placeholder="5XX XXX XX XX" autocomplete="off" maxlength="13"
+                oninput="let v=this.value.replace(/[^0-9]/g,'').slice(0,10);let f='';if(v.length>0)f=v.slice(0,3);if(v.length>3)f+=' '+v.slice(3,6);if(v.length>6)f+=' '+v.slice(6,8);if(v.length>8)f+=' '+v.slice(8,10);this.value=f;">
+            </div>
+            <div class="form-group"><label>📞 2. Telefon</label>
+              <input type="tel" id="f-tel2" placeholder="5XX XXX XX XX" autocomplete="off" maxlength="13"
+                oninput="let v=this.value.replace(/[^0-9]/g,'').slice(0,10);let f='';if(v.length>0)f=v.slice(0,3);if(v.length>3)f+=' '+v.slice(3,6);if(v.length>6)f+=' '+v.slice(6,8);if(v.length>8)f+=' '+v.slice(8,10);this.value=f;">
+            </div>
+            <div class="form-group"><label>Aktif Telefon</label>
+              <select class="form-select" id="f-tel-aktif">
+                <option value="1">1. Telefon</option>
+                <option value="2">2. Telefon</option>
+              </select>
+            </div>
+            <div class="form-group full"><label>🏠 Adres</label>
+              <input type="text" id="f-adres" placeholder="Sokak, bina no, daire..." autocomplete="off">
+            </div>
+            <div class="form-group full"><label>Not 1</label><input type="text" id="f-not1" placeholder="Not..."></div>
+            <div class="form-group full"><label>Not 2</label><input type="text" id="f-not2" placeholder="..."></div>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:6px">
+            <button class="btn btn-primary" onclick="saveRec()">💾 Kaydet</button>
+            <button class="btn btn-cancel" onclick="clearForm()">Temizle</button>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><span class="table-title">Bu Oturumda Eklenenler</span><span class="page-info" id="new-count">0 kayıt</span></div>
+          <div class="scroll-table"><table id="new-table"></table></div>
+        </div>
+      </div>
+
+      <!-- ─── DURUM GÜNCELLE ─── -->
+      <div class="page" id="page-durum">
+        <div class="form-section">
+          <h3>🔄 Durum Güncelle</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Vatandaşın durumunu iptal, bekleme, vefat vb. olarak güncelleyin.</p>
+          <div class="form-row">
+            <div class="form-group"><label>Hizmet Türü *</label>
+              <select class="form-select" id="du-hizmet" onchange="duUpdateIsimler()">
+                <option value="KADIN BANYO">Kadın Banyo</option>
+                <option value="ERKEK BANYO">Erkek Banyo</option>
+                <option value="KUAFÖR">Kuaför</option>
+                <option value="TEMİZLİK">Temizlik</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Vatandaş *</label>
+              <input type="text" id="du-isim-search" placeholder="İsim ara..." autocomplete="off"
+                oninput="duIsimFiltrele(this.value)"
+                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px 8px 0 0;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+              <select id="du-isim" size="5" onchange="duIsimSecildi()"
+                style="width:100%;border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;font-family:inherit;font-size:13px;padding:4px;max-height:140px;overflow-y:auto;display:none">
+              </select>
+            </div>
+            <div class="form-group"><label>Mahalle</label>
+              <input type="text" id="du-mah" readonly style="background:var(--bg-soft);color:var(--text-soft)" placeholder="Otomatik dolacak">
+            </div>
+            <div class="form-group"><label>Mevcut Durum</label>
+              <input type="text" id="du-mevcut" readonly style="background:var(--bg-soft);color:var(--text-soft)" placeholder="Otomatik dolacak">
+            </div>
+            <div class="form-group"><label>Yeni Durum *</label>
+              <select class="form-select" id="du-yeni-durum">
+                <option value="AKTİF">✅ Aktif</option>
+                <option value="İPTAL">❌ İptal</option>
+                <option value="BEKLEME">⏳ Bekleme</option>
+                <option value="VEFAT">🕊️ Vefat</option>
+                <option value="PASİF">⚫ Pasif</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Tarih *</label><input type="date" id="du-tarih"></div>
+            <div class="form-group full"><label>Neden / Not</label><input type="text" id="du-neden" placeholder="İptal nedeni, açıklama..."></div>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:6px">
+            <button class="btn btn-primary" onclick="duKaydet()">💾 Durumu Güncelle</button>
+            <button class="btn btn-cancel" onclick="duTemizle()">Temizle</button>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-header"><span class="table-title">Bu Oturumda Güncellenenler</span><span class="page-info" id="du-count">0 kayıt</span></div>
+          <div class="scroll-table"><table id="du-table"></table></div>
+        </div>
+      </div>
+
+      <!-- ─── İŞLEM LOGU ─── -->
+      <div class="page" id="page-adres-guncelle">
+        <div class="form-section">
+          <h3>📞 Adres & Telefon Yönetimi</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Tüm vatandaşların adres ve telefon bilgilerini toplu olarak güncelleyin.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+            <button class="btn btn-primary" onclick="adresIndir()" style="padding:9px 18px;font-size:13px">⬇️ Mevcut Listeyi İndir</button>
+            <label style="background:#16a34a;color:#fff;border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:8px">
+              ⬆️ Yeni Liste Yükle
+              <input type="file" id="adres-yukle-input" accept=".xlsx,.xls" onchange="adresYukle(this)" style="display:none">
+            </label>
+          </div>
+          <div style="background:#FFF9C4;border:1px solid #F9A825;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#795548">
+            <strong>📋 Excel formatı:</strong> A=İsim Soyisim, B=Telefon, C=Mahalle, D=Adres, E=Doğum Tarihi
+          </div>
+          <div id="adres-durum" style="margin-bottom:16px"></div>
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+            <input type="text" id="adres-ara" placeholder="🔍 İsim ara..." oninput="adresRender()"
+              style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:180px">
+            <span id="adres-count" style="font-size:12px;color:var(--text-soft)"></span>
+          </div>
+          <div style="overflow-x:auto"><table id="adres-table" style="width:100%;border-collapse:collapse;font-size:13px"></table></div>
+        </div>
+      </div>
+
+      <div class="page" id="page-islem-log">
+        <div class="table-card">
+          <div class="table-header"><span class="table-title">📋 İşlem Logu</span><span class="page-info">Son 200 işlem</span></div>
+          <div class="scroll-table"><table id="log-table"><tr><td class="no-data">Sayfa açıldığında yüklenir</td></tr></table></div>
+        </div>
+      </div>
+
+      <!-- ─── YEDEKLEME ─── -->
+      <div class="page" id="page-yedekler">
+        <div class="form-section" style="margin-bottom:18px">
+          <h3>💾 Yedekleme</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">
+            Verilerinizi yedekleyin, gerektiğinde geri yükleyin veya masaüstüne indirin.
+          </p>
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e40af">
+            ℹ️ Otomatik yedek her gün <strong>18:00 sonrası</strong> ilk girişte alınır &nbsp;·&nbsp; Son <strong>30 yedek</strong> saklanır
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+            <button class="btn btn-primary" onclick="yedekAl('Manuel')" style="padding:10px 22px;font-size:13px">
+              💾 Şimdi Yedek Al
+            </button>
+          </div>
+          <div id="yedek-liste"></div>
+        </div>
+      </div>
+
+      <!-- ─── ARAÇLAR ─── -->
+      <div class="page" id="page-araclar">
+        <div class="form-section" style="margin-bottom:18px">
+          <h3>📍 Toplu Mahalle Düzenleyici</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Seçilen mahalledeki tüm kayıtları toplu olarak başka mahalleye taşıyın veya mahalle adını düzeltin.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Mevcut Mahalle *</label>
+              <select class="form-select" id="ar-eski-mah" onchange="arPreview()">
+                <option value="">— Seçin —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Hizmet Filtresi</label>
+              <select class="form-select" id="ar-hizmet" onchange="arPreview()">
+                <option value="">Tüm Hizmetler</option>
+                <option value="KADIN BANYO">Kadın Banyo</option>
+                <option value="ERKEK BANYO">Erkek Banyo</option>
+                <option value="KUAFÖR">Kuaför</option>
+                <option value="TEMİZLİK">Temizlik</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Yeni Mahalle Adı *</label>
+              <input type="text" id="ar-yeni-mah" class="form-input" placeholder="Yeni adı yazın veya aşağıdan seçin..." oninput="arPreview()" list="ar-mah-list" autocomplete="off">
+              <datalist id="ar-mah-list"></datalist>
+            </div>
+          </div>
+          <div id="ar-preview" style="margin:10px 0;padding:10px 14px;background:var(--bg-soft);border-radius:8px;font-size:12.5px;color:var(--text-soft);min-height:36px">
+            Mahalle seçin, etkilenecek kayıtlar burada görünür.
+          </div>
+          <div style="display:flex;gap:9px;margin-top:4px">
+            <button class="btn btn-primary" onclick="arUygula()">✅ Uygula</button>
+            <button class="btn btn-cancel" onclick="arTemizle()">Temizle</button>
+          </div>
+        </div>
+
+        <div class="form-section" style="margin-bottom:18px">
+          <h3>📅 Yeni Aya Taşı</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Seçilen aydaki aktif vatandaşları listeler. İstediğinizi işaretleyip taşıyın. Tarihler boş gelir, zaten kayıtlı olanlar atlanır.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Kaynak Ay *</label>
+              <select class="form-select" id="ta-kaynak" onchange="taListele()">
+                <option value="">— Seçin —</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Hizmet Filtresi</label>
+              <select class="form-select" id="ta-hizmet" onchange="taListele()">
+                <option value="">Tüm Hizmetler</option>
+                <option value="KADIN BANYO">Kadın Banyo</option>
+                <option value="ERKEK BANYO">Erkek Banyo</option>
+                <option value="KUAFÖR">Kuaför</option>
+                <option value="TEMİZLİK">Temizlik</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Hedef Ay *</label>
+              <select class="form-select" id="ta-hedef">
+                <option value="">— Seçin —</option>
+              </select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <button class="btn" style="padding:4px 12px;font-size:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer" onclick="taTumunuSec(true)">Tümünü Seç</button>
+            <button class="btn" style="padding:4px 12px;font-size:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer" onclick="taTumunuSec(false)">Seçimi Kaldır</button>
+            <span id="ta-secilen" style="font-size:12px;color:var(--text-soft);margin-left:4px">0 seçili</span>
+          </div>
+          <div id="ta-liste" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--card)">
+            <div style="padding:16px;color:var(--text-soft);font-size:13px;text-align:center">Kaynak ay seçin</div>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:12px">
+            <button class="btn btn-primary" onclick="taUygula()">📅 Seçilenleri Taşı</button>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="table-header"><span class="table-title">Bu Oturumda Yapılan Değişiklikler</span><span class="page-info" id="ar-count">0 işlem</span></div>
+          <div class="scroll-table"><table id="ar-table"></table></div>
+        </div>
+      </div>
+
+      <!-- ─── EXPORT ─── -->
+      <!-- ─── SAYI VER ─── -->
+      <div class="page" id="page-sayi-ver">
+        <div class="form-section">
+          <h3>📊 Sayı Ver — Aylık Hizmet Özeti</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Her ay kaç kez hizmet verildi ve kaç aktif vatandaş var.</p>
+
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">YIL</label>
+              <select id="sv-yil" class="form-select" style="min-width:100px" onchange="svRender()">
+                <option value="">Tümü</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026" selected>2026</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">HİZMET</label>
+              <select id="sv-hizmet" class="form-select" style="min-width:160px" onchange="svRender()">
+                <option value="">Tümü</option>
+                <option value="KADIN BANYO">🛁 Kadın Banyo</option>
+                <option value="ERKEK BANYO">🚿 Erkek Banyo</option>
+                <option value="KUAFÖR">✂️ Kuaför</option>
+                <option value="TEMİZLİK">🧹 Temizlik</option>
+              </select>
+            </div>
+            <div style="margin-top:18px">
+              <button class="btn btn-primary" onclick="svIndir()" style="padding:9px 18px;font-size:13px">⬇️ Excel İndir</button>
+            </div>
+          </div>
+
+          <div id="sv-tablo" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+            <div class="page" id="page-export">
+        <div class="form-section">
+          <h3>📤 Dışa Aktar</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:6px">
+            <div>
+              <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;text-transform:uppercase;margin-bottom:12px">Filtreler</div>
+              <div style="display:flex;flex-direction:column;gap:12px">
+                <div class="exp-filter-block">
+                  <label class="exp-filter-label">📋 Rapor Türü</label>
+                  <div class="exp-chip-group" id="exp-tur-group">
+                    <button class="exp-chip active" data-val="tum" onclick="expChipSelect(this,'exp-tur-group');expPreview()">Tüm Veri</button>
+                    <button class="exp-chip" data-val="aktif" onclick="expChipSelect(this,'exp-tur-group');expPreview()">Sadece Aktif</button>
+                    <button class="exp-chip" data-val="iptal" onclick="expChipSelect(this,'exp-tur-group');expPreview()">İptal / Vefat</button>
+                    <button class="exp-chip" data-val="bugun" onclick="expChipSelect(this,'exp-tur-group');expPreview()">Bugünün Listesi</button>
+                  </div>
+                </div>
+                <div class="exp-filter-block">
+                  <label class="exp-filter-label">🩺 Hizmet</label>
+                  <div class="exp-chip-group" id="exp-hizmet-group">
+                    <button class="exp-chip active" data-val="" onclick="expChipSelect(this,'exp-hizmet-group');expPreview()">Tümü</button>
+                    <button class="exp-chip" data-val="KADIN BANYO" onclick="expChipSelect(this,'exp-hizmet-group');expPreview()">🛁 Kadın Banyo</button>
+                    <button class="exp-chip" data-val="ERKEK BANYO" onclick="expChipSelect(this,'exp-hizmet-group');expPreview()">🚿 Erkek Banyo</button>
+                    <button class="exp-chip" data-val="KUAFÖR" onclick="expChipSelect(this,'exp-hizmet-group');expPreview()">✂️ Kuaför</button>
+                    <button class="exp-chip" data-val="TEMİZLİK" onclick="expChipSelect(this,'exp-hizmet-group');expPreview()">🧹 Temizlik</button>
+                  </div>
+                </div>
+                <div class="exp-filter-block">
+                  <label class="exp-filter-label">📅 Ay</label>
+                  <div class="exp-chip-group" id="exp-ay-group">
+                    <button class="exp-chip active" data-val="" onclick="expChipSelect(this,'exp-ay-group');expPreview()">Tümü</button>
+                    <button class="exp-chip" data-val="OCAK" onclick="expChipSelect(this,'exp-ay-group');expPreview()">Ocak</button>
+                    <button class="exp-chip" data-val="ŞUBAT" onclick="expChipSelect(this,'exp-ay-group');expPreview()">Şubat</button>
+                    <button class="exp-chip" data-val="MART" onclick="expChipSelect(this,'exp-ay-group');expPreview()">Mart</button>
+                  </div>
+                </div>
+                <div class="exp-filter-block">
+                  <label class="exp-filter-label">📍 Mahalle</label>
+                  <select class="form-select" id="exp-mah-sel" style="max-width:260px" onchange="expPreview()">
+                    <option value="">Tüm Mahalleler</option>
+                  </select>
+                </div>
+                <div class="exp-filter-block">
+                  <label class="exp-filter-label">📊 Sıralama</label>
+                  <div class="exp-chip-group" id="exp-grup-group">
+                    <button class="exp-chip active" data-val="hizmet" onclick="expChipSelect(this,'exp-grup-group');expPreview()">Hizmete Göre</button>
+                    <button class="exp-chip" data-val="mahalle" onclick="expChipSelect(this,'exp-grup-group');expPreview()">Mahalleye Göre</button>
+                    <button class="exp-chip" data-val="isim" onclick="expChipSelect(this,'exp-grup-group');expPreview()">İsme Göre</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;text-transform:uppercase;margin-bottom:0">Önizleme</div>
+              <div id="exp-preview" style="background:var(--bg-soft);border:1.5px solid var(--border);border-radius:10px;padding:14px;flex:1;min-height:180px;font-size:12px"></div>
+              <div style="font-size:11px;color:var(--text-soft);text-align:center" id="exp-count-label"></div>
+              <button class="btn btn-primary" onclick="expIndir()" style="font-size:13px;padding:13px 0;border-radius:10px;letter-spacing:.02em">
+                ⬇️ &nbsp;Excel Olarak İndir (.xlsx)
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="form-section">
+          <h3>📊 Sistem İstatistikleri</h3>
+          <div id="exp-stats"></div>
+        </div>
+      </div>
+
+      <!-- ─── TEMİZLİK PLANI ─── -->
+      <div class="page" id="page-temizlik-plan">
+        <div class="form-section" style="margin-bottom:12px">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+              <span style="font-size:11px;font-weight:700;color:var(--text-soft)">DURUM:</span>
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #16a34a;color:#16a34a;background:#f0fdf4">
+                <input type="checkbox" value="AKTİF" class="tp-dur-cb" onchange="tpRender()" checked style="cursor:pointer"> AKTİF
+              </label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #64748b;color:#64748b;background:#f8fafc">
+                <input type="checkbox" value="PASİF" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> PASİF
+              </label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #ef4444;color:#ef4444;background:#fef2f2">
+                <input type="checkbox" value="İPTAL" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> İPTAL
+              </label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #f59e0b;color:#f59e0b;background:#fffbeb">
+                <input type="checkbox" value="BEKLEME LİSTESİ" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> BEKLEME
+              </label>
+              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #94a3b8;color:#94a3b8;background:#f8fafc">
+                <input type="checkbox" value="" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> DİĞER
+              </label>
+            </div>
+            <select class="form-select" id="tp-ekip" onchange="tpRender()" style="max-width:130px">
+              <option value="">Tüm Ekip</option>
+              <option value="Gülin">Gülin</option>
+              <option value="Hava">Hava</option>
+              <option value="Nihal">Nihal</option>
+              <option value="Tüm Ekip">Tüm Ekip</option>
+            </select>
+            <select class="form-select" id="tp-renk" onchange="tpRender()" style="max-width:150px">
+              <option value="">Tüm Süreler</option>
+              <option value="kirmizi">🔴 180+ gün</option>
+              <option value="sari">🟡 60-179 gün</option>
+              <option value="yesil">🟢 0-59 gün</option>
+            </select>
+            <button onclick="tpSort()" class="btn" style="background:var(--bg-soft);border:1px solid var(--border);font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer" id="tp-sort-btn">⬆ En Eski Önce</button>
+            <input type="text" id="tp-ara" placeholder="İsim ara..." oninput="tpRender()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;max-width:160px">
+            <span id="tp-count" style="font-size:12px;color:var(--text-soft);margin-left:auto"></span>
+          </div>
+        </div>
+        <div id="tp-ekip-stats" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px"></div>
+        <div class="table-card" style="padding:0">
+          <div class="scroll-table">
+            <table id="tp-table" style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="background:var(--primary);color:#fff">
+                  <th style="padding:10px 8px;text-align:left;white-space:nowrap">İsim Soyisim</th>
+                  <th style="padding:10px 8px;text-align:left">Mahalle</th>
+                  <th style="padding:10px 8px;text-align:left">Ekip</th>
+                  <th style="padding:10px 8px;text-align:left;white-space:nowrap">Son Gidiş</th>
+                  <th style="padding:10px 8px;text-align:center;white-space:nowrap">Geçen Gün</th>
+                  <th style="padding:10px 8px;text-align:left">Not / Neden</th>
+                  <th style="padding:10px 8px;text-align:center">Durum</th>
+                  <th style="padding:10px 8px;text-align:center">İşlem</th>
+                </tr>
+              </thead>
+              <tbody id="tp-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app-root -->
+
+<!-- ─── VATANDAŞ BİLGİ KARTI MODALİ ─── -->
+<div id="vk-modal" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.5);overflow-y:auto;padding:20px 12px">
+  <div style="max-width:500px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+    <div id="vk-header" style="padding:16px 20px;display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div id="vk-isim" style="font-size:16px;font-weight:900;color:#fff"></div>
+        <div id="vk-hizmet-badge" style="font-size:11px;margin-top:3px;opacity:0.9;color:#fff"></div>
+      </div>
+      <button onclick="vkKapat()" style="background:rgba(255,255,255,0.2);border:none;border-radius:50%;width:32px;height:32px;font-size:18px;color:#fff;cursor:pointer;line-height:1">×</button>
+    </div>
+    <div id="vk-body" style="padding:16px 20px 20px"></div>
+  </div>
+</div>
+
+<!-- MOBİL OVERLAY -->
+<div id="mob-overlay" onclick="mobMenuKapat()"></div>
+
+<!-- MOBİL ALT NAVİGASYON -->
+<div id="mob-bottomnav">
+  <div class="mbn-inner">
+    <button class="mbn-item active" id="mbn-dashboard" onclick="navTo('dashboard',null);mobSetActive('mbn-dashboard')">
+      <span class="mbn-icon">📊</span>Ana Sayfa
+    </button>
+    <button class="mbn-item" id="mbn-adres-guncelle" onclick="navTo('adres-guncelle',null);mobSetActive('mbn-adres-guncelle')">
+      <span class="mbn-icon">📞</span>Adres & Tel
+    </button>
+    <button class="mbn-item" id="mbn-takvim" onclick="navTo('takvim',null);mobSetActive('mbn-takvim')">
+      <span class="mbn-icon">📆</span>Takvim
+    </button>
+    <button class="mbn-item" id="mbn-vatandaslar" onclick="navTo('vatandaslar',null);mobSetActive('mbn-vatandaslar')">
+      <span class="mbn-icon">👥</span>Vatandaşlar
+    </button>
+    <button class="mbn-item" id="mbn-more" onclick="mobMenuAc()">
+      <span class="mbn-icon">☰</span>Menü
+    </button>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODALLER
+════════════════════════════════════════════════════════════ -->
+
+<!-- TEMİZLİK DÜZENLE MODAL -->
+<div class="modal-overlay" id="tp-modal" onclick="if(event.target===this)tpCloseModal()" style="display:none">
+  <div class="modal" style="max-width:480px;width:95%">
+    <div class="modal-title">✏️ Temizlik Kaydı Düzenle</div>
+    <div style="display:flex;flex-direction:column;gap:12px;padding:4px 0">
+      <div class="form-group">
+        <label>İsim Soyisim</label>
+        <input id="tpe-isim" class="form-select" style="border-radius:8px;padding:8px 10px" disabled>
+      </div>
+      <div class="form-row" style="gap:10px">
+        <div class="form-group">
+          <label>Ekip Başı</label>
+          <select id="tpe-ekip" class="form-select">
+            <option value="">—</option>
+            <option value="Gülin">Gülin</option>
+            <option value="Hava">Hava</option>
+            <option value="Nihal">Nihal</option>
+            <option value="Tüm Ekip">Tüm Ekip</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Mahalle</label>
+          <select id="tpe-mahalle" class="form-select"></select>
+        </div>
+      </div>
+      <div class="form-row" style="gap:10px">
+        <div class="form-group">
+          <label>Son Gidiş Tarihi</label>
+          <input id="tpe-tarih" type="date" class="form-select" style="border-radius:8px;padding:8px 10px">
+        </div>
+        <div class="form-group">
+          <label>Durum</label>
+          <select id="tpe-durum" class="form-select">
+            <option value="AKTİF">AKTİF</option>
+            <option value="PASİF">PASİF</option>
+            <option value="İPTAL">İPTAL</option>
+            <option value="VEFAT">VEFAT</option>
+            <option value="BEKLEME">BEKLEME</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Not / Gidilmeme Nedeni</label>
+        <textarea id="tpe-not" rows="3" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:13px;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer" style="gap:8px">
+      <button class="btn btn-primary" onclick="tpSaveEdit()">💾 Kaydet</button>
+      <button class="btn btn-cancel" onclick="tpCloseModal()">İptal</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="modal-overlay" id="det-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title" id="mod-title"></div>
+    <div id="mod-body"></div>
+    <div class="modal-footer"><button class="btn btn-cancel" onclick="closeModal()">Kapat</button></div>
+  </div>
+</div>
+
+<!-- DÜZENLEME MODALI -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeEditModal()">
+  <div class="modal" style="width:660px">
+    <div class="modal-title" id="edit-title">✏️ Kayıt Düzenle</div>
+    <div class="form-row" id="edit-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="closeEditModal()">İptal</button>
+      <button class="btn btn-primary" onclick="saveEdit()">💾 Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOPLU YÜKLEME MODAL -->
+<div class="modal-overlay" id="kb-toplu-modal" onclick="if(event.target===this)kbTopluKapat()">
+  <div class="modal" style="width:560px">
+    <div class="modal-title">📥 Toplu Veri Yükle</div>
+    <div style="padding:0 4px">
+      <p style="font-size:12px;color:var(--text-soft);margin-bottom:8px">Aşağıdaki formatta JSON yapıştırın:</p>
+      <pre style="background:#f8fafc;border-radius:8px;padding:10px;font-size:11px;color:#475569;overflow:auto;margin-bottom:10px">[
+  {"AD_SOYAD":"Ali YILMAZ","TC":"12345678901","HIZMET":"KADIN BANYO",
+   "TELEFON":"05001234567","MAHALLE":"TÜRKMEN","ADRES":"...","DOGUM_TARIHI":"1950-05-10","ENGEL":"Yok"}
+]</pre>
+      <textarea id="kb-toplu-json" rows="8" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:8px;font-family:monospace;font-size:12px;box-sizing:border-box" placeholder="JSON yapıştır..."></textarea>
+      <div id="kb-toplu-log" style="margin-top:8px;font-size:13px;min-height:20px"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="kbTopluKapat()">Kapat</button>
+      <button class="btn btn-primary" onclick="kbTopluYukle()">🚀 Yükle</button>
+    </div>
+  </div>
+</div>
+
+<!-- KİŞİ BİLGİ MODAL -->
+<div class="modal-overlay" id="kb-modal" onclick="if(event.target===this)kbCloseModal()">
+  <div class="modal" style="width:600px">
+    <div class="modal-title" id="kb-modal-title">📇 Kişi Bilgisi</div>
+    <div class="form-row" id="kb-modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-cancel" onclick="kbCloseModal()">İptal</button>
+      <button class="btn btn-primary" onclick="kbKaydet()">💾 Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script src="./firebase-config.js"></script>
+<script src="./app.js"></script>
+<!-- ── MODÜLLER (sıra önemli) ── -->
+<script src="./modules/data.js"></script>
+<script src="./modules/helpers.js"></script>
+<script src="./modules/temizlik.js"></script>
+<script src="./modules/dashboard.js"></script>
+<script src="./modules/takvim.js"></script>
+<script src="./modules/kayit.js"></script>
+<script src="./modules/vatandas.js"></script>
+<script src="./modules/adres.js"></script>
+<script src="./modules/raporlar.js"></script>
+
+<!-- ADRES DÜZENLE MODAL -->
+<div class="modal-overlay" id="adres-edit-modal" onclick="if(event.target===this)adresEditKapat()" style="display:none">
+  <div class="modal-box" style="max-width:520px">
+    <div id="adres-edit-modal-header" style="border-radius:12px 12px 0 0;padding:16px 20px;position:relative">
+      <button class="modal-close" onclick="adresEditKapat()" style="position:absolute;top:12px;right:14px;background:rgba(255,255,255,0.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
+      <div id="adres-edit-modal-isim" style="font-size:18px;font-weight:900;color:#fff;letter-spacing:.02em;margin-bottom:4px"></div>
+      <div id="adres-edit-modal-alt" style="font-size:12px;color:rgba(255,255,255,0.85);display:flex;flex-wrap:wrap;gap:6px;align-items:center"></div>
+    </div>
+    <div class="modal-body" id="adres-edit-modal-body" style="padding:20px">
+      <div class="form-row">
+        <div class="form-group">
+          <label>MAHALLE</label>
+          <select class="form-select" id="aem-mahalle"></select>
+        </div>
+        <div class="form-group">
+          <label>📞 1. Telefon</label>
+          <input class="form-input" id="aem-tel" type="tel" placeholder="532 123 45 67">
+        </div>
+        <div class="form-group">
+          <label>📞 2. Telefon</label>
+          <input class="form-input" id="aem-tel2" type="tel" placeholder="533 987 65 43">
+        </div>
+        <div class="form-group">
+          <label>Aktif Telefon</label>
+          <select class="form-select" id="aem-tel-aktif">
+            <option value="1">1. Telefon</option>
+            <option value="2">2. Telefon</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Doğum Tarihi</label>
+          <input class="form-input" id="aem-dogum" type="date">
+        </div>
+        <div class="form-group full">
+          <label>🏠 Adres</label>
+          <input class="form-input" id="aem-adres" type="text" placeholder="Sokak, No, Daire...">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:10px;padding:16px 20px;border-top:1px solid #e2e8f0">
+      <button class="btn btn-primary" onclick="adresEditKaydet()" style="flex:1">💾 Kaydet</button>
+      <button class="btn btn-cancel" onclick="adresEditKapat()" style="flex:1">İptal</button>
+    </div>
+  </div>
+</div>
+
+
+</body>
+</html>
