@@ -1,25 +1,5 @@
 // ── KAYIT (Günlük + Yeni Vatandaş + Durum) ──
 // ============ GÜNLÜK ============
-async function _gkKayitlariKaliciYaz(rec, tarih, notMetni) {
-  if (!rec) throw new Error('Kayıt bulunamadı');
-  if (rec._fbId) {
-    await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(
-      Object.fromEntries(Object.entries(rec).filter(([k]) => !k.startsWith('_')))
-    );
-  } else if (!rec._tpRef) {
-    throw new Error('Bu kayıt Firebase’de bulunamadı');
-  }
-  if (rec._tpRef && rec._tpFbId) {
-    const payload = {};
-    if (tarih) payload.sonGidilme = tarih;
-    if (typeof notMetni === 'string') payload.not_ = notMetni;
-    await firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update(payload);
-    const tp = (window.TP_DATA || []).find(t => t._fbId === rec._tpFbId);
-    if (tp) Object.assign(tp, payload);
-    if (typeof tpRender === 'function') tpRender();
-  }
-}
-
 function _gunlukDateTR(iso) {
   if (!iso || !iso.includes('-')) return '';
   const [y,m,d]=iso.split('-');
@@ -445,19 +425,22 @@ function _gkGunlukListeyiTazele(tarih) {
 async function gkKaydet() {
   const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
   const tarih = document.getElementById('gk-tarih').value;
-  if (!isim) { showToast('Vatandaş adı zorunlu'); return; }
+  if (!isim) { showToast('Vatandas adi zorunlu'); return; }
   if (!tarih) { showToast('Tarih zorunlu'); return; }
+
   const hizmet = document.getElementById('gk-hizmet').value;
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
-  const not = (document.getElementById('gk-not').value || ''').trim();
+  const not = document.getElementById('gk-not').value;
   const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-  if (!rec) { showToast('Vatandaş bulunamadı'); return; }
+
+  if (!rec) { showToast('Vatandas bulunamadi'); return; }
+
   const snapshot = JSON.parse(JSON.stringify(rec));
-  const btn = document.querySelector('[onclick="gkKaydet()"]');
-  if (btn) { btn.disabled = true; btn.dataset.prevText = btn.textContent; btn.textContent = 'Kaydediliyor...'; }
+  _gkSetBusy(true, 'Kaydediliyor...');
+
   try {
     if (hizmet==='KUAFÖR') {
-      if (seciliTipler.length === 0) { showToast('Lütfen en az bir hizmet tipi seçin'); return; }
+      if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
       seciliTipler.forEach(t => {
         const fields = t==='SAC'?['SAC1','SAC2']:t==='TIRNAK'?['TIRNAK1','TIRNAK2']:['SAKAL1','SAKAL2'];
         if (!rec[fields[0]]) rec[fields[0]]=tarih; else rec[fields[1]]=tarih;
@@ -467,16 +450,34 @@ async function gkKaydet() {
       const empty=fields.find(f=>!rec[f]);
       if (empty) rec[empty]=tarih; else rec[fields[4]]=tarih;
     }
+
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
-    await _gkKayitlariKaliciYaz(rec, tarih, rec.NOT1 || ''');
+
+    if (rec._fbId) {
+      await _gkVatandasKaydet(rec);
+    } else if (!rec._tpRef) {
+      throw new Error('Bu kayıt Firebase’de bulunamadı');
+    }
+
+    if (rec._tpRef && rec._tpFbId) {
+      const sd = { sonGidilme: tarih };
+      if (not) sd.not_ = rec.NOT1;
+      await _gkTemizlikPlanKaydet(rec, sd);
+    }
+
     if (!window.gkRecs) window.gkRecs=[];
-    window.gkRecs.push({ isim,hizmet,tarih,not, tip:hizmet==='KUAFÖR' ? (seciliTipler.length ? seciliTipler.join(' + ') : '—') : '—' });
+    window.gkRecs.push({
+      isim,hizmet,tarih,
+      tip:hizmet==='KUAFÖR'
+        ? (seciliTipler.length ? seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + ') : '—')
+        : '—',
+      not
+    });
+
     renderGkTable();
     gkTemizle();
     refreshAll();
-    const gunDate = document.getElementById('gun-date');
-    if (gunDate) gunDate.value = tarih;
-    if (typeof renderGunluk === 'function') renderGunluk();
+    _gkGunlukListeyiTazele(tarih);
     showToast('✅ Kaydedildi. Hafızaya tamamen eklendi.');
   } catch (e) {
     const meta = {};
@@ -486,9 +487,10 @@ async function gkKaydet() {
     console.error('Günlük hizmet kaydı hatası:', e);
     showToast('Kayıt tamamlanamadı, tekrar dene');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.prevText || '💾 Hizmet Tarihi Ekle'; }
+    _gkSetBusy(false);
   }
 }
+
 // ── HİZMET VERİLEMEDİ ──
 function gkVerilemediToggle() {
   const cb = document.getElementById('gk-verilemedi-cb');
@@ -530,24 +532,24 @@ function gkVerilemediLabelGuncelle() {
   label.textContent = '⚠️ ' + etiket;
 }
 
-async function gkVerilemediKaydet() {
-  const isim = (document.getElementById('gk-isim')?.value || document.getElementById('gk-isim-search')?.value || ''').trim().toUpperCase();
+function gkVerilemediKaydet() {
+  const isim = (document.getElementById('gk-isim')?.value || document.getElementById('gk-isim-search')?.value || '').trim().toUpperCase();
   const tarih = document.getElementById('gk-verilemedi-tarih')?.value;
-  const aciklama = (document.getElementById('gk-verilemedi-aciklama')?.value || ''').trim();
+  const aciklama = document.getElementById('gk-verilemedi-aciklama')?.value.trim();
   const hizmet = document.getElementById('gk-hizmet')?.value || '';
-  if (!isim) { showToast('Lütfen önce vatandaş seçin'); return; }
+
+  if (!isim) { showToast('Lutfen once vatandas secin'); return; }
   if (!tarih) { showToast('Tarih zorunlu'); return; }
-  if (!aciklama) { showToast('Açıklama zorunlu'); return; }
-  const tarihTR = (d=>{const a=d.split('-');return a[2]+'.'+a[1]+'.'+a[0];})(tarih);
+  if (!aciklama) { showToast('Aciklama zorunlu'); return; }
+
+  const tarihTR = (d=>{const[y,m,g]=d.split('-');return g+'.'+m+'.'+y;})(tarih);
   const hizmetEtiket = hizmet === 'TEMİZLİK' ? 'TEMİZLİK' : hizmet === 'KUAFÖR' ? 'KUAFOR' : 'BANYO';
   const notMetin = tarihTR + ' ' + hizmetEtiket + ' VERİLEMEDİ: ' + aciklama.toUpperCase();
+
   const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-  if (!rec) { showToast('Vatandaş bulunamadı'); return; }
-  const snapshot = JSON.parse(JSON.stringify(rec));
-  const btn = document.querySelector('[onclick="gkKaydet()"]');
-  if (btn) { btn.disabled = true; btn.dataset.prevText = btn.textContent; btn.textContent = 'Kaydediliyor...'; }
-  try {
+  if (rec) {
     rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
+    // Tarihi de tarih alanına yaz — günlük listede ve takvimde görünsün
     if (hizmet === 'KUAFÖR') {
       if (!rec.SAC1) rec.SAC1 = tarih; else rec.SAC2 = tarih;
     } else {
@@ -555,23 +557,39 @@ async function gkVerilemediKaydet() {
       const empty = fields.find(f=>!rec[f]);
       if (empty) rec[empty] = tarih; else rec[fields[4]] = tarih;
     }
-    await _gkKayitlariKaliciYaz(rec, tarih, rec.NOT1 || ''');
-    refreshAll();
-    const gunDate = document.getElementById('gun-date');
-    if (gunDate) gunDate.value = tarih;
-    if (typeof renderGunluk === 'function') renderGunluk();
-    showToast('✅ Kaydedildi. Hafızaya tamamen eklendi.');
-  } catch (e) {
-    const meta = {};
-    Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
-    Object.keys(rec).forEach(k => delete rec[k]);
-    Object.assign(rec, snapshot, meta);
-    console.error('Hizmet verilemedi kaydı hatası:', e);
-    showToast('Kayıt tamamlanamadı, tekrar dene');
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.prevText || '💾 Hizmet Tarihi Ekle'; }
+    // Temizlik planını güncelle
+    if (rec._tpRef && rec._tpFbId) {
+      const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
+      if (tp) { tp.not_ = rec.NOT1; tp.sonGidilme = tarih; }
+      firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId)
+        .update({ not_: rec.NOT1, sonGidilme: tarih }).catch(e=>console.warn(e));
+      tpRender();
+    }
+    // Her zaman vatandaslar koleksiyonuna da yaz
+    if (rec._fbId) {
+      fbUpdateDoc(allData.indexOf(rec), Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
+    }
   }
-}function gkTemizle() {
+
+  // Formu sıfırla
+  const cb = document.getElementById('gk-verilemedi-cb');
+  if (cb) cb.checked = false;
+  document.getElementById('gk-verilemedi-form').style.display = 'none';
+  document.getElementById('gk-verilemedi-aciklama').value = '';
+  // Gizlenen alanları geri göster
+  ['gk-tarih','gk-tip','gk-not'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const wrap=el.closest('.form-group');
+    if(wrap) wrap.style.display='';
+    el.disabled=false;
+  });
+  const kaydetBtn=document.querySelector('[onclick="gkKaydet()"]');
+  if(kaydetBtn){kaydetBtn.disabled=false;kaydetBtn.style.display='';}
+  refreshAll();
+  showToast(isim + ' - hizmet verilemedi notu eklendi');
+}
+function gkTemizle() {
   ['gk-isim','gk-isim-search','gk-tarih','gk-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const sel=document.getElementById('gk-isim');if(sel)sel.style.display='none';
   document.getElementById('gk-mah').value='';
@@ -625,10 +643,12 @@ function buildFormMah() {
   }
 }
 
-async function saveRec(){
+function saveRec(){
   const isim=document.getElementById('f-isim').value.trim().toUpperCase();
   const mah=document.getElementById('f-mah').value;
-  const seciliHizmetler = ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik'].map(id=>document.getElementById(id)).filter(cb=>cb&&cb.checked).map(cb=>cb.value);
+  const seciliHizmetler = ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik']
+    .map(id=>document.getElementById(id))
+    .filter(cb=>cb&&cb.checked).map(cb=>cb.value);
   if(!isim||!mah){showToast('⚠️ İsim ve mahalle zorunlu');return;}
   if(!seciliHizmetler.length){showToast('⚠️ En az bir hizmet seçin');return;}
   const ay=document.getElementById('f-ay').value;
@@ -642,32 +662,33 @@ async function saveRec(){
   const adres=(document.getElementById('f-adres')?.value||'').trim();
   const dogumRaw=(document.getElementById('f-dogum')?.value||'').trim();
   let dogum=dogumRaw;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(dogumRaw)){const a=dogumRaw.split('-');dogum=`${a[2]}.${a[1]}.${a[0]}`;}
-  const kayitlar = seciliHizmetler.map(hizmet => ({
-    ONAY_TARIHI:onay, IPTAL_NEDEN:'', ISIM_SOYISIM:isim, MAHALLE:mah, AY:ay, 'HİZMET':hizmet, CİNSİYET:cins, DURUM:'AKTİF', DOGUM_TARIHI:dogum,
-    BANYO1:'',BANYO2:'',BANYO3:'',BANYO4:'',BANYO5:'', SAC1:'',SAC2:'',TIRNAK1:'',TIRNAK2:'',SAKAL1:'',SAKAL2:'',
-    NOT1:not1, NOT2:not2, NOT3:'', TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
-  }));
-  try {
-    const yazilanlar = await Promise.all(kayitlar.map(async rec => {
-      const fbId = await fbAddDoc(rec);
-      rec._fbId = fbId;
-      return rec;
-    }));
-    yazilanlar.forEach(rec => { allData.push(rec); newRecs.push(rec); });
-    if(tel||adres||dogum){
-      const bilgi={tel,tel2,telAktif,adres,dogum};
-      await firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
-      if(!window._adresBilgi)window._adresBilgi={};
-      window._adresBilgi[isim]=bilgi;
-    }
-    buildSidebar(); renderNewTable(); clearForm(); refreshAll();
-    showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kalıcı olarak kaydedildi`);
-  } catch (e) {
-    console.error('Yeni vatandaş kayıt hatası:', e);
-    showToast('⚠️ Kayıt tamamlanamadı, tekrar deneyin');
+  if(/^\d{4}-\d{2}-\d{2}$/.test(dogumRaw)){const[y,m,d]=dogumRaw.split('-');dogum=`${d}.${m}.${y}`;}
+
+  seciliHizmetler.forEach(hizmet => {
+    const rec={
+      ONAY_TARIHI:onay, IPTAL_NEDEN:'',
+      ISIM_SOYISIM:isim, MAHALLE:mah, AY:ay,
+      'HİZMET':hizmet, CİNSİYET:cins, DURUM:'AKTİF',
+      DOGUM_TARIHI:dogum,
+      BANYO1:'',BANYO2:'',BANYO3:'',BANYO4:'',BANYO5:'',
+      SAC1:'',SAC2:'',TIRNAK1:'',TIRNAK2:'',SAKAL1:'',SAKAL2:'',
+      NOT1:not1, NOT2:not2, NOT3:'',
+      TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
+    };
+    allData.push(rec); newRecs.push(rec);
+    fbAddDoc(rec).then(fbId => { rec._fbId = fbId; });
+  });
+  // adres_bilgi koleksiyonuna da kaydet
+  if(tel||adres||dogum){
+    const bilgi={tel,tel2,telAktif,adres,dogum};
+    firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
+    if(!window._adresBilgi)window._adresBilgi={};
+    window._adresBilgi[isim]=bilgi;
   }
-}function clearForm(){
+  buildSidebar(); renderNewTable(); clearForm();
+  showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kaydedildi`);
+}
+function clearForm(){
   ['f-isim','f-onay','f-dogum','f-tel','f-tel2','f-adres','f-not1','f-not2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
   const ta=document.getElementById('f-tel-aktif');if(ta)ta.value='1';
