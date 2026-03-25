@@ -2,6 +2,32 @@ console.log("APP JS ÇALIŞTI");
 const USERS_MAP = {"SBIyovehB5RAkSkhc05bIm88PJs2": {"ad": "Ozan Ersin DOĞAN", "rol": "Birim Sorumlusu"}, "Fpk3BcokNFU4NM1XL0JQsMP9ygM2": {"ad": "Şafak SAYAR", "rol": "Temizlik - Banyo"}, "wksJ9Tf3djhgp4of4DxC29rEdiL2": {"ad": "Sezgin TAŞ", "rol": "Kuaför"}, "LBntADGnP2MHVecmn4jAnFRPW222": {"ad": "Ayşegül TULĞAN", "rol": "Hemşire"}};
 let currentUser = null;
 let _docsMap = {}; // Firestore doc id -> allData index map
+let _initStarted = false;
+
+function waitForModulesAndInit() {
+  if (_initStarted) return;
+  let tries = 0;
+  const maxTry = 120; // ~12 sn
+  const t = setInterval(() => {
+    const ready =
+      typeof initApp === 'function' &&
+      typeof refreshAll === 'function' &&
+      typeof allData !== 'undefined' &&
+      typeof buildSidebar === 'function';
+    if (ready) {
+      clearInterval(t);
+      _initStarted = true;
+      try {
+        initApp();
+      } catch (e) {
+        console.error('initApp çalıştırma hatası:', e);
+      }
+    } else if (++tries >= maxTry) {
+      clearInterval(t);
+      console.error('Modüller zamanında yüklenmedi');
+    }
+  }, 100);
+}
 
 // ── AUTH ──
 var liEmail = '';
@@ -57,16 +83,10 @@ firebase.auth().onAuthStateChanged( user => {
     // Yedekler menüsünü hemen göster (refreshAll beklemeden)
     const _nv = document.getElementById('nav-yedekler');
     if(_nv) _nv.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
-    if (typeof initApp === 'function') {
-      initApp();
-    } else {
-      window.addEventListener('load', () => {
-        if (typeof initApp === 'function') initApp();
-        else console.error('initApp bulunamadı');
-      }, { once: true });
-    }
+    waitForModulesAndInit();
   } else {
     currentUser = null;
+    _initStarted = false;
     document.getElementById('login-screen').style.display = 'flex';
     document.getElementById('app-root').style.display = 'none';
     document.getElementById('user-badge').style.display = 'none';
@@ -566,3 +586,6 @@ function saveEdit() {
 // DÜZELTME 3: Yedek saati 17:20 olarak güncelle
 // ═══════════════════════════════════════════════════════════════════════════
 // Yedekleme yardımcıları modules/helpers.js içine taşındı.
+
+
+document.addEventListener('DOMContentLoaded', () => console.log('DOM hazır'));
