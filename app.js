@@ -54,6 +54,9 @@ firebase.auth().onAuthStateChanged( user => {
     if(ubAd) ubAd.textContent = currentUser.ad;
     if(ubRol) ubRol.textContent = currentUser.rol;
     if(ubAv) ubAv.textContent = currentUser.ad.charAt(0);
+    // Yedekler menüsünü hemen göster (refreshAll beklemeden)
+    const _nv = document.getElementById('nav-yedekler');
+    if(_nv) _nv.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
     initApp();
   } else {
     currentUser = null;
@@ -598,57 +601,6 @@ function saveEdit() {
   showToast('✅ Kaydedildi');
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// DÜZELTME 2: Hizmet Verilemedi — takvimde görünsün, FireBase'e yazılsın
-// ═══════════════════════════════════════════════════════════════════════════
-window._hvSet = window._hvSet || new Set(); // tarihStr|isim
-
-function toggleHizmetVerilemedi(tarihStr, isim, btn) {
-  const key = tarihStr + '|' + isim;
-  const kart = btn.closest('[data-kisi]');
-  if (window._hvSet.has(key)) {
-    window._hvSet.delete(key);
-    _hvFirebaseYaz(tarihStr, isim, false);
-    btn.textContent = '✗ Hizmet Verilemedi';
-    btn.style.background = '#fee2e2'; btn.style.color = '#dc2626';
-    if (kart) { kart.style.opacity='1'; kart.style.background='#f8fafc'; }
-  } else {
-    window._hvSet.add(key);
-    _hvFirebaseYaz(tarihStr, isim, true);
-    btn.textContent = '↩ Geri Al';
-    btn.style.background = '#fef3c7'; btn.style.color = '#b45309';
-    if (kart) { kart.style.opacity='0.6'; kart.style.background='#fffbeb'; }
-  }
-}
-
-function _hvFirebaseYaz(tarihStr, isim, ekle) {
-  const [y,m,g] = tarihStr.split('-');
-  const tarihTR = g+'.'+m+'.'+y;
-  const notMetin = tarihTR + ' HİZMET VERİLEMEDİ';
-
-  // O güne tarihi düşen ve ismi eşleşen kaydı bul
-  const rec = allData.find(r => {
-    if (r.ISIM_SOYISIM !== isim) return false;
-    const tList = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
-                   r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2];
-    return tList.some(t => {
-      if (!t) return false;
-      const d = parseDate(t); if (!d) return false;
-      const iso = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-      return iso === tarihStr;
-    });
-  });
-  if (!rec) { showToast('Kayıt bulunamadı'); return; }
-
-  if (ekle) {
-    rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
-  } else {
-    if (rec.NOT1) rec.NOT1 = rec.NOT1.split(' | ').filter(s => s !== notMetin).join(' | ');
-  }
-  const idx = allData.indexOf(rec);
-  fbUpdateDoc(idx, Object.fromEntries(Object.entries(rec).filter(([k]) => !k.startsWith('_'))));
-  showToast(ekle ? '⚠️ Hizmet verilemedi kaydedildi' : '↩ Kayıt geri alındı');
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 3: Yedek saati 17:20 olarak güncelle
