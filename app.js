@@ -174,7 +174,6 @@ function allDataOptimize() {
 }
 
 async function fbLoadData() {
-  _saveQueueRestore();
   showToast('🔄 Veriler yükleniyor...');
   const snap = await firebase.firestore()
     .collection('vatandaslar')
@@ -208,10 +207,6 @@ async function fbLoadData() {
     allDataOptimize();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
     refreshAll();
-    if (window._saveQueue && window._saveQueue.length > 0) {
-      showToast('⏳ Bekleyen kayıtlar tamamlanıyor...');
-      _flushSaveQueue(true);
-    }
   }
 }
 
@@ -236,58 +231,17 @@ async function fbSeedData(initialData) {
 // Bekleyen kayıtlar kuyruğu — internet kesilirse burada bekler
 window._saveQueue = window._saveQueue || [];
 window._saveRetryTimer = null;
-window._saveInFlight = window._saveInFlight || [];
-const SAVE_QUEUE_KEY = 'evdebakim_save_queue_v1';
-
-function _saveQueuePersist() {
-  try {
-    const merged = [...(window._saveQueue || []), ...(window._saveInFlight || [])];
-    const uniq = []; const seen = new Set();
-    for (const x of merged) { if (!x || !x._qid || seen.has(x._qid)) continue; seen.add(x._qid); uniq.push(x); }
-    localStorage.setItem(SAVE_QUEUE_KEY, JSON.stringify(uniq));
-  } catch (e) {
-    console.warn('saveQueue persist hatasi:', e);
-  }
-}
-
-function _saveQueueRestore() {
-  try {
-    const raw = localStorage.getItem(SAVE_QUEUE_KEY);
-    if (!raw) return;
-    const arr = JSON.parse(raw);
-    if (Array.isArray(arr) && arr.length) {
-      window._saveQueue = [...arr, ...(window._saveQueue || [])];
-      console.log('[saveQueue] localStorage kuyruğu geri yüklendi:', arr.length);
-    }
-  } catch (e) {
-    console.warn('saveQueue restore hatasi:', e);
-  }
-}
-
-function _saveQueueClearStorage() {
-  try { localStorage.removeItem(SAVE_QUEUE_KEY); } catch (e) {}
-}
 
 async function fbUpdateDoc(idx, changes) {
   const r = allData[idx];
   if (!r || !r._fbId) {
     console.warn('fbUpdateDoc: _fbId yok, idx=', idx);
-    showToast('⚠️ Kayıt ID eksik, kaydedilemedi');
-    return false;
+    showToast('⚠️ Kayit ID eksik, kaydilemedi');
+    return;
   }
-
-  const item = {
-    type: 'update',
-    fbId: r._fbId,
-    isim: r.ISIM_SOYISIM,
-    changes,
-    _qid: Date.now() + '_' + Math.random().toString(36).slice(2,8)
-  };
-  window._saveQueue.push(item);
-  _saveQueuePersist();
-
-  const ok = await _flushSaveQueue(true, item._qid);
-  return !!ok;
+  // Kuyruğa ekle
+  window._saveQueue.push({ type: 'update', fbId: r._fbId, isim: r.ISIM_SOYISIM, changes });
+  await _flushSaveQueue();
 }
 
 function _saveGostergesi(durum, sayi) {
@@ -330,34 +284,11 @@ if (!document.getElementById('save-indicator-css')) {
   document.head.appendChild(s);
 }
 
-async function _flushSaveQueue(forceImmediate = false, waitForQid = null) {
-  if (window._flushRunning) {
-    if (waitForQid) {
-      return new Promise(resolve => {
-        const started = Date.now();
-        const t = setInterval(() => {
-          const kuyrukta = (window._saveQueue || []).some(x => x._qid === waitForQid);
-          const islemde = (window._saveInFlight || []).some(x => x._qid === waitForQid);
-          if (!window._flushRunning && !kuyrukta && !islemde) {
-            clearInterval(t);
-            resolve(true);
-          } else if (Date.now() - started > 20000) {
-            clearInterval(t);
-            resolve(false);
-          }
-        }, 250);
-      });
-    }
-    return false;
-  }
-
-  if (!window._saveQueue) window._saveQueue = [];
-  if (window._saveQueue.length === 0) return true;
-
+async function _flushSaveQueue() {
+  if (window._flushRunning) return;
   window._flushRunning = true;
   const pending = [...window._saveQueue];
-  window._saveInFlight = pending;
-  _saveQueuePersist();
+  window._saveQueue = [];
   const failed = [];
 
   if (pending.length > 0) _saveGostergesi('kaydediliyor');
@@ -366,8 +297,6 @@ async function _flushSaveQueue(forceImmediate = false, waitForQid = null) {
     try {
       if (item.type === 'update') {
         await firebase.firestore().collection('vatandaslar').doc(item.fbId).update(item.changes);
-        window._saveQueue = (window._saveQueue || []).filter(x => x._qid !== item._qid);
-        _saveQueuePersist();
         if (currentUser) {
           firebase.firestore().collection('islem_log').add({
             yapan: currentUser.ad,
@@ -379,50 +308,39 @@ async function _flushSaveQueue(forceImmediate = false, waitForQid = null) {
         }
       }
     } catch(e) {
-      console.error('Kayıt hatası [' + item.fbId + ']:', e.code, e.message);
+      console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
       item._lastError = (e.code || '') + ' ' + e.message;
       failed.push(item);
     }
   }
 
-  window._saveInFlight = [];
-  let result = true;
-
   if (failed.length > 0) {
-    // başarısız olanlar zaten kuyrukta duruyor; emin olmak için tekilleştir
-    const byId = new Map();
-    for (const it of (window._saveQueue || [])) byId.set(it._qid, it);
-    for (const it of failed) byId.set(it._qid, it);
-    window._saveQueue = [...byId.values()];
-    _saveQueuePersist();
+    window._saveQueue = [...failed, ...window._saveQueue];
+    // Hatayı ekranda göster
+    const ilkHata = failed[0];
     _saveGostergesi('hata', failed.length);
-    if (failed[0] && failed[0]._lastError) {
-      showToast('Kayıt hatası: ' + failed[0]._lastError);
+    // Toast ile hata detayı göster
+    if (failed.length > 0 && failed[0]._lastError) {
+      showToast('Kayit hatasi: ' + failed[0]._lastError);
     }
     clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {
       window._flushRunning = false;
       _flushSaveQueue();
-    }, forceImmediate ? 3000 : 10000);
-    result = false;
+    }, 10000);
   } else {
-    if ((window._saveQueue || []).length === 0) _saveQueueClearStorage();
     if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
     clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {
       window._flushRunning = false;
       if (window._saveQueue.length > 0) _flushSaveQueue();
     }, 30000);
-    result = true;
   }
-
   window._flushRunning = false;
-  return result;
 }
 
 // Sayfa kapanmadan önce uyar
 window.addEventListener('beforeunload', function(e) {
-  _saveQueuePersist();
   if (window._saveQueue && window._saveQueue.length > 0) {
     e.preventDefault();
     e.returnValue = 'Kaydedilmemiş değişiklikler var!';
@@ -492,10 +410,22 @@ async function renderIslemLog() {
 // ============ SEED DATA (İlk kurulum) ============
 
 
-// ============ DATA / STATE ============
-// Ortak sabitler, allData/newRecs ve state değişkenleri modules/data.js içinde tanımlı.
-// Burada tekrar tanımlanırsa modules/data.js yüklenirken "Identifier has already been declared"
-// hatası oluşur ve uygulama açılmaz.
+// ============ DATA ============
+// Ortak sabitler ve veri yardımcıları modules/data.js içine taşındı.
+
+let allData = [];
+
+let newRecs = [];
+
+// ============ STATE ============
+let vatPage = 1;
+const PER = 30;
+let vatFiltered = [];
+let vatHizmet = '';
+let vatAy = '';
+let dashSrch = '';
+
+// Ortak başlangıç ve sidebar yardımcıları modules/data.js içine taşındı.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 1: openEditModal + saveEdit — app.js içinde tanımlı, doğru çalışır
