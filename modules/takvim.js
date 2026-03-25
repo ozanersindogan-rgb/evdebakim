@@ -172,7 +172,6 @@ function takvimGunTikla(tarihStr) {
                         _tumNotlar.includes(_tarihTR + ' HİZMET VERİLEMEDİ');
           const _kartBg = _isHV ? '#fff7ed' : '#f8fafc';
           const _kartOp = _isHV ? '0.75' : '1';
-          const _alan = typeof _gunlukAlanBul === 'function' ? _gunlukAlanBul(r, r['HİZMET']||'', tarihStr) : '';
           return `
           <div style="background:${_kartBg};border-radius:8px;margin-bottom:6px;opacity:${_kartOp}">
             <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer"
@@ -185,10 +184,6 @@ function takvimGunTikla(tarihStr) {
                 <div style="font-size:11px;color:#64748b">📍 ${r.MAHALLE} ${gecmis && !_isHV ? '<span style="color:#16a34a;font-weight:700">✓ Gerçekleşti</span>' : ''}</div>
               </div>
               <span style="font-size:11px;color:#94a3b8">›</span>
-            </div>
-            <div style="display:flex;justify-content:flex-end;padding:0 12px 10px 12px">
-              <button onclick="event.stopPropagation(); takvimKayitSil('${r._fbId||''}','${tarihStr}','${r['HİZMET']||''}','${r.ISIM_SOYISIM.replace(/'/g,"\'")}','${_alan}')"
-                style="background:#ef4444;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer">🗑️ Sil</button>
             </div>
           </div>`;
         }).join('')}
@@ -685,14 +680,3 @@ function globalSearchHide() {
   _gsIdx = -1;
 }
 
-
-
-async function takvimKayitSil(fbId, tarihStr, hizmet, isim, alan) {
-  const rec = allData.find(x => x._fbId===fbId) || allData.find(x => x.ISIM_SOYISIM===isim && x['HİZMET']===hizmet);
-  if (!rec) { showToast('Kayıt bulunamadı'); return; }
-  if (!confirm(`${isim} - ${tarihStr} tarihli kaydı silmek istiyor musunuz?\nSadece bu tarihe ait kayıt ve açıklama temizlenecek.`)) return;
-  if (typeof _gunlukKaydiSil !== 'function') { showToast('Silme modülü yüklenemedi'); return; }
-  const ok = await _gunlukKaydiSil(rec, tarihStr, alan);
-  if (ok) takvimGunTikla(tarihStr);
-}
-window.takvimKayitSil = takvimKayitSil;
