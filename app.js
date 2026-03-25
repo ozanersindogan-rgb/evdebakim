@@ -57,14 +57,7 @@ firebase.auth().onAuthStateChanged( user => {
     // Yedekler menüsünü hemen göster (refreshAll beklemeden)
     const _nv = document.getElementById('nav-yedekler');
     if(_nv) _nv.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
-    if (typeof initApp === 'function') {
-      initApp();
-    } else {
-      window.addEventListener('load', () => {
-        if (typeof initApp === 'function') initApp();
-        else console.error('initApp yüklenemedi');
-      }, { once:true });
-    }
+    if (typeof initApp === 'function') initApp(); else console.error('initApp bulunamadı');
   } else {
     currentUser = null;
     document.getElementById('login-screen').style.display = 'flex';
@@ -420,17 +413,9 @@ async function renderIslemLog() {
 // ============ DATA ============
 // Ortak sabitler ve veri yardımcıları modules/data.js içine taşındı.
 
-let allData = [];
 
-let newRecs = [];
 
 // ============ STATE ============
-let vatPage = 1;
-const PER = 30;
-let vatFiltered = [];
-let vatHizmet = '';
-let vatAy = '';
-let dashSrch = '';
 
 // Ortak başlangıç ve sidebar yardımcıları modules/data.js içine taşındı.
 
