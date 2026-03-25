@@ -18,29 +18,15 @@ function _gunlukAlanBul(rec, hizmet, iso) {
     : ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
   return alanlar.find(f=>_gunlukDateMatch(rec[f], iso, tr)) || '';
 }
-function _gunlukNotTemizle(metin, iso, opts={}) {
+function _gunlukNotTemizle(metin, iso) {
   if (!metin) return '';
   const tr=_gunlukDateTR(iso);
-  const hedefNot=(opts.noteText||'').trim();
-  const parcalar=String(metin)
+  return String(metin)
     .split(' | ')
     .map(x=>x.trim())
-    .filter(Boolean);
-
-  let kalan = parcalar.filter(parca => !(
-    parca===tr ||
-    parca.startsWith(tr+' ') ||
-    parca.includes(tr+' YAPTIRILAMADI') ||
-    parca.includes(tr+' VERİLEMEDİ') ||
-    (hedefNot && parca===hedefNot)
-  ));
-
-  const tarihRegex=/\b\d{2}\.\d{2}\.\d{4}\b/;
-  if (opts.removeSingleUndatedNote && parcalar.length===1 && !tarihRegex.test(parcalar[0])) {
-    kalan = [];
-  }
-
-  return kalan.join(' | ');
+    .filter(Boolean)
+    .filter(parca=>!(parca===tr || parca.startsWith(tr+' ') || parca.includes(tr+' YAPTIRILAMADI') || parca.includes(tr+' VERİLEMEDİ')))
+    .join(' | ');
 }
 async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
   if (!rec || !iso) return false;
@@ -51,13 +37,9 @@ async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
     return false;
   }
   rec[hedefAlan]='';
-  const notOpts = {
-    noteText: opts.noteText || '',
-    removeSingleUndatedNote: !!opts.removeSingleUndatedNote
-  };
-  rec.NOT1=_gunlukNotTemizle(rec.NOT1, iso, notOpts);
-  rec.NOT2=_gunlukNotTemizle(rec.NOT2, iso, notOpts);
-  rec.NOT3=_gunlukNotTemizle(rec.NOT3, iso, notOpts);
+  rec.NOT1=_gunlukNotTemizle(rec.NOT1, iso);
+  rec.NOT2=_gunlukNotTemizle(rec.NOT2, iso);
+  rec.NOT3=_gunlukNotTemizle(rec.NOT3, iso);
 
   try {
     if (rec._tpRef && rec._tpFbId) {
@@ -132,7 +114,7 @@ function renderGunluk() {
 async function gunlukSil(aI,al,dI) {
   const r=allData[aI]; if(!r) return;
   if (!confirm(r.ISIM_SOYISIM+' - '+dI+' tarihli kaydı silmek istiyor musunuz?\nSadece bu tarihe ait kayıt ve açıklama temizlenecek.')) return;
-  await _gunlukKaydiSil(r, dI, al, { removeSingleUndatedNote:true });
+  await _gunlukKaydiSil(r, dI, al);
 }
 window.gunlukSil = gunlukSil;
 window._gunlukKaydiSil = _gunlukKaydiSil;
@@ -401,25 +383,62 @@ function gkIsimSecildi() {
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
   }
 }
+
+function _gkKaydetBtn() {
+  return document.querySelector('[onclick="gkKaydet()"]');
+}
+function _gkSetBusy(isBusy, text) {
+  const btn = _gkKaydetBtn();
+  if (!btn) return;
+  if (isBusy) {
+    btn.disabled = true;
+    btn.dataset.prevText = btn.textContent;
+    btn.textContent = text || 'Kaydediliyor...';
+    btn.style.opacity = '0.75';
+    btn.style.cursor = 'wait';
+  } else {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.prevText || '💾 Hizmet Tarihi Ekle';
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
+  }
+}
+async function _gkVatandasKaydet(rec) {
+  if (!rec || !rec._fbId) throw new Error('Kayıt kimliği bulunamadı');
+  const payload = Object.fromEntries(Object.entries(rec).filter(([k]) => !k.startsWith('_')));
+  await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(payload);
+  return payload;
+}
+async function _gkTemizlikPlanKaydet(rec, data) {
+  if (!rec || !rec._tpRef || !rec._tpFbId) return;
+  await firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update(data);
+  const tp = (window.TP_DATA || []).find(t => t._fbId === rec._tpFbId);
+  if (tp) Object.assign(tp, data);
+  if (typeof tpRender === 'function') tpRender();
+}
+function _gkGunlukListeyiTazele(tarih) {
+  const gunDate = document.getElementById('gun-date');
+  if (gunDate && tarih) gunDate.value = tarih;
+  try { if (typeof renderGunluk === 'function') renderGunluk(); } catch (e) { console.warn('Günlük liste tazeleme hatası:', e); }
+}
+
 async function gkKaydet() {
   const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
   const tarih = document.getElementById('gk-tarih').value;
   if (!isim) { showToast('Vatandas adi zorunlu'); return; }
   if (!tarih) { showToast('Tarih zorunlu'); return; }
+
   const hizmet = document.getElementById('gk-hizmet').value;
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
-  const tip = seciliTipler.join('+') || 'SAC';
   const not = document.getElementById('gk-not').value;
-  const btn = document.querySelector('#gk-modal .btn-primary, #gkBtnKaydet');
-  if (btn) { btn.disabled = true; btn.dataset.prevText = btn.textContent; btn.textContent = 'Kaydediliyor...'; }
+  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
+
+  if (!rec) { showToast('Vatandas bulunamadi'); return; }
+
+  const snapshot = JSON.parse(JSON.stringify(rec));
+  _gkSetBusy(true, 'Kaydediliyor...');
 
   try {
-    const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-    if (!rec) {
-      showToast('Vatandas bulunamadi');
-      return;
-    }
-
     if (hizmet==='KUAFÖR') {
       if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
       seciliTipler.forEach(t => {
@@ -431,47 +450,44 @@ async function gkKaydet() {
       const empty=fields.find(f=>!rec[f]);
       if (empty) rec[empty]=tarih; else rec[fields[4]]=tarih;
     }
+
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
 
-    let anaOk = true;
     if (rec._fbId) {
-      const idx = allData.indexOf(rec);
-      anaOk = await fbUpdateDoc(idx, Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
+      await _gkVatandasKaydet(rec);
+    } else if (!rec._tpRef) {
+      throw new Error('Bu kayıt Firebase’de bulunamadı');
     }
 
-    let tpOk = true;
     if (rec._tpRef && rec._tpFbId) {
-      const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
-      if (tp) { tp.sonGidilme = tarih; if(not) tp.not_ = rec.NOT1; }
       const sd = { sonGidilme: tarih };
       if (not) sd.not_ = rec.NOT1;
-      try {
-        await firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update(sd);
-        tpRender();
-      } catch (e) {
-        console.warn(e);
-        tpOk = false;
-      }
-    }
-
-    if (!rec._fbId && !rec._tpRef) {
-      showToast("⚠️ Bu kayıt Firebase'de bulunamadı");
-      return;
-    }
-
-    if (!anaOk || !tpOk) {
-      showToast('Kayıt tamamlanamadı, tekrar dene');
-      return;
+      await _gkTemizlikPlanKaydet(rec, sd);
     }
 
     if (!window.gkRecs) window.gkRecs=[];
-    window.gkRecs.push({isim,hizmet,tarih,tip:hizmet==='KUAFÖR'?(seciliTipler.length?seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + '):'—'):'—',not});
+    window.gkRecs.push({
+      isim,hizmet,tarih,
+      tip:hizmet==='KUAFÖR'
+        ? (seciliTipler.length ? seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + ') : '—')
+        : '—',
+      not
+    });
+
     renderGkTable();
     gkTemizle();
     refreshAll();
-    showToast('Kaydedildi. Hafızaya tamamen eklendi.');
+    _gkGunlukListeyiTazele(tarih);
+    showToast('✅ Kaydedildi. Hafızaya tamamen eklendi.');
+  } catch (e) {
+    const meta = {};
+    Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
+    Object.keys(rec).forEach(k => delete rec[k]);
+    Object.assign(rec, snapshot, meta);
+    console.error('Günlük hizmet kaydı hatası:', e);
+    showToast('Kayıt tamamlanamadı, tekrar dene');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.prevText || 'Kaydet'; }
+    _gkSetBusy(false);
   }
 }
 
@@ -601,11 +617,7 @@ async function gkRecSil(i) {
   let silindi=false;
   if (r.tip !== 'YAPTIRILAMADI' && r.tip !== 'VERİLEMEDİ') {
     const rec=allData.find(x=>x['HİZMET']===r.hizmet&&x.ISIM_SOYISIM&&x.ISIM_SOYISIM.toUpperCase()===r.isim);
-    if (rec) silindi = await _gunlukKaydiSil(rec, r.tarih, '', {
-      silent:true,
-      noteText: r.not || '',
-      removeSingleUndatedNote:true
-    });
+    if (rec) silindi = await _gunlukKaydiSil(rec, r.tarih, '', { silent:true });
   }
   if (silindi || r.tip === 'YAPTIRILAMADI' || r.tip === 'VERİLEMEDİ') {
     window.gkRecs.splice(i,1);
