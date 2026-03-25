@@ -366,6 +366,24 @@ function renderUzunSure() {
     });
   });
 
+  // Temizlik kayıtları için TP_DATA'dan da kontrol et (BANYO1 optimize ile silinmiş olabilir)
+  if (typeof TP_DATA !== 'undefined') {
+    TP_DATA.forEach(tp => {
+      if (tp.durum !== 'AKTİF' || !tp.sonGidilme) return;
+      const isimKey = tp.isim + '|TEMİZLİK';
+      const d = parseDate(tp.sonGidilme);
+      if (!d) return;
+      const rec = allData.find(r => r['HİZMET'] === 'TEMİZLİK' && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === tp.isim.toUpperCase());
+      const mahalle = (tp.mahalle || (rec && rec.MAHALLE) || '').toString().trim().toUpperCase();
+      const fakeRec = rec
+        ? { ...rec, MAHALLE: mahalle }
+        : { ISIM_SOYISIM: tp.isim, 'HİZMET': 'TEMİZLİK', MAHALLE: mahalle, DURUM: 'AKTİF', AY: '' };
+      if (!sonZiyaret[isimKey] || d > sonZiyaret[isimKey].tarih) {
+        sonZiyaret[isimKey] = { tarih: d, r: fakeRec };
+      }
+    });
+  }
+
   // Gün farkına göre sırala
   const liste = Object.values(sonZiyaret).map(({ tarih, r }) => {
     const gun = Math.floor((bugun - tarih) / (1000*60*60*24));
