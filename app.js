@@ -57,7 +57,14 @@ firebase.auth().onAuthStateChanged( user => {
     // Yedekler menüsünü hemen göster (refreshAll beklemeden)
     const _nv = document.getElementById('nav-yedekler');
     if(_nv) _nv.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
-    _waitAndStartApp();
+    if (typeof initApp === 'function') {
+      initApp();
+    } else {
+      window.addEventListener('load', () => {
+        if (typeof initApp === 'function') initApp();
+        else console.error('initApp bulunamadı');
+      }, { once: true });
+    }
   } else {
     currentUser = null;
     document.getElementById('login-screen').style.display = 'flex';
@@ -67,18 +74,6 @@ firebase.auth().onAuthStateChanged( user => {
 });
 
 // ── FIRESTORE HELPERS ──
-
-function _waitAndStartApp(tryCount = 0) {
-  if (typeof initApp === 'function') {
-    initApp();
-    return;
-  }
-  if (tryCount > 80) {
-    console.error('initApp bulunamadı');
-    return;
-  }
-  setTimeout(() => _waitAndStartApp(tryCount + 1), 100);
-}
 
 
 const DATA_MANIFEST_URL = './manifest.json';
@@ -186,7 +181,6 @@ function allDataOptimize() {
 }
 
 async function fbLoadData() {
-  _saveQueueRestore();
   showToast('🔄 Veriler yükleniyor...');
   const snap = await firebase.firestore()
     .collection('vatandaslar')
@@ -220,10 +214,6 @@ async function fbLoadData() {
     allDataOptimize();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
     refreshAll();
-    if ((window._saveQueue || []).length > 0) {
-      showToast('⏳ Bekleyen kayıtlar tamamlanıyor...');
-      _flushSaveQueue(true);
-    }
   }
 }
 
@@ -247,64 +237,18 @@ async function fbSeedData(initialData) {
 
 // Bekleyen kayıtlar kuyruğu — internet kesilirse burada bekler
 window._saveQueue = window._saveQueue || [];
-window._saveInFlight = window._saveInFlight || [];
 window._saveRetryTimer = null;
-window._flushRunning = false;
-const SAVE_QUEUE_KEY = 'evdebakim_save_queue_v4';
-
-function _saveQueuePersist() {
-  try {
-    localStorage.setItem(SAVE_QUEUE_KEY, JSON.stringify({
-      queue: window._saveQueue || [],
-      inflight: window._saveInFlight || []
-    }));
-  } catch (e) {
-    console.warn('saveQueue persist hatasi:', e);
-  }
-}
-
-function _saveQueueRestore() {
-  try {
-    const raw = localStorage.getItem(SAVE_QUEUE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw);
-    const queue = Array.isArray(parsed?.queue) ? parsed.queue : [];
-    const inflight = Array.isArray(parsed?.inflight) ? parsed.inflight : [];
-    const merged = [...inflight, ...queue];
-    if (!merged.length) return;
-    const map = new Map();
-    merged.forEach(item => {
-      if (!item._qid) item._qid = 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2,10);
-      map.set(item._qid, item);
-    });
-    window._saveQueue = [...map.values()];
-    window._saveInFlight = [];
-  } catch (e) {
-    console.warn('saveQueue restore hatasi:', e);
-  }
-}
-
-function _saveQueueClearStorage() {
-  try { localStorage.removeItem(SAVE_QUEUE_KEY); } catch (e) {}
-}
 
 async function fbUpdateDoc(idx, changes) {
   const r = allData[idx];
   if (!r || !r._fbId) {
     console.warn('fbUpdateDoc: _fbId yok, idx=', idx);
-    showToast('⚠️ Kayıt ID eksik, kaydedilemedi');
-    return false;
+    showToast('⚠️ Kayit ID eksik, kaydilemedi');
+    return;
   }
-  const item = {
-    type: 'update',
-    fbId: r._fbId,
-    isim: r.ISIM_SOYISIM,
-    changes,
-    _qid: 'q_' + Date.now() + '_' + Math.random().toString(36).slice(2,10)
-  };
-  window._saveQueue.push(item);
-  _saveQueuePersist();
-  return await _flushSaveQueue(true, item._qid);
+  // Kuyruğa ekle
+  window._saveQueue.push({ type: 'update', fbId: r._fbId, isim: r.ISIM_SOYISIM, changes });
+  await _flushSaveQueue();
 }
 
 function _saveGostergesi(durum, sayi) {
@@ -347,43 +291,19 @@ if (!document.getElementById('save-indicator-css')) {
   document.head.appendChild(s);
 }
 
-async function _flushSaveQueue(forceImmediate = false, waitForQid = null) {
-  if (window._flushRunning) {
-    if (waitForQid) {
-      return new Promise(resolve => {
-        const started = Date.now();
-        const t = setInterval(() => {
-          const kuyrukta = (window._saveQueue || []).some(x => x._qid === waitForQid);
-          const islemde = (window._saveInFlight || []).some(x => x._qid === waitForQid);
-          if (!window._flushRunning && !kuyrukta && !islemde) {
-            clearInterval(t); resolve(true);
-          } else if (Date.now() - started > 20000) {
-            clearInterval(t); resolve(false);
-          }
-        }, 200);
-      });
-    }
-    return false;
-  }
-  if (!window._saveQueue) window._saveQueue = [];
-  if (!window._saveInFlight) window._saveInFlight = [];
-  if (window._saveQueue.length === 0) return true;
-
+async function _flushSaveQueue() {
+  if (window._flushRunning) return;
   window._flushRunning = true;
   const pending = [...window._saveQueue];
-  window._saveInFlight = [...window._saveInFlight, ...pending];
-  _saveQueuePersist();
-
+  window._saveQueue = [];
   const failed = [];
+
   if (pending.length > 0) _saveGostergesi('kaydediliyor');
 
   for (const item of pending) {
     try {
       if (item.type === 'update') {
         await firebase.firestore().collection('vatandaslar').doc(item.fbId).update(item.changes);
-        window._saveQueue = (window._saveQueue || []).filter(x => x._qid !== item._qid);
-        window._saveInFlight = (window._saveInFlight || []).filter(x => x._qid !== item._qid);
-        _saveQueuePersist();
         if (currentUser) {
           firebase.firestore().collection('islem_log').add({
             yapan: currentUser.ad,
@@ -394,52 +314,41 @@ async function _flushSaveQueue(forceImmediate = false, waitForQid = null) {
           }).catch(()=>{});
         }
       }
-    } catch (e) {
-      console.error('Kayıt hatası [' + item.fbId + ']:', e.code, e.message);
+    } catch(e) {
+      console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
       item._lastError = (e.code || '') + ' ' + e.message;
       failed.push(item);
-      window._saveInFlight = (window._saveInFlight || []).filter(x => x._qid !== item._qid);
-      _saveQueuePersist();
     }
   }
 
-  let result = true;
   if (failed.length > 0) {
-    const byId = new Map();
-    for (const it of (window._saveQueue || [])) byId.set(it._qid, it);
-    for (const it of failed) byId.set(it._qid, it);
-    window._saveQueue = [...byId.values()];
-    _saveQueuePersist();
+    window._saveQueue = [...failed, ...window._saveQueue];
+    // Hatayı ekranda göster
+    const ilkHata = failed[0];
     _saveGostergesi('hata', failed.length);
-    if (failed[0] && failed[0]._lastError) showToast('Kayıt hatası: '+ failed[0]._lastError);
-    result = false;
-  } else {
-    if ((window._saveQueue || []).length === 0 && (window._saveInFlight || []).length === 0) _saveQueueClearStorage();
-    if (pending.length > 0) {
-      _saveGostergesi('kaydedildi');
-      refreshAll();
+    // Toast ile hata detayı göster
+    if (failed.length > 0 && failed[0]._lastError) {
+      showToast('Kayit hatasi: ' + failed[0]._lastError);
     }
-  }
-  window._flushRunning = false;
-  if ((window._saveQueue || []).length > 0) return await _flushSaveQueue(forceImmediate, waitForQid);
-  clearTimeout(window._saveRetryTimer);
-  if (!result) {
+    clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {
-      if (!window._flushRunning && (window._saveQueue || []).length > 0) _flushSaveQueue();
-    }, forceImmediate ? 3000 : 10000);
+      window._flushRunning = false;
+      _flushSaveQueue();
+    }, 10000);
   } else {
+    if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
+    clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {
-      if (!window._flushRunning && (window._saveQueue || []).length > 0) _flushSaveQueue();
+      window._flushRunning = false;
+      if (window._saveQueue.length > 0) _flushSaveQueue();
     }, 30000);
   }
-  return result;
+  window._flushRunning = false;
 }
 
 // Sayfa kapanmadan önce uyar
 window.addEventListener('beforeunload', function(e) {
-  _saveQueuePersist();
-  const bekleyen = (window._saveQueue && window._saveQueue.length > 0) || (window._saveInFlight && window._saveInFlight.length > 0);
-  if (bekleyen) {
+  if (window._saveQueue && window._saveQueue.length > 0) {
     e.preventDefault();
     e.returnValue = 'Kaydedilmemiş değişiklikler var!';
     return e.returnValue;
@@ -448,7 +357,7 @@ window.addEventListener('beforeunload', function(e) {
 
 // Online olunca kuyruğu boşalt
 window.addEventListener('online', function() {
-  if ((window._saveQueue && window._saveQueue.length > 0) || (window._saveInFlight && window._saveInFlight.length > 0)) {
+  if (window._saveQueue && window._saveQueue.length > 0) {
     showToast('🌐 Bağlantı geldi, kayıtlar gönderiliyor...');
     window._flushRunning = false;
     _flushSaveQueue();
