@@ -410,22 +410,10 @@ async function renderIslemLog() {
 // ============ SEED DATA (İlk kurulum) ============
 
 
-// ============ DATA ============
-// Ortak sabitler ve veri yardımcıları modules/data.js içine taşındı.
-
-let allData = [];
-
-let newRecs = [];
-
-// ============ STATE ============
-let vatPage = 1;
-const PER = 30;
-let vatFiltered = [];
-let vatHizmet = '';
-let vatAy = '';
-let dashSrch = '';
-
-// Ortak başlangıç ve sidebar yardımcıları modules/data.js içine taşındı.
+// ============ DATA / STATE ============
+// Ortak sabitler, allData/newRecs ve state değişkenleri modules/data.js içinde tanımlı.
+// Burada tekrar tanımlanırsa modules/data.js yüklenirken "Identifier has already been declared"
+// hatası oluşur ve uygulama açılmaz.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 1: openEditModal + saveEdit — app.js içinde tanımlı, doğru çalışır
