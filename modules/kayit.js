@@ -372,7 +372,7 @@ function gkKaydet() {
       tpRender();
     }
     if (!rec._fbId && !rec._tpRef) {
-      showToast('⚠️ Bu kayıt Firebase'de bulunamadı');
+      showToast('⚠️ Bu kayıt Firebase\'de bulunamadı');
     }
   } else {
     showToast('Vatandas bulunamadi');
