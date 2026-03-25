@@ -18,15 +18,29 @@ function _gunlukAlanBul(rec, hizmet, iso) {
     : ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
   return alanlar.find(f=>_gunlukDateMatch(rec[f], iso, tr)) || '';
 }
-function _gunlukNotTemizle(metin, iso) {
+function _gunlukNotTemizle(metin, iso, opts={}) {
   if (!metin) return '';
   const tr=_gunlukDateTR(iso);
-  return String(metin)
+  const hedefNot=(opts.noteText||'').trim();
+  const parcalar=String(metin)
     .split(' | ')
     .map(x=>x.trim())
-    .filter(Boolean)
-    .filter(parca=>!(parca===tr || parca.startsWith(tr+' ') || parca.includes(tr+' YAPTIRILAMADI') || parca.includes(tr+' VERİLEMEDİ')))
-    .join(' | ');
+    .filter(Boolean);
+
+  let kalan = parcalar.filter(parca => !(
+    parca===tr ||
+    parca.startsWith(tr+' ') ||
+    parca.includes(tr+' YAPTIRILAMADI') ||
+    parca.includes(tr+' VERİLEMEDİ') ||
+    (hedefNot && parca===hedefNot)
+  ));
+
+  const tarihRegex=/\b\d{2}\.\d{2}\.\d{4}\b/;
+  if (opts.removeSingleUndatedNote && parcalar.length===1 && !tarihRegex.test(parcalar[0])) {
+    kalan = [];
+  }
+
+  return kalan.join(' | ');
 }
 async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
   if (!rec || !iso) return false;
@@ -37,9 +51,13 @@ async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
     return false;
   }
   rec[hedefAlan]='';
-  rec.NOT1=_gunlukNotTemizle(rec.NOT1, iso);
-  rec.NOT2=_gunlukNotTemizle(rec.NOT2, iso);
-  rec.NOT3=_gunlukNotTemizle(rec.NOT3, iso);
+  const notOpts = {
+    noteText: opts.noteText || '',
+    removeSingleUndatedNote: !!opts.removeSingleUndatedNote
+  };
+  rec.NOT1=_gunlukNotTemizle(rec.NOT1, iso, notOpts);
+  rec.NOT2=_gunlukNotTemizle(rec.NOT2, iso, notOpts);
+  rec.NOT3=_gunlukNotTemizle(rec.NOT3, iso, notOpts);
 
   try {
     if (rec._tpRef && rec._tpFbId) {
@@ -114,7 +132,7 @@ function renderGunluk() {
 async function gunlukSil(aI,al,dI) {
   const r=allData[aI]; if(!r) return;
   if (!confirm(r.ISIM_SOYISIM+' - '+dI+' tarihli kaydı silmek istiyor musunuz?\nSadece bu tarihe ait kayıt ve açıklama temizlenecek.')) return;
-  await _gunlukKaydiSil(r, dI, al);
+  await _gunlukKaydiSil(r, dI, al, { removeSingleUndatedNote:true });
 }
 window.gunlukSil = gunlukSil;
 window._gunlukKaydiSil = _gunlukKaydiSil;
@@ -559,7 +577,11 @@ async function gkRecSil(i) {
   let silindi=false;
   if (r.tip !== 'YAPTIRILAMADI' && r.tip !== 'VERİLEMEDİ') {
     const rec=allData.find(x=>x['HİZMET']===r.hizmet&&x.ISIM_SOYISIM&&x.ISIM_SOYISIM.toUpperCase()===r.isim);
-    if (rec) silindi = await _gunlukKaydiSil(rec, r.tarih, '', { silent:true });
+    if (rec) silindi = await _gunlukKaydiSil(rec, r.tarih, '', {
+      silent:true,
+      noteText: r.not || '',
+      removeSingleUndatedNote:true
+    });
   }
   if (silindi || r.tip === 'YAPTIRILAMADI' || r.tip === 'VERİLEMEDİ') {
     window.gkRecs.splice(i,1);
