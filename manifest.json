@@ -38,7 +38,7 @@
   {
     "ay": "OCAK",
     "hizmet": "TEMİZLİK",
-    "file": "./ocak-temi̇zli̇k.json",
+    "file": "./ocak-temizlik.json",
     "count": 243
   },
   {
@@ -62,7 +62,7 @@
   {
     "ay": "ŞUBAT",
     "hizmet": "TEMİZLİK",
-    "file": "./subat-temi̇zli̇k.json",
+    "file": "./subat-temizlik.json",
     "count": 257
   }
 ]

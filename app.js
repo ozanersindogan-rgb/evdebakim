@@ -105,21 +105,51 @@ async function loadInitialData() {
     throw new Error('Veri manifesti beklenen formatta değil');
   }
 
+  const normalizeFilePath = (file) => String(file || '')
+    .replace(/temi̇zli̇k/gi, 'temizlik')
+    .replace(/ı̇/gi, 'i')
+    .replace(/i̇/gi, 'i');
+
+  const errors = [];
   const groups = await Promise.all(
     manifest.map(async item => {
-      const res = await fetch(item.file, { cache: 'no-store' });
-      if (!res.ok) {
-        throw new Error('Veri dosyası alınamadı: ' + item.file);
+      const candidates = [...new Set([item.file, normalizeFilePath(item.file)].filter(Boolean))];
+      let lastError = null;
+
+      for (const file of candidates) {
+        try {
+          const res = await fetch(file, { cache: 'no-store' });
+          if (!res.ok) {
+            lastError = new Error('Veri dosyası alınamadı: ' + file + ' (' + res.status + ')');
+            continue;
+          }
+          const data = await res.json();
+          if (!Array.isArray(data)) {
+            lastError = new Error('Veri dosyası beklenen formatta değil: ' + file);
+            continue;
+          }
+          return data;
+        } catch (err) {
+          lastError = err;
+        }
       }
-      const data = await res.json();
-      if (!Array.isArray(data)) {
-        throw new Error('Veri dosyası beklenen formatta değil: ' + item.file);
-      }
-      return data;
+
+      errors.push({ item, error: lastError || new Error('Bilinmeyen veri yükleme hatası') });
+      return [];
     })
   );
 
-  return groups.flat().map(rec => normalizeRecord({ ...rec }));
+  if (errors.length) {
+    console.warn('[loadInitialData] Yüklenemeyen veri dosyaları:', errors);
+  }
+
+  const records = groups.flat().map(rec => normalizeRecord({ ...rec }));
+  if (!records.length) {
+    const detay = errors.map(({ item, error }) => `${item?.file || 'dosya'} → ${error?.message || error}`).join(' | ');
+    throw new Error('Başlangıç verileri yüklenemedi. ' + detay);
+  }
+
+  return records;
 }
 
 // Hangi aylar yüklendi takibi
@@ -381,49 +411,7 @@ async function renderIslemLog() {
 
 
 // ============ DATA ============
-// KUAFOR_BILGI data.js dosyasında tanımlı
-
-const HIZMET_KEYS = ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'];
-const HIZMET_COLORS = {'KADIN BANYO':'kadin','ERKEK BANYO':'erkek','KUAFÖR':'kuafor','TEMİZLİK':'temizlik'};
-const HIZMET_ICONS = {'KADIN BANYO':'🛁','ERKEK BANYO':'🚿','KUAFÖR':'✂️','TEMİZLİK':'🧹'};
-// ── AY SİSTEMİ (tek merkezi tanım) ──
-const AY_LISTESI  = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
-const AY_LABELS   = {OCAK:'Ocak',ŞUBAT:'Şubat',MART:'Mart',NİSAN:'Nisan',MAYIS:'Mayıs',HAZİRAN:'Haziran',TEMMUZ:'Temmuz',AĞUSTOS:'Ağustos',EYLÜL:'Eylül',EKİM:'Ekim',KASIM:'Kasım',ARALIK:'Aralık'};
-const AY_KISALT   = {OCAK:'Oca',ŞUBAT:'Şub',MART:'Mar',NİSAN:'Nis',MAYIS:'May',HAZİRAN:'Haz',TEMMUZ:'Tem',AĞUSTOS:'Ağu',EYLÜL:'Eyl',EKİM:'Eki',KASIM:'Kas',ARALIK:'Ara'};
-const AYLAR       = AY_LISTESI; // alias
-
-// allData'dan sıralı mevcut ayları döndürür
-function getMevcutAylar() {
-  return [...new Set(allData.map(r=>r.AY).filter(Boolean))]
-    .sort((a,b)=>AY_LISTESI.indexOf(a)-AY_LISTESI.indexOf(b));
-}
-// allData'dan en son (en büyük) ayı döndürür
-function getSonAy() {
-  const aylar = getMevcutAylar();
-  return aylar[aylar.length - 1] || '';
-}
-// Bir sonraki ayı döndürür (yıl geçişi dahil)
-function getSonrakiAy(ay) {
-  const i = AY_LISTESI.indexOf(ay);
-  return i === -1 ? '' : AY_LISTESI[(i + 1) % 12];
-}
-// select elementini tüm 12 ay ile doldurur, seçili olanı işaretler
-function aySelectDoldur(elId, secilenAy, bosSecenek) {
-  const el = document.getElementById(elId);
-  if(!el) return;
-  const secilen = secilenAy || getSonAy();
-  el.innerHTML = (bosSecenek ? `<option value="">— Seçin —</option>` : '') +
-    AY_LISTESI.map(a=>`<option value="${a}"${a===secilen?' selected':''}>${AY_LABELS[a]}</option>`).join('');
-}
-// select elementini sadece verida olan aylarla doldurur
-function mevcutAySelectDoldur(elId, secilenAy, bosSecenek) {
-  const el = document.getElementById(elId);
-  if(!el) return;
-  const aylar = getMevcutAylar();
-  const secilen = secilenAy || aylar[aylar.length-1] || '';
-  el.innerHTML = (bosSecenek ? `<option value="">— Seçin —</option>` : '') +
-    aylar.map(a=>`<option value="${a}"${a===secilen?' selected':''}>${AY_LABELS[a]}</option>`).join('');
-}
+// Ortak sabitler ve veri yardımcıları modules/data.js içine taşındı.
 
 let allData = [];
 
@@ -437,34 +425,7 @@ let vatHizmet = '';
 let vatAy = '';
 let dashSrch = '';
 
-// ============ INIT ============
-function initApp() {
-  const now = new Date();
-  document.getElementById('current-date').textContent = now.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
-  document.getElementById('gun-date').value = now.toISOString().split('T')[0];
-  fbLoadData().then(()=>{ yedekGunlukKontrol(); });
-  kanbanYukle();
-}
-
-
-
-// ============ SIDEBAR ============
-function buildSidebar() {
-  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
-  const sonAy = [...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>AY_SIRA.indexOf(b)-AY_SIRA.indexOf(a))[0];
-  const sonAyAktif = allData.filter(r=>r.AY===sonAy && r.DURUM==='AKTİF');
-  const byH = {};
-  HIZMET_KEYS.forEach(h => byH[h] = sonAyAktif.filter(r=>r['HİZMET']===h).length);
-  document.getElementById('sidebar-mini').innerHTML = `
-    <div class="mini-stat"><div class="v">${new Set(allData.filter(r=>r.DURUM==='AKTİF'&&r.AY===([...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'].indexOf(b)-['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'].indexOf(a))[0])).map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM)).size}</div><div class="l">Aktif</div></div>
-    <div class="mini-stat"><div class="v">${allData.length}</div><div class="l">Toplam</div></div>
-    <div class="mini-stat"><div class="v">${byH['KADIN BANYO']||0}</div><div class="l">Kad. Banyo</div></div>
-    <div class="mini-stat"><div class="v">${byH['ERKEK BANYO']||0}</div><div class="l">Erk. Banyo</div></div>
-    <div class="mini-stat"><div class="v">${byH['KUAFÖR']||0}</div><div class="l">Kuaför</div></div>
-    <div class="mini-stat"><div class="v">${byH['TEMİZLİK']||0}</div><div class="l">Temizlik</div></div>
-  `;
-}
-
+// Ortak başlangıç ve sidebar yardımcıları modules/data.js içine taşındı.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 1: openEditModal + saveEdit — app.js içinde tanımlı, doğru çalışır
@@ -605,138 +566,4 @@ function saveEdit() {
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 3: Yedek saati 17:20 olarak güncelle
 // ═══════════════════════════════════════════════════════════════════════════
-async function yedekGunlukKontrol() {
-  try {
-    const bugun = new Date().toLocaleDateString('tr-TR',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'}).split('.').reverse().join('-');
-    const saatStr = new Date().toLocaleTimeString('tr-TR',{timeZone:'Europe/Istanbul',hour:'2-digit',minute:'2-digit',hour12:false});
-    const [saat,dakika] = saatStr.split(':').map(Number);
-    const toplamDakika = saat*60 + dakika;
-    if (toplamDakika < 17*60+20) {
-      console.log(`[Yedek] Saat ${saatStr} — yedek saati henüz gelmedi (17:20 bekleniyor)`);
-      return;
-    }
-    // Sadece Ozan kontrol eder
-    if (!currentUser || currentUser.uid !== 'SBIyovehB5RAkSkhc05bIm88PJs2') return;
-    const mevcutSnap = await firebase.firestore().collection('yedekler').where('tarih','==',bugun).limit(1).get();
-    if (!mevcutSnap.empty) { console.log(`[Yedek] Bugün (${bugun}) zaten yedek alınmış.`); return; }
-    await _yedekAlInternal(`Otomatik — ${bugun}`);
-  } catch(e) { console.warn('[Yedek] Kontrol hatası:', e.message); }
-}
-
-async function yedekAl(aciklama) {
-  if (!currentUser || currentUser.uid !== 'SBIyovehB5RAkSkhc05bIm88PJs2') { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
-  await _yedekAlInternal(aciklama || 'Manuel — ' + new Date().toLocaleDateString('tr-TR',{timeZone:'Europe/Istanbul'}));
-}
-
-async function _yedekAlInternal(aciklama) {
-  if (!allData.length) { showToast('⚠️ Yedeklenecek veri yok'); return; }
-  showToast('💾 Yedek alınıyor...');
-  try {
-    const bugun = new Date().toLocaleDateString('tr-TR',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'}).split('.').reverse().join('-');
-    const ozet = { toplamKayit:allData.length, aktif:allData.filter(r=>r.DURUM==='AKTİF').length, aylar:[...new Set(allData.map(r=>r.AY).filter(Boolean))] };
-    const temizVeri = allData.map(r => { const {_fbId,...rest}=r; return rest; });
-    await firebase.firestore().collection('yedekler').add({
-      tarih: bugun, zaman: new Date().toISOString(),
-      aciklama, ozet, veri: JSON.stringify(temizVeri),
-      olusturan: currentUser?.ad || 'Sistem',
-    });
-    showToast(`✅ Yedek alındı — ${ozet.toplamKayit} kayıt`);
-    // 30'dan fazla olunca eskisini sil
-    const snap = await firebase.firestore().collection('yedekler').orderBy('zaman','desc').get();
-    if (snap.size > 30) await Promise.all(snap.docs.slice(30).map(d=>d.ref.delete()));
-    if (document.getElementById('page-yedekler')?.classList.contains('active')) yedekSayfaYukle();
-  } catch(e) { showToast('❌ Yedek alınamadı: ' + e.message); }
-}
-
-async function yedekSayfaYukle() {
-  if (!currentUser || currentUser.uid !== 'SBIyovehB5RAkSkhc05bIm88PJs2') { showToast('⛔ Yetkiniz yok'); return; }
-  const liste = document.getElementById('yedek-liste');
-  if (!liste) return;
-  liste.innerHTML = '<div style="text-align:center;padding:32px;color:#94a3b8">⏳ Yükleniyor...</div>';
-  try {
-    const snap = await firebase.firestore().collection('yedekler').orderBy('zaman','desc').limit(30).get();
-    if (snap.empty) {
-      liste.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8"><div style="font-size:32px;margin-bottom:12px">💾</div><div style="font-weight:700">Henüz yedek alınmamış</div><div style="font-size:12px;margin-top:4px">Şimdi Yedek Al butonuna basın</div></div>';
-      return;
-    }
-    liste.innerHTML = snap.docs.map(d => {
-      const v = d.data();
-      const tarihStr = new Date(v.zaman).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
-      const etiket = (v.aciklama||'').startsWith('Otomatik')
-        ? '<span style="background:#dbeafe;color:#1d4ed8;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">OTO</span>'
-        : '<span style="background:#dcfce7;color:#15803d;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">MANUEL</span>';
-      return `<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div style="flex:1">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-              <span style="font-weight:800;font-size:14px;color:#1A237E">${v.tarih}</span>${etiket}
-            </div>
-            <div style="font-size:12px;color:#64748b;margin-bottom:4px">🕐 ${tarihStr}</div>
-            <div style="font-size:12px;color:#475569">📦 <strong>${v.ozet?.toplamKayit||0}</strong> kayıt &nbsp;·&nbsp; ✅ <strong>${v.ozet?.aktif||0}</strong> aktif &nbsp;·&nbsp; 👤 ${v.olusturan||''}</div>
-            ${v.ozet?.aylar?.length ? `<div style="font-size:11px;color:#94a3b8;margin-top:3px">📅 ${v.ozet.aylar.join(', ')}</div>` : ''}
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <button onclick="yedekIndir('${d.id}')" style="flex:1;min-width:80px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;color:#15803d;cursor:pointer">⬇️ İndir</button>
-          <button onclick="yedekGeriYukle('${d.id}','${v.tarih}',${v.ozet?.toplamKayit||0})" style="flex:1;min-width:80px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;color:#c2410c;cursor:pointer">🔄 Geri Yükle</button>
-          <button onclick="yedekSil('${d.id}','${v.tarih}')" style="flex:1;min-width:80px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;color:#dc2626;cursor:pointer">🗑️ Sil</button>
-        </div>
-      </div>`;
-    }).join('');
-  } catch(e) { liste.innerHTML = `<div style="padding:20px;color:#B71C1C;text-align:center">❌ Hata: ${e.message}</div>`; }
-}
-
-async function yedekIndir(yedekId) {
-  if (!currentUser || currentUser.uid !== 'SBIyovehB5RAkSkhc05bIm88PJs2') { showToast('⛔ Yetkiniz yok'); return; }
-  try {
-    showToast('⏳ Hazırlanıyor...');
-    const doc = await firebase.firestore().collection('yedekler').doc(yedekId).get();
-    if (!doc.exists) { showToast('❌ Yedek bulunamadı'); return; }
-    const v = doc.data();
-    const icerik = JSON.stringify({ meta:{tarih:v.tarih,zaman:v.zaman,aciklama:v.aciklama,ozet:v.ozet,olusturan:v.olusturan}, veri:JSON.parse(v.veri) }, null, 2);
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([icerik],{type:'application/json'}));
-    a.download = `evdebaki_yedek_${v.tarih}.json`;
-    a.click();
-    showToast(`✅ ${v.tarih} yedeği indirildi`);
-  } catch(e) { showToast('❌ Hata: '+e.message); }
-}
-
-async function yedekSil(yedekId, tarih) {
-  if (!currentUser || currentUser.uid !== 'SBIyovehB5RAkSkhc05bIm88PJs2') { showToast('⛔ Yetkiniz yok'); return; }
-  if (!confirm(`"${tarih}" tarihli yedeği silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz.`)) return;
-  try {
-    await firebase.firestore().collection('yedekler').doc(yedekId).delete();
-    showToast('🗑️ Yedek silindi');
-    yedekSayfaYukle();
-  } catch(e) { showToast('❌ Hata: '+e.message); }
-}
-
-async function yedekGeriYukle(yedekId, tarih, kayitSayisi) {
-  if (!currentUser || currentUser.uid !== 'SBIyovehB5RAkSkhc05bIm88PJs2') { showToast('⛔ Yetkiniz yok'); return; }
-  if (!confirm(
-    `⚠️ DİKKAT — GERİ YÜKLEME\n\n` +
-    `"${tarih}" tarihli yedek geri yüklenecek.\n` +
-    `Bu yedekte ${kayitSayisi} kayıt var.\n\n` +
-    `Mevcut TÜM veriler silinip yedekteki veriler yüklenecek.\n` +
-    `Bu işlem GERİ ALINAMAZ!\n\nDevam etmek istiyor musunuz?`
-  )) return;
-  const girdi = prompt(`Son onay için "EVET" yazın:\n(Mevcut veriler silinecek, ${tarih} yedeği yüklenecek)`);
-  if ((girdi||'').trim().toUpperCase() !== 'EVET') { showToast('İptal edildi'); return; }
-  try {
-    showToast('⏳ Geri yükleniyor...');
-    const doc = await firebase.firestore().collection('yedekler').doc(yedekId).get();
-    if (!doc.exists) { showToast('❌ Yedek bulunamadı'); return; }
-    const yedekVeri = JSON.parse(doc.data().veri);
-    const mevcutSnap = await firebase.firestore().collection('vatandaslar').get();
-    for (let i=0; i<mevcutSnap.docs.length; i+=400)
-      await Promise.all(mevcutSnap.docs.slice(i,i+400).map(d=>d.ref.delete()));
-    for (let i=0; i<yedekVeri.length; i+=400) {
-      await Promise.all(yedekVeri.slice(i,i+400).map(r=>firebase.firestore().collection('vatandaslar').add(normalizeRecord({...r}))));
-      showToast(`⏳ ${Math.min(i+400,yedekVeri.length)}/${yedekVeri.length}`);
-    }
-    showToast('✅ Geri yükleme tamamlandı! Sayfa yenileniyor...');
-    setTimeout(()=>location.reload(), 1800);
-  } catch(e) { showToast('❌ Hata: '+e.message); }
-}
-
+// Yedekleme yardımcıları modules/helpers.js içine taşındı.
