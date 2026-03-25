@@ -401,7 +401,7 @@ function gkIsimSecildi() {
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
   }
 }
-function gkKaydet() {
+async function gkKaydet() {
   const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
   const tarih = document.getElementById('gk-tarih').value;
   if (!isim) { showToast('Vatandas adi zorunlu'); return; }
@@ -410,8 +410,16 @@ function gkKaydet() {
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
   const tip = seciliTipler.join('+') || 'SAC';
   const not = document.getElementById('gk-not').value;
-  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-  if (rec) {
+  const btn = document.querySelector('#gk-modal .btn-primary, #gkBtnKaydet');
+  if (btn) { btn.disabled = true; btn.dataset.prevText = btn.textContent; btn.textContent = 'Kaydediliyor...'; }
+
+  try {
+    const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
+    if (!rec) {
+      showToast('Vatandas bulunamadi');
+      return;
+    }
+
     if (hizmet==='KUAFÖR') {
       if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
       seciliTipler.forEach(t => {
@@ -424,31 +432,47 @@ function gkKaydet() {
       if (empty) rec[empty]=tarih; else rec[fields[4]]=tarih;
     }
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
-    // Her durumda vatandaslar koleksiyonuna yaz
+
+    let anaOk = true;
     if (rec._fbId) {
       const idx = allData.indexOf(rec);
-      fbUpdateDoc(idx, Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
+      anaOk = await fbUpdateDoc(idx, Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
     }
-    // Temizlik planı varsa onu da güncelle
+
+    let tpOk = true;
     if (rec._tpRef && rec._tpFbId) {
       const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
       if (tp) { tp.sonGidilme = tarih; if(not) tp.not_ = rec.NOT1; }
       const sd = { sonGidilme: tarih };
       if (not) sd.not_ = rec.NOT1;
-      firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update(sd).catch(e=>console.warn(e));
-      tpRender();
+      try {
+        await firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update(sd);
+        tpRender();
+      } catch (e) {
+        console.warn(e);
+        tpOk = false;
+      }
     }
+
     if (!rec._fbId && !rec._tpRef) {
-      showToast('⚠️ Bu kayıt Firebase\'de bulunamadı');
+      showToast("⚠️ Bu kayıt Firebase'de bulunamadı");
+      return;
     }
-  } else {
-    showToast('Vatandas bulunamadi');
-    return;
+
+    if (!anaOk || !tpOk) {
+      showToast('Kayıt tamamlanamadı, tekrar dene');
+      return;
+    }
+
+    if (!window.gkRecs) window.gkRecs=[];
+    window.gkRecs.push({isim,hizmet,tarih,tip:hizmet==='KUAFÖR'?(seciliTipler.length?seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + '):'—'):'—',not});
+    renderGkTable();
+    gkTemizle();
+    refreshAll();
+    showToast('Kaydedildi. Hafızaya tamamen eklendi.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.prevText || 'Kaydet'; }
   }
-  if (!window.gkRecs) window.gkRecs=[];
-  window.gkRecs.push({isim,hizmet,tarih,tip:hizmet==='KUAFÖR'?(seciliTipler.length?seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + '):'—'):'—',not});
-  renderGkTable(); gkTemizle();
-  refreshAll();
 }
 
 // ── HİZMET VERİLEMEDİ ──
