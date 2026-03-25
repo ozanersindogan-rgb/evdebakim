@@ -55,13 +55,16 @@ function gunlukSil(aI,al,dI) {
   if (!confirm(r.ISIM_SOYISIM+' - '+dI+' silmek istiyor musunuz?')) return;
   if (al&&r[al]) {
     r[al]='';
+    // Her zaman vatandaslar'a yaz
+    if (r._fbId) {
+      fbUpdateDoc(aI,Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
+    }
+    // Temizlik planını da güncelle
     if (r._tpRef&&r._tpFbId) {
       const tp=TP_DATA.find(t=>t._fbId===r._tpFbId);
       if(tp) tp.sonGidilme='';
       firebase.firestore().collection('temizlik_plan').doc(r._tpFbId).update({sonGidilme:''}).catch(e=>console.warn(e));
       tpRender();
-    } else {
-      fbUpdateDoc(aI,Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
     }
   }
   refreshAll(); showToast('Silindi');
@@ -131,14 +134,17 @@ function gunlukDuzenleKaydet() {
   r.NOT1 = not1;
   r.NOT2 = yeniNot2;
 
+  // Her zaman vatandaslar'a yaz
+  if (r._fbId) {
+    fbUpdateDoc(aI, Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
+  }
+  // Temizlik planını da güncelle
   if (r._tpRef && r._tpFbId) {
     const tp = TP_DATA.find(t=>t._fbId===r._tpFbId);
     if (tp) { tp.sonGidilme = yeniTarih; tp.not_ = not1; }
     firebase.firestore().collection('temizlik_plan').doc(r._tpFbId)
       .update({ sonGidilme: yeniTarih, not_: not1 }).catch(e=>console.warn(e));
     tpRender();
-  } else {
-    fbUpdateDoc(aI, Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
   }
 
   gunlukDuzenleKapat();
@@ -351,19 +357,22 @@ function gkKaydet() {
       if (empty) rec[empty]=tarih; else rec[fields[4]]=tarih;
     }
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
-    if (rec._tpRef && rec._tpFbId) {
-      const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
-      if (tp) tp.sonGidilme = tarih;
-      const sd = { sonGidilme: tarih };
-      if (not) sd.not_ = not;
-      _saveGostergesi('kaydediliyor');
-      firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update(sd)
-        .then(()=>{ _saveGostergesi('kaydedildi'); showToast('✅ '+isim+' kaydedildi'); })
-        .catch(e=>{ _saveGostergesi('hata',1); showToast('❌ Kayit hatasi: '+e.message); });
-      tpRender();
-    } else if (!rec._tpRef) {
+    // Her durumda vatandaslar koleksiyonuna yaz
+    if (rec._fbId) {
       const idx = allData.indexOf(rec);
       fbUpdateDoc(idx, Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
+    }
+    // Temizlik planı varsa onu da güncelle
+    if (rec._tpRef && rec._tpFbId) {
+      const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
+      if (tp) { tp.sonGidilme = tarih; if(not) tp.not_ = rec.NOT1; }
+      const sd = { sonGidilme: tarih };
+      if (not) sd.not_ = rec.NOT1;
+      firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update(sd).catch(e=>console.warn(e));
+      tpRender();
+    }
+    if (!rec._fbId && !rec._tpRef) {
+      showToast('⚠️ Bu kayıt Firebase'de bulunamadı');
     }
   } else {
     showToast('Vatandas bulunamadi');
@@ -433,14 +442,24 @@ function gkVerilemediKaydet() {
   const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
   if (rec) {
     rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
-    // Sadece nota yaz — günlük listeye işlenmesin
+    // Tarihi de tarih alanına yaz — günlük listede ve takvimde görünsün
+    if (hizmet === 'KUAFÖR') {
+      if (!rec.SAC1) rec.SAC1 = tarih; else rec.SAC2 = tarih;
+    } else {
+      const fields = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+      const empty = fields.find(f=>!rec[f]);
+      if (empty) rec[empty] = tarih; else rec[fields[4]] = tarih;
+    }
+    // Temizlik planını güncelle
     if (rec._tpRef && rec._tpFbId) {
       const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
-      if (tp) tp.not_ = rec.NOT1;
+      if (tp) { tp.not_ = rec.NOT1; tp.sonGidilme = tarih; }
       firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId)
-        .update({ not_: rec.NOT1 }).catch(e=>console.warn(e));
+        .update({ not_: rec.NOT1, sonGidilme: tarih }).catch(e=>console.warn(e));
       tpRender();
-    } else {
+    }
+    // Her zaman vatandaslar koleksiyonuna da yaz
+    if (rec._fbId) {
       fbUpdateDoc(allData.indexOf(rec), Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
     }
   }

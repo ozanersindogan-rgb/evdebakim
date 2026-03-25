@@ -143,15 +143,8 @@ function takvimWpPaylasGun(tarihStr) {
       return iso===tarihStr;})
   );
   if(!ziyaretler.length){showToast('Bu gün için ziyaret yok');return;}
-  // Hizmet verilemedi olanları WhatsApp'tan çıkar
   const [_y,_m,_g] = tarihStr.split('-');
   const _tarihTR = _g+'.'+_m+'.'+_y;
-  const _notHV = _tarihTR + ' HİZMET VERİLEMEDİ';
-  const wpZiyaretler = ziyaretler.filter(r => {
-    const not1 = r.NOT1 || ''; const not2 = r.NOT2 || '';
-    return !not1.includes(_notHV) && !not2.includes(_notHV);
-  });
-  if(!wpZiyaretler.length){showToast('Paylaşılacak ziyaret yok (hepsi hizmet verilemedi)');return;}
   const HIZMET_ETIKET = {
     'KADIN BANYO': '[Kadin Banyo]',
     'ERKEK BANYO': '[Erkek Banyo]',
@@ -159,9 +152,19 @@ function takvimWpPaylasGun(tarihStr) {
     'KUAFÖR':      '[Kuafor]',
     'TEMİZLİK':    '[Temizlik]',
   };
+  // Hizmet verilemedi olanları filtrele (BANYO/KUAFOR/TEMİZLİK VERİLEMEDİ formatı)
+  const _tarihTR2 = _tarihTR; // already defined above
+  const wpZiyaretlerFinal = ziyaretler.filter(r => {
+    const tumNot = (r.NOT1||'') + ' ' + (r.NOT2||'') + ' ' + (r.NOT3||'');
+    return !tumNot.includes(_tarihTR2 + ' BANYO VERİLEMEDİ') &&
+           !tumNot.includes(_tarihTR2 + ' KUAFOR VERİLEMEDİ') &&
+           !tumNot.includes(_tarihTR2 + ' TEMİZLİK VERİLEMEDİ') &&
+           !tumNot.includes(_tarihTR2 + ' HİZMET VERİLEMEDİ');
+  });
+  if(!wpZiyaretlerFinal.length){showToast('Paylaşılacak ziyaret yok');return;}
   const gruplar={};
-  ziyaretler.forEach(r=>{const h=r['HİZMET']||'DİĞER';if(!gruplar[h])gruplar[h]=[];gruplar[h].push(r);});
-  let metin=`*${fmtTarih}*\nToplam ${ziyaretler.length} ziyaret\n\n`;
+  wpZiyaretlerFinal.forEach(r=>{const h=r['HİZMET']||'DİĞER';if(!gruplar[h])gruplar[h]=[];gruplar[h].push(r);});
+  let metin=`*${fmtTarih}*\nToplam ${wpZiyaretlerFinal.length} ziyaret\n\n`;
   Object.entries(gruplar).forEach(([hizmet,kayitlar])=>{
     const etiket = HIZMET_ETIKET[hizmet] || `[${hizmet}]`;
     metin+=`${etiket} *${hizmet}* (${kayitlar.length} kisi)\n`;
