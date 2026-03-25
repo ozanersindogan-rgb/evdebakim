@@ -174,6 +174,7 @@ function allDataOptimize() {
 }
 
 async function fbLoadData() {
+  _saveQueueRestore();
   showToast('🔄 Veriler yükleniyor...');
   const snap = await firebase.firestore()
     .collection('vatandaslar')
@@ -207,6 +208,10 @@ async function fbLoadData() {
     allDataOptimize();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
     refreshAll();
+    if (window._saveQueue && window._saveQueue.length > 0) {
+      showToast('⏳ Bekleyen kayıtlar tamamlanıyor...');
+      _flushSaveQueue(true);
+    }
   }
 }
 
@@ -231,17 +236,48 @@ async function fbSeedData(initialData) {
 // Bekleyen kayıtlar kuyruğu — internet kesilirse burada bekler
 window._saveQueue = window._saveQueue || [];
 window._saveRetryTimer = null;
+const SAVE_QUEUE_KEY = 'evdebakim_save_queue_v1';
+
+function _saveQueuePersist() {
+  try {
+    localStorage.setItem(SAVE_QUEUE_KEY, JSON.stringify(window._saveQueue || []));
+  } catch (e) {
+    console.warn('saveQueue persist hatasi:', e);
+  }
+}
+
+function _saveQueueRestore() {
+  try {
+    const raw = localStorage.getItem(SAVE_QUEUE_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr) && arr.length) {
+      window._saveQueue = [...arr, ...(window._saveQueue || [])];
+      console.log('[saveQueue] localStorage kuyruğu geri yüklendi:', arr.length);
+    }
+  } catch (e) {
+    console.warn('saveQueue restore hatasi:', e);
+  }
+}
+
+function _saveQueueClearStorage() {
+  try { localStorage.removeItem(SAVE_QUEUE_KEY); } catch (e) {}
+}
 
 async function fbUpdateDoc(idx, changes) {
   const r = allData[idx];
   if (!r || !r._fbId) {
     console.warn('fbUpdateDoc: _fbId yok, idx=', idx);
-    showToast('⚠️ Kayit ID eksik, kaydilemedi');
-    return;
+    showToast('⚠️ Kayıt ID eksik, kaydedilemedi');
+    return false;
   }
-  // Kuyruğa ekle
-  window._saveQueue.push({ type: 'update', fbId: r._fbId, isim: r.ISIM_SOYISIM, changes });
-  await _flushSaveQueue();
+
+  const item = { type: 'update', fbId: r._fbId, isim: r.ISIM_SOYISIM, changes };
+  window._saveQueue.push(item);
+  _saveQueuePersist();
+
+  const ok = await _flushSaveQueue(true, item.fbId);
+  return !!ok;
 }
 
 function _saveGostergesi(durum, sayi) {
@@ -284,11 +320,30 @@ if (!document.getElementById('save-indicator-css')) {
   document.head.appendChild(s);
 }
 
-async function _flushSaveQueue() {
-  if (window._flushRunning) return;
+async function _flushSaveQueue(forceImmediate = false, waitForFbId = null) {
+  if (window._flushRunning) {
+    if (waitForFbId) {
+      return new Promise(resolve => {
+        const started = Date.now();
+        const t = setInterval(() => {
+          const halenBekliyor = (window._saveQueue || []).some(x => x.fbId === waitForFbId);
+          if (!window._flushRunning && !halenBekliyor) {
+            clearInterval(t);
+            resolve(true);
+          } else if (Date.now() - started > 15000) {
+            clearInterval(t);
+            resolve(false);
+          }
+        }, 250);
+      });
+    }
+    return false;
+  }
+
   window._flushRunning = true;
   const pending = [...window._saveQueue];
   window._saveQueue = [];
+  _saveQueuePersist();
   const failed = [];
 
   if (pending.length > 0) _saveGostergesi('kaydediliyor');
@@ -308,39 +363,45 @@ async function _flushSaveQueue() {
         }
       }
     } catch(e) {
-      console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
+      console.error('Kayıt hatası [' + item.fbId + ']:', e.code, e.message);
       item._lastError = (e.code || '') + ' ' + e.message;
       failed.push(item);
     }
   }
 
+  let result = true;
+
   if (failed.length > 0) {
     window._saveQueue = [...failed, ...window._saveQueue];
-    // Hatayı ekranda göster
-    const ilkHata = failed[0];
+    _saveQueuePersist();
     _saveGostergesi('hata', failed.length);
-    // Toast ile hata detayı göster
-    if (failed.length > 0 && failed[0]._lastError) {
-      showToast('Kayit hatasi: ' + failed[0]._lastError);
+    if (failed[0] && failed[0]._lastError) {
+      showToast('Kayıt hatası: ' + failed[0]._lastError);
     }
     clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {
       window._flushRunning = false;
       _flushSaveQueue();
-    }, 10000);
+    }, forceImmediate ? 3000 : 10000);
+    result = false;
   } else {
+    _saveQueueClearStorage();
     if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
     clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {
       window._flushRunning = false;
       if (window._saveQueue.length > 0) _flushSaveQueue();
     }, 30000);
+    result = true;
   }
+
   window._flushRunning = false;
+  return result;
 }
 
 // Sayfa kapanmadan önce uyar
 window.addEventListener('beforeunload', function(e) {
+  _saveQueuePersist();
   if (window._saveQueue && window._saveQueue.length > 0) {
     e.preventDefault();
     e.returnValue = 'Kaydedilmemiş değişiklikler var!';
