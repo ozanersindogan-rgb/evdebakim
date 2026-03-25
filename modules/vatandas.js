@@ -4,86 +4,8 @@
 
 
 
-function openEditModal(idx) {
-  editIdx = idx;
-  const r = allData[idx];
-  if(!r) return;
-  const isKuafor = r['HİZMET']==='KUAFÖR';
-  // DD.MM.YYYY → YYYY-MM-DD (HTML date input formatı)
-  const toD = (val) => {
-    if (!val) return '';
-    if (/^\d{2}\.\d{2}\.\d{4}$/.test(val)) { const [d,m,y]=val.split('.'); return `${y}-${m}-${d}`; }
-    return val;
-  };
-  document.getElementById('edit-title').innerHTML = `✏️ <span style="color:var(--primary)">${r.ISIM_SOYISIM}</span> <span style="font-size:12px;color:var(--text-soft)">${r['HİZMET']} — ${r.AY}</span>`;
+// openEditModal ve saveEdit -> app.js'e taşındı
 
-  const mahOptions = [...new Set(allData.map(x=>x.MAHALLE).filter(Boolean))].sort()
-    .map(m=>`<option value="${m}"${m===r.MAHALLE?' selected':''}>${m}</option>`).join('');
-
-  const durOptions = ['AKTİF','İPTAL','BEKLEME','VEFAT','PASİF']
-    .map(d=>`<option value="${d}"${d===r.DURUM?' selected':''}>${d}</option>`).join('');
-
-  const hizmetAdi = r['HİZMET'] || '';
-  const tarihFields = isKuafor ? `
-    <div class="form-group"><label>✂️ Saç 1. Hizmet</label><input class="form-input" id="ed-sac1" type="date" value="${toD(r.SAC1)}"></div>
-    <div class="form-group"><label>✂️ Saç 2. Hizmet</label><input class="form-input" id="ed-sac2" type="date" value="${toD(r.SAC2)}"></div>
-    <div class="form-group"><label>💅 Tırnak 1. Hizmet</label><input class="form-input" id="ed-tirnak1" type="date" value="${toD(r.TIRNAK1)}"></div>
-    <div class="form-group"><label>💅 Tırnak 2. Hizmet</label><input class="form-input" id="ed-tirnak2" type="date" value="${toD(r.TIRNAK2)}"></div>
-    <div class="form-group"><label>🪒 Sakal 1. Hizmet</label><input class="form-input" id="ed-sakal1" type="date" value="${toD(r.SAKAL1)}"></div>
-    <div class="form-group"><label>🪒 Sakal 2. Hizmet</label><input class="form-input" id="ed-sakal2" type="date" value="${toD(r.SAKAL2)}"></div>
-  ` : `
-    <div class="form-group"><label>${hizmetAdi} — 1. Ziyaret</label><input class="form-input" id="ed-b1" type="date" value="${toD(r.BANYO1)}"></div>
-    <div class="form-group"><label>${hizmetAdi} — 2. Ziyaret</label><input class="form-input" id="ed-b2" type="date" value="${toD(r.BANYO2)}"></div>
-    <div class="form-group"><label>${hizmetAdi} — 3. Ziyaret</label><input class="form-input" id="ed-b3" type="date" value="${toD(r.BANYO3)}"></div>
-    <div class="form-group"><label>${hizmetAdi} — 4. Ziyaret</label><input class="form-input" id="ed-b4" type="date" value="${toD(r.BANYO4)}"></div>
-    <div class="form-group"><label>${hizmetAdi} — 5. Ziyaret</label><input class="form-input" id="ed-b5" type="date" value="${toD(r.BANYO5)}"></div>
-  `;
-
-  document.getElementById('edit-body').innerHTML = `
-    <div class="form-group"><label>İsim Soyisim</label><input class="form-input" id="ed-isim" type="text" value="${r.ISIM_SOYISIM||''}"></div>
-    <div class="form-group"><label>Mahalle</label><select class="form-select" id="ed-mah">${mahOptions}</select></div>
-    <div class="form-group"><label>Durum</label><select class="form-select" id="ed-durum">${durOptions}</select></div>
-    <div class="form-group"><label>Onay Tarihi</label><input class="form-input" id="ed-onay" type="date" value="${toD(r.ONAY_TARIHI)}"></div>
-    <div class="form-group"><label>Dogum Tarihi</label><input class="form-input" id="ed-dogum" type="date" value="${toD(r.DOGUM_TARIHI)}"></div>
-    <div class="form-group"><label>İptal Tarihi</label><input class="form-input" id="ed-iptal" type="date" value="${toD(r.IPTAL_TARIHI)}"></div>
-    <div class="form-group"><label>İptal Nedeni</label><input class="form-input" id="ed-neden" type="text" value="${r.IPTAL_NEDEN||''}"></div>
-    ${tarihFields}
-    <div class="form-group"><label>1. Telefon</label><input class="form-input" id="ed-tel" type="tel" value="${r.TELEFON||''}"></div>
-    <div class="form-group"><label>2. Telefon</label><input class="form-input" id="ed-tel2" type="tel" value="${r.TELEFON2||''}"></div>
-    <div class="form-group"><label>Aktif Telefon</label>
-      <select class="form-select" id="ed-tel-aktif">
-        <option value="1"${(r.TELEFON_AKTIF||'1')==='1'?' selected':''}>1. Telefon</option>
-        <option value="2"${r.TELEFON_AKTIF==='2'?' selected':''}>2. Telefon</option>
-      </select>
-    </div>
-    <div class="form-group full"><label>🏠 Adres</label><input class="form-input" id="ed-adres" type="text" value="${esc(r.ADRES||'')}"></div>
-    <div class="form-group full"><label>Not 1</label><input class="form-input" id="ed-not1" type="text" value="${esc(r.NOT1||'')}"></div>
-    <div class="form-group full"><label>Not 2</label><input class="form-input" id="ed-not2" type="text" value="${esc(r.NOT2||'')}"></div>
-  `;
-  document.getElementById('edit-modal').classList.add('open');
-  // Android Chrome type=date inputları value attribute'unu bazen okumaz — JS ile set et
-  setTimeout(()=>{
-    const toInputDate = (val) => toD(val);
-    const setDate = (id, val) => { const el=document.getElementById(id); if(el&&val) el.value=toInputDate(val); };
-    if(isKuafor) {
-      setDate('ed-sac1',    r.SAC1);
-      setDate('ed-sac2',    r.SAC2);
-      setDate('ed-tirnak1', r.TIRNAK1);
-      setDate('ed-tirnak2', r.TIRNAK2);
-      setDate('ed-sakal1',  r.SAKAL1);
-      setDate('ed-sakal2',  r.SAKAL2);
-    } else {
-      setDate('ed-b1', r.BANYO1);
-      setDate('ed-b2', r.BANYO2);
-      setDate('ed-b3', r.BANYO3);
-      setDate('ed-b4', r.BANYO4);
-      setDate('ed-b5', r.BANYO5);
-    }
-    setDate('ed-onay',  r.ONAY_TARIHI);
-    setDate('ed-dogum', r.DOGUM_TARIHI);
-    setDate('ed-iptal', r.IPTAL_TARIHI);
-  }, 50);
-}
 function closeEditModal(){document.getElementById('edit-modal').classList.remove('open'); editIdx=null;}
 function saveEdit() {
   if(editIdx===null) return;
