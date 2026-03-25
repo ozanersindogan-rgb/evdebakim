@@ -1,5 +1,67 @@
 // ── KAYIT (Günlük + Yeni Vatandaş + Durum) ──
 // ============ GÜNLÜK ============
+function _gunlukDateTR(iso) {
+  if (!iso || !iso.includes('-')) return '';
+  const [y,m,d]=iso.split('-');
+  return `${d}.${m}.${y}`;
+}
+function _gunlukDateMatch(val, iso, tr) {
+  if (!val) return false;
+  const s=String(val).trim();
+  return s===iso || s===tr || s.startsWith(iso) || s.startsWith(tr);
+}
+function _gunlukAlanBul(rec, hizmet, iso) {
+  if (!rec) return '';
+  const tr=_gunlukDateTR(iso);
+  const alanlar=hizmet==='KUAFÖR'
+    ? ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2']
+    : ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+  return alanlar.find(f=>_gunlukDateMatch(rec[f], iso, tr)) || '';
+}
+function _gunlukNotTemizle(metin, iso) {
+  if (!metin) return '';
+  const tr=_gunlukDateTR(iso);
+  return String(metin)
+    .split(' | ')
+    .map(x=>x.trim())
+    .filter(Boolean)
+    .filter(parca=>!(parca===tr || parca.startsWith(tr+' ') || parca.includes(tr+' YAPTIRILAMADI') || parca.includes(tr+' VERİLEMEDİ')))
+    .join(' | ');
+}
+async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
+  if (!rec || !iso) return false;
+  const hizmet=rec['HİZMET']||'';
+  const hedefAlan=alan || _gunlukAlanBul(rec, hizmet, iso);
+  if (!hedefAlan) {
+    if (!opts.silent) showToast('Silinecek kayıt alanı bulunamadı');
+    return false;
+  }
+  rec[hedefAlan]='';
+  rec.NOT1=_gunlukNotTemizle(rec.NOT1, iso);
+  rec.NOT2=_gunlukNotTemizle(rec.NOT2, iso);
+  rec.NOT3=_gunlukNotTemizle(rec.NOT3, iso);
+
+  try {
+    if (rec._tpRef && rec._tpFbId) {
+      const tp=TP_DATA.find(t=>t._fbId===rec._tpFbId);
+      if (tp && _gunlukDateMatch(tp.sonGidilme, iso, _gunlukDateTR(iso))) tp.sonGidilme='';
+      await firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update({ sonGidilme: '' });
+      tpRender();
+    }
+    if (rec._fbId) {
+      await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(
+        Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_')))
+      );
+    }
+    refreshAll();
+    if (!opts.silent) showToast('Silindi');
+    return true;
+  } catch (e) {
+    console.warn('Günlük kayıt silme hatası:', e);
+    if (!opts.silent) showToast('Silinemedi: ' + (e.message || e));
+    return false;
+  }
+}
 function renderGunluk() {
   const date = document.getElementById('gun-date').value;
   const hizFil = document.getElementById('gun-hizmet').value;
@@ -25,8 +87,7 @@ function renderGunluk() {
     <thead><tr><th>#</th><th>Hizmet</th><th>İsim Soyisim</th><th>Mahalle</th><th>Durum</th><th>Notlar</th><th style="text-align:center">İşlem</th></tr></thead>
     <tbody>${visits.map((r,i)=>{
       const aI=allData.indexOf(r),hz=r['HİZMET'];
-      const ta=hz==='KUAFÖR'?['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2']:['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-      const al=ta.filter(f=>r[f]&&(r[f]===_dI||r[f]===_dT)).pop()||'';
+      const al=_gunlukAlanBul(r,hz,_dI);
       const dateStr2=(d=>{const[y,m,g]=d.split('-');return g+'.'+m+'.'+y;})(_dI);
       const notJoin=[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join('|'); const isYaptirilamadi = notJoin.includes(dateStr2+' YAPTIRILAMADI')||notJoin.includes(dateStr2+' TEMİZLİK VERİLEMEDİ')||notJoin.includes(dateStr2+' BANYO VERİLEMEDİ')||notJoin.includes(dateStr2+' KUAFOR VERİLEMEDİ');
       return `<tr style="${isYaptirilamadi?'background:#fff7ed':''}">
@@ -50,25 +111,13 @@ function renderGunluk() {
     ${visits.length===0?'<tr><td colspan="7" class="no-data">Bu tarihte kayit bulunamadi</td></tr>':''}
     </tbody>`;
 }
-function gunlukSil(aI,al,dI) {
+async function gunlukSil(aI,al,dI) {
   const r=allData[aI]; if(!r) return;
-  if (!confirm(r.ISIM_SOYISIM+' - '+dI+' silmek istiyor musunuz?')) return;
-  if (al&&r[al]) {
-    r[al]='';
-    // Her zaman vatandaslar'a yaz
-    if (r._fbId) {
-      fbUpdateDoc(aI,Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
-    }
-    // Temizlik planını da güncelle
-    if (r._tpRef&&r._tpFbId) {
-      const tp=TP_DATA.find(t=>t._fbId===r._tpFbId);
-      if(tp) tp.sonGidilme='';
-      firebase.firestore().collection('temizlik_plan').doc(r._tpFbId).update({sonGidilme:''}).catch(e=>console.warn(e));
-      tpRender();
-    }
-  }
-  refreshAll(); showToast('Silindi');
+  if (!confirm(r.ISIM_SOYISIM+' - '+dI+' tarihli kaydı silmek istiyor musunuz?\nSadece bu tarihe ait kayıt ve açıklama temizlenecek.')) return;
+  await _gunlukKaydiSil(r, dI, al);
 }
+window.gunlukSil = gunlukSil;
+window._gunlukKaydiSil = _gunlukKaydiSil;
 function gunlukDuzenle(aI,al,dI) {
   const r=allData[aI]; if(!r) return;
   const modal = document.getElementById('gun-duzenle-modal');
@@ -504,30 +553,19 @@ function renderGkTable() {
   h+='</tbody>';
   document.getElementById('gk-table').innerHTML=h;
 }
-function gkRecSil(i) {
+async function gkRecSil(i) {
   if (!confirm('Bu kaydi silmek istiyor musunuz?')) return;
   const r=window.gkRecs[i];
+  let silindi=false;
   if (r.tip !== 'YAPTIRILAMADI' && r.tip !== 'VERİLEMEDİ') {
     const rec=allData.find(x=>x['HİZMET']===r.hizmet&&x.ISIM_SOYISIM&&x.ISIM_SOYISIM.toUpperCase()===r.isim);
-    if (rec) {
-      const ta=r.hizmet==='KUAFÖR'?['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2']:['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-      const al=ta.find(f=>rec[f]===r.tarih);
-      if (al) {
-        rec[al]='';
-        if (rec._tpRef && rec._tpFbId) {
-          const tp=TP_DATA.find(t=>t._fbId===rec._tpFbId);
-          if (tp) tp.sonGidilme='';
-          firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId).update({sonGidilme:''}).catch(e=>console.warn(e));
-          tpRender();
-        } else {
-          fbUpdateDoc(allData.indexOf(rec),Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
-        }
-      }
-    }
+    if (rec) silindi = await _gunlukKaydiSil(rec, r.tarih, '', { silent:true });
   }
-  window.gkRecs.splice(i,1);
-  renderGkTable(); refreshAll();
-  showToast('Silindi');
+  if (silindi || r.tip === 'YAPTIRILAMADI' || r.tip === 'VERİLEMEDİ') {
+    window.gkRecs.splice(i,1);
+    renderGkTable(); refreshAll();
+    showToast('Silindi');
+  }
 }
 
 // ============ YENİ VATANDAŞ ============

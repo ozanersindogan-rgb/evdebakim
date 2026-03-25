@@ -286,7 +286,17 @@ function showDetail(isim, hizmet, ay) {
   const tel2=r.TELEFON2||'';
   const telAktif=r.TELEFON_AKTIF||'1';
   const aktifTel = telAktif==='2' && tel2 ? tel2 : tel;
-  const adres=r.ADRES||adresBilgi.adres||'';
+  const adresHam=r.ADRES||adresBilgi.adres||'';
+  const mahalle=(r.MAHALLE||'').trim();
+  const adres=(function(){
+    const a=(adresHam||'').trim();
+    if(!a) return '';
+    if(!mahalle) return a;
+    const upA=a.toLocaleUpperCase('tr-TR');
+    const upM=mahalle.toLocaleUpperCase('tr-TR');
+    if(upA.startsWith(upM+' MAH') || upA.startsWith(upM+' MAHALLE') || upA.startsWith(upM+' MH') || upA.startsWith(upM)) return a;
+    return mahalle + ' MAH. ' + a;
+  })();
   const hz = r['HİZMET'] || '';
   const tarihler=[];
   if(hz==='KUAFÖR'){

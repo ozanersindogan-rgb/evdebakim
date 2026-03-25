@@ -239,83 +239,14 @@ function adresRender() {
 
 function adresDuzenle(){} // artık kullanılmıyor
 
-function _adresNormText(v='') {
-  return String(v ?? '')
-    .trim()
-    .toUpperCase()
-    .replace(/İ/g,'I').replace(/İ/g,'I')
-    .replace(/Ş/g,'S').replace(/Ğ/g,'G').replace(/Ü/g,'U').replace(/Ö/g,'O').replace(/Ç/g,'C')
-    .replace(/ı/g,'I').replace(/ş/g,'S').replace(/ğ/g,'G').replace(/ü/g,'U').replace(/ö/g,'O').replace(/ç/g,'C');
-}
-
-function _adresBosDegerler() {
-  return { TELEFON:'', TELEFON2:'', TELEFON_AKTIF:'1', ADRES:'', DOGUM_TARIHI:'', MAHALLE:'' };
-}
-
-async function _adresVatandasAlanlariniTemizle(durumEl) {
-  const targets = allData.filter(r => r && r._fbId);
-  const bos = _adresBosDegerler();
-  let sayi = 0;
-
-  for (const r of allData) Object.assign(r, bos);
-
-  for(let i=0; i<targets.length; i+=400) {
-    const chunk = targets.slice(i, i+400);
-    await Promise.all(chunk.map(r =>
-      firebase.firestore().collection('vatandaslar').doc(r._fbId).update(bos)
-    ));
-    sayi += chunk.length;
-    if(durumEl) durumEl.innerHTML = `<div style="color:#b45309;font-size:13px">⏳ Vatandaş kayıtları temizleniyor... (${sayi}/${targets.length})</div>`;
-  }
-  return targets.length;
-}
-
 async function adresSil(isim) {
-  if(!confirm(`"${isim}" kişisini adres listesinden silmek istediğinize emin misiniz?
-(Vatandaş kaydı silinmez, sadece adres/telefon listesinden çıkar)`)) return;
+  if(!confirm(`"${isim}" kişisini adres listesinden silmek istediğinize emin misiniz?\n(Vatandaş kaydı silinmez, sadece adres/telefon listesinden çıkar)`)) return;
   try {
     await firebase.firestore().collection('adres_bilgi').doc(isim).delete();
     delete window._adresBilgi[isim];
     showToast('🗑️ '+isim+' adres listesinden silindi');
     adresRender();
   } catch(e){showToast('Hata: '+e.message);}
-}
-
-async function adresTumunuTemizle() {
-  const durumEl = document.getElementById('adres-durum');
-  const toplamAdres = Object.keys(window._adresBilgi || {}).length;
-  const toplamVatandas = allData.filter(r => r && r._fbId).length;
-  const onay = confirm(
-    `Adres & Telefon listesindeki TÜM kayıtlar silinecek.
-
-- ${toplamAdres} adres kaydı silinecek
-- ${toplamVatandas} vatandaş kaydındaki adres/telefon alanları boşaltılacak
-
-Vatandaş kayıtları tamamen silinmez; sadece adres, telefon, mahalle ve doğum tarihi alanları temizlenir. Devam edilsin mi?`
-  );
-  if(!onay) return;
-
-  try {
-    if(durumEl) durumEl.innerHTML = '<div style="color:#b45309;font-size:13px">⏳ Adres kayıtları siliniyor...</div>';
-    const snap = await firebase.firestore().collection('adres_bilgi').get();
-    if(!snap.empty) {
-      for(let i=0; i<snap.docs.length; i+=400) {
-        await Promise.all(snap.docs.slice(i, i+400).map(d => d.ref.delete()));
-        if(durumEl) durumEl.innerHTML = `<div style="color:#b45309;font-size:13px">⏳ Adres kayıtları siliniyor... (${Math.min(i+400, snap.docs.length)}/${snap.docs.length})</div>`;
-      }
-    }
-
-    window._adresBilgi = {};
-    const vatTemizlenen = await _adresVatandasAlanlariniTemizle(durumEl);
-    if(durumEl) durumEl.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;color:#991b1b;font-size:13px;font-weight:700">🧹 Tüm adres/telefon verileri temizlendi.<br><span style="font-weight:400;font-size:12px">🗑️ ${toplamAdres} adres kaydı silindi • 👥 ${vatTemizlenen} vatandaş kaydı temizlendi</span></div>`;
-    showToast(`🧹 ${toplamAdres} adres kaydı silindi, ${vatTemizlenen} vatandaş kaydı temizlendi`);
-    refreshAll();
-    adresRender();
-  } catch(e) {
-    console.error(e);
-    if(durumEl) durumEl.innerHTML = `<div style="color:#B71C1C">Hata: ${e.message}</div>`;
-    showToast('Hata: ' + e.message);
-  }
 }
 
 function adresEditAc(isim) {
@@ -480,90 +411,33 @@ async function adresIndir() {
 }
 
 async function adresYukle(input) {
-  const file=input.files[0]; if(!file) return;
+  const file=input.files[0];if(!file)return;
   const durumEl=document.getElementById('adres-durum');
-  if(durumEl)durumEl.innerHTML='<div style="color:#0369a1;font-size:13px">⏳ Excel okunuyor...</div>';
-
-  const fmtDogum = (v) => {
-    if(v == null || v === '') return '';
-    const raw = String(v).trim();
-    if(!raw) return '';
-    if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) { const [y,m,d]=raw.split('-'); return `${d}.${m}.${y}`; }
-    if(/^\d{2}\.\d{2}\.\d{4}$/.test(raw)) return raw;
-    if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
-      const [d,m,y]=raw.split('/');
-      return `${String(d).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
-    }
-    return raw;
-  };
-  const aktifTelToVal = (v) => {
-    const s = _adresNormText(v);
-    return s.startsWith('2') ? '2' : '1';
-  };
-
+  if(durumEl)durumEl.innerHTML='<div style="color:#0369a1;font-size:13px">⏳ Okunuyor...</div>';
   try {
     const data=await file.arrayBuffer();
-    const wb=XLSX.read(data,{type:'array', cellDates:true});
+    const wb=XLSX.read(data,{type:'array'});
     const sheet=wb.Sheets[wb.SheetNames[0]];
-    const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:'',raw:false});
-    if(!rows.length){ showToast('Excel boş'); return; }
-
-    const headers=(rows[0]||[]).map(h=>_adresNormText(h));
-    const hasHeader = headers.some(h => h.includes('ISIM'));
-    const dataRows = hasHeader ? rows.slice(1) : rows;
-
-    const idxBy = (...names) => {
-      for(const n of names){
-        const i = headers.findIndex(h => h === n || h.includes(n));
-        if(i >= 0) return i;
-      }
-      return -1;
-    };
-
-    const idx = {
-      isim:   idxBy('ISIM SOYISIM','AD SOYAD','ISIM'),
-      tel1:   idxBy('1. TELEFON','TELEFON 1','TELEFON1','TELEFON'),
-      tel2:   idxBy('2. TELEFON','TELEFON 2','TELEFON2'),
-      aktif:  idxBy('AKTIF TEL','AKTIF TELEFON','TELEFON AKTIF','TERCIH TELEFON'),
-      mahalle:idxBy('MAHALLE'),
-      adres:  idxBy('ADRES','ACIK ADRES'),
-      dogum:  idxBy('DOGUM TARIHI','DOGUM','DOGUM TARİHİ')
-    };
-
-    const readCell = (row, i, fallback='') => (i >= 0 ? (row[i] ?? fallback) : fallback);
-    const yeniVeri={}; let eklenen=0;
-    dataRows.forEach((row)=>{
-      const isim=String(readCell(row, idx.isim, row[0]||'')).trim().toUpperCase();
-      if(!isim) return;
-      const tel = String(readCell(row, idx.tel1, row[1]||'')).trim();
-      const tel2 = String(readCell(row, idx.tel2, '')).trim();
-      const aktifTel = aktifTelToVal(readCell(row, idx.aktif, '1'));
-      const mahalleRaw = String(readCell(row, idx.mahalle, hasHeader ? '' : (row[2]||''))).trim().toUpperCase();
-      const mahalle = mahalleRaw.replace('SOGUCAK','SOĞUCAK');
-      const adres = String(readCell(row, idx.adres, hasHeader ? '' : (row[3]||row[2]||''))).trim();
-      const dogum = fmtDogum(readCell(row, idx.dogum, hasHeader ? '' : (row[4]||'')));
-      yeniVeri[isim]={tel, tel2, telAktif:aktifTel, mahalle, adres, dogum};
-      eklenen++;
+    const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:''});
+    const dataRows=rows[0]&&rows[0][0].toString().toUpperCase().includes('İSİM')?rows.slice(1):rows;
+    const yeniVeri={};let eklenen=0;
+    dataRows.forEach(row=>{
+      const isim=(row[0]||'').toString().trim().toUpperCase();
+      const tel=(row[1]||'').toString().trim();
+      const adres=(row[3]||row[2]||'').toString().trim();
+      const dogum=(row[4]||'').toString().trim();
+      if(isim){yeniVeri[isim]={tel,adres,dogum};eklenen++;}
     });
     if(!eklenen){showToast('Geçerli satır bulunamadı');return;}
 
-    if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ Eski adres verileri temizleniyor...</div>`;
+    // 1) adres_bilgi koleksiyonunu güncelle
+    if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ ${eklenen} adres kaydı yazılıyor...</div>`;
     const mevcutSnap=await firebase.firestore().collection('adres_bilgi').get();
     if(!mevcutSnap.empty){
       for(let i=0;i<mevcutSnap.docs.length;i+=400){
         await Promise.all(mevcutSnap.docs.slice(i,i+400).map(d=>d.ref.delete()));
       }
     }
-
-    const bos = _adresBosDegerler();
-    const vatTargets = allData.filter(r => r && r._fbId);
-    if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ Vatandaş adres alanları sıfırlanıyor...</div>`;
-    for(const r of allData) Object.assign(r, bos);
-    for(let i=0;i<vatTargets.length;i+=400){
-      await Promise.all(vatTargets.slice(i,i+400).map(r=>firebase.firestore().collection('vatandaslar').doc(r._fbId).update(bos)));
-    }
-
-    if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ ${eklenen} yeni adres kaydı yazılıyor...</div>`;
     const entries=Object.entries(yeniVeri);
     for(let i=0;i<entries.length;i+=400){
       await Promise.all(entries.slice(i,i+400).map(([isim,bilgi])=>
@@ -572,43 +446,40 @@ async function adresYukle(input) {
     }
     window._adresBilgi=yeniVeri;
 
-    if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ Vatandaş kayıtları yeni Excel ile güncelleniyor...</div>`;
+    // 2) allData (bellek) güncelle
+    allData.forEach(r=>{
+      const b=window._adresBilgi[r.ISIM_SOYISIM];
+      if(b){
+        if(b.tel)  r.TELEFON=b.tel;
+        if(b.adres)r.ADRES=b.adres;
+        if(b.dogum)r.DOGUM_TARIHI=b.dogum;
+      }
+    });
+
+    // 3) vatandaslar koleksiyonunu da güncelle (sadece değişen alanlar)
+    if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ Vatandaş kayıtları güncelleniyor...</div>`;
     let vatGuncellenen=0;
-    const byName = yeniVeri;
-    const vatGuncellenecek=allData.filter(r=>byName[r.ISIM_SOYISIM] && r._fbId);
+    const vatGuncellenecek=allData.filter(r=>{
+      const b=yeniVeri[r.ISIM_SOYISIM];
+      return b && r._fbId && (b.tel||b.adres||b.dogum);
+    });
     for(let i=0;i<vatGuncellenecek.length;i+=400){
       await Promise.all(vatGuncellenecek.slice(i,i+400).map(r=>{
-        const b=byName[r.ISIM_SOYISIM];
-        r.TELEFON=b.tel || '';
-        r.TELEFON2=b.tel2 || '';
-        r.TELEFON_AKTIF=b.telAktif || '1';
-        r.ADRES=b.adres || '';
-        r.DOGUM_TARIHI=b.dogum || '';
-        r.MAHALLE=b.mahalle || '';
+        const b=yeniVeri[r.ISIM_SOYISIM];
+        const changes={};
+        if(b.tel)  changes.TELEFON=b.tel;
+        if(b.adres)changes.ADRES=b.adres;
+        if(b.dogum)changes.DOGUM_TARIHI=b.dogum;
         vatGuncellenen++;
-        return firebase.firestore().collection('vatandaslar').doc(r._fbId).update({
-          TELEFON: r.TELEFON,
-          TELEFON2: r.TELEFON2,
-          TELEFON_AKTIF: r.TELEFON_AKTIF,
-          ADRES: r.ADRES,
-          DOGUM_TARIHI: r.DOGUM_TARIHI,
-          MAHALLE: r.MAHALLE
-        });
+        return firebase.firestore().collection('vatandaslar').doc(r._fbId).update(changes);
       }));
     }
 
     if(durumEl)durumEl.innerHTML=`<div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;padding:10px 14px;color:#1B5E20;font-size:13px;font-weight:700">
-      ✅ ${eklenen} adres kaydı yüklendi!<br>
-      <span style="font-weight:400;font-size:12px">👥 ${vatGuncellenen} vatandaş kaydı da yeni Excel ile güncellendi</span>
+      ✅ ${eklenen} adres kaydı güncellendi!<br>
+      <span style="font-weight:400;font-size:12px">👥 ${vatGuncellenen} vatandaş kaydı da güncellendi</span>
     </div>`;
-    input.value='';
-    refreshAll();
-    adresRender();
-    showToast(`✅ ${eklenen} adres yüklendi, ${vatGuncellenen} vatandaş kaydı güncellendi`);
-  } catch(e){
-    console.error(e);
-    if(durumEl)durumEl.innerHTML=`<div style="color:#B71C1C">Hata: ${e.message}</div>`;
-    showToast('Hata: ' + e.message);
-  }
+    input.value='';adresRender();showToast(`✅ ${eklenen} adres, ${vatGuncellenen} vatandaş güncellendi`);
+  } catch(e){console.error(e);if(durumEl)durumEl.innerHTML=`<div style="color:#B71C1C">Hata: ${e.message}</div>`;}
 }
 
