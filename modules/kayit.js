@@ -423,15 +423,30 @@ function _gkGunlukListeyiTazele(tarih) {
 }
 
 async function gkKaydet() {
-  const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
+  const isim = (document.getElementById('gk-isim').value || document.getElementById('gk-isim-search')?.value || '').trim().toUpperCase();
   const tarih = document.getElementById('gk-tarih').value;
   if (!isim) { showToast('Vatandas adi zorunlu'); return; }
   if (!tarih) { showToast('Tarih zorunlu'); return; }
 
   const hizmet = document.getElementById('gk-hizmet').value;
-  const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
+  const seciliTipler = ['SAC', 'TIRNAK', 'SAKAL'].filter(t => document.getElementById('gk-tip-' + t.toLowerCase())?.checked);
   const not = document.getElementById('gk-not').value;
-  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
+  const aktifAy = (typeof getSonAy === 'function' ? getSonAy() : '');
+
+  let rec = allData.find(r =>
+    r['HİZMET'] === hizmet &&
+    r.AY === aktifAy &&
+    r.ISIM_SOYISIM &&
+    r.ISIM_SOYISIM.toUpperCase() === isim
+  );
+
+  if (!rec) {
+    rec = allData.find(r =>
+      r['HİZMET'] === hizmet &&
+      r.ISIM_SOYISIM &&
+      r.ISIM_SOYISIM.toUpperCase() === isim
+    );
+  }
 
   if (!rec) { showToast('Vatandas bulunamadi'); return; }
 
@@ -439,19 +454,19 @@ async function gkKaydet() {
   _gkSetBusy(true, 'Kaydediliyor...');
 
   try {
-    if (hizmet==='KUAFÖR') {
+    if (hizmet === 'KUAFÖR') {
       if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
       seciliTipler.forEach(t => {
-        const fields = t==='SAC'?['SAC1','SAC2']:t==='TIRNAK'?['TIRNAK1','TIRNAK2']:['SAKAL1','SAKAL2'];
-        if (!rec[fields[0]]) rec[fields[0]]=tarih; else rec[fields[1]]=tarih;
+        const fields = t === 'SAC' ? ['SAC1', 'SAC2'] : t === 'TIRNAK' ? ['TIRNAK1', 'TIRNAK2'] : ['SAKAL1', 'SAKAL2'];
+        if (!rec[fields[0]]) rec[fields[0]] = tarih; else rec[fields[1]] = tarih;
       });
     } else {
-      const fields=['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-      const empty=fields.find(f=>!rec[f]);
-      if (empty) rec[empty]=tarih; else rec[fields[4]]=tarih;
+      const fields = ['BANYO1', 'BANYO2', 'BANYO3', 'BANYO4', 'BANYO5'];
+      const empty = fields.find(f => !rec[f]);
+      if (empty) rec[empty] = tarih; else rec[fields[4]] = tarih;
     }
 
-    if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
+    if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + not : not;
 
     if (rec._fbId) {
       await _gkVatandasKaydet(rec);
@@ -465,20 +480,23 @@ async function gkKaydet() {
       await _gkTemizlikPlanKaydet(rec, sd);
     }
 
-    if (!window.gkRecs) window.gkRecs=[];
+    if (!window.gkRecs) window.gkRecs = [];
     window.gkRecs.push({
-      isim,hizmet,tarih,
-      tip:hizmet==='KUAFÖR'
-        ? (seciliTipler.length ? seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + ') : '—')
+      isim, hizmet, tarih,
+      tip: hizmet === 'KUAFÖR'
+        ? (seciliTipler.length ? seciliTipler.map(t => t === 'SAC' ? '✂️Saç' : t === 'TIRNAK' ? '💅Tırnak' : '🪒Sakal').join(' + ') : '—')
         : '—',
       not
     });
 
     renderGkTable();
     gkTemizle();
-    refreshAll();
     _gkGunlukListeyiTazele(tarih);
-    showToast('✅ Kaydedildi. Hafızaya tamamen eklendi.');
+    showToast('✅ Kayıt başarılı. Sayfa yenileniyor...');
+
+    setTimeout(() => {
+      location.reload();
+    }, 900);
   } catch (e) {
     const meta = {};
     Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
