@@ -236,11 +236,15 @@ async function fbSeedData(initialData) {
 // Bekleyen kayıtlar kuyruğu — internet kesilirse burada bekler
 window._saveQueue = window._saveQueue || [];
 window._saveRetryTimer = null;
+window._saveInFlight = window._saveInFlight || [];
 const SAVE_QUEUE_KEY = 'evdebakim_save_queue_v1';
 
 function _saveQueuePersist() {
   try {
-    localStorage.setItem(SAVE_QUEUE_KEY, JSON.stringify(window._saveQueue || []));
+    const merged = [...(window._saveQueue || []), ...(window._saveInFlight || [])];
+    const uniq = []; const seen = new Set();
+    for (const x of merged) { if (!x || !x._qid || seen.has(x._qid)) continue; seen.add(x._qid); uniq.push(x); }
+    localStorage.setItem(SAVE_QUEUE_KEY, JSON.stringify(uniq));
   } catch (e) {
     console.warn('saveQueue persist hatasi:', e);
   }
@@ -272,11 +276,17 @@ async function fbUpdateDoc(idx, changes) {
     return false;
   }
 
-  const item = { type: 'update', fbId: r._fbId, isim: r.ISIM_SOYISIM, changes };
+  const item = {
+    type: 'update',
+    fbId: r._fbId,
+    isim: r.ISIM_SOYISIM,
+    changes,
+    _qid: Date.now() + '_' + Math.random().toString(36).slice(2,8)
+  };
   window._saveQueue.push(item);
   _saveQueuePersist();
 
-  const ok = await _flushSaveQueue(true, item.fbId);
+  const ok = await _flushSaveQueue(true, item._qid);
   return !!ok;
 }
 
@@ -320,17 +330,18 @@ if (!document.getElementById('save-indicator-css')) {
   document.head.appendChild(s);
 }
 
-async function _flushSaveQueue(forceImmediate = false, waitForFbId = null) {
+async function _flushSaveQueue(forceImmediate = false, waitForQid = null) {
   if (window._flushRunning) {
-    if (waitForFbId) {
+    if (waitForQid) {
       return new Promise(resolve => {
         const started = Date.now();
         const t = setInterval(() => {
-          const halenBekliyor = (window._saveQueue || []).some(x => x.fbId === waitForFbId);
-          if (!window._flushRunning && !halenBekliyor) {
+          const kuyrukta = (window._saveQueue || []).some(x => x._qid === waitForQid);
+          const islemde = (window._saveInFlight || []).some(x => x._qid === waitForQid);
+          if (!window._flushRunning && !kuyrukta && !islemde) {
             clearInterval(t);
             resolve(true);
-          } else if (Date.now() - started > 15000) {
+          } else if (Date.now() - started > 20000) {
             clearInterval(t);
             resolve(false);
           }
@@ -340,9 +351,12 @@ async function _flushSaveQueue(forceImmediate = false, waitForFbId = null) {
     return false;
   }
 
+  if (!window._saveQueue) window._saveQueue = [];
+  if (window._saveQueue.length === 0) return true;
+
   window._flushRunning = true;
   const pending = [...window._saveQueue];
-  window._saveQueue = [];
+  window._saveInFlight = pending;
   _saveQueuePersist();
   const failed = [];
 
@@ -352,6 +366,8 @@ async function _flushSaveQueue(forceImmediate = false, waitForFbId = null) {
     try {
       if (item.type === 'update') {
         await firebase.firestore().collection('vatandaslar').doc(item.fbId).update(item.changes);
+        window._saveQueue = (window._saveQueue || []).filter(x => x._qid !== item._qid);
+        _saveQueuePersist();
         if (currentUser) {
           firebase.firestore().collection('islem_log').add({
             yapan: currentUser.ad,
@@ -369,10 +385,15 @@ async function _flushSaveQueue(forceImmediate = false, waitForFbId = null) {
     }
   }
 
+  window._saveInFlight = [];
   let result = true;
 
   if (failed.length > 0) {
-    window._saveQueue = [...failed, ...window._saveQueue];
+    // başarısız olanlar zaten kuyrukta duruyor; emin olmak için tekilleştir
+    const byId = new Map();
+    for (const it of (window._saveQueue || [])) byId.set(it._qid, it);
+    for (const it of failed) byId.set(it._qid, it);
+    window._saveQueue = [...byId.values()];
     _saveQueuePersist();
     _saveGostergesi('hata', failed.length);
     if (failed[0] && failed[0]._lastError) {
@@ -385,7 +406,7 @@ async function _flushSaveQueue(forceImmediate = false, waitForFbId = null) {
     }, forceImmediate ? 3000 : 10000);
     result = false;
   } else {
-    _saveQueueClearStorage();
+    if ((window._saveQueue || []).length === 0) _saveQueueClearStorage();
     if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
     clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {
