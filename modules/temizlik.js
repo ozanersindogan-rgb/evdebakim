@@ -126,12 +126,12 @@ async function tpFirestoreYukle() {
     TP_DATA.forEach(tp => {
       let rec = allData.find(r => r['HİZMET']==='TEMİZLİK' && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===tp.isim.toUpperCase());
       if (!rec) {
-        rec = { ISIM_SOYISIM: tp.isim, MAHALLE: tp.mahalle||'', AY: tpAyBul(tp.sonGidilme), 'HİZMET': 'TEMİZLİK', DURUM: tp.durum||'AKTİF', BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'', NOT1: tp.not_||'', _tpRef: true };
+        rec = { ISIM_SOYISIM: tp.isim, MAHALLE: (tp.mahalle||'').toString().trim().toUpperCase(), AY: tpAyBul(tp.sonGidilme), 'HİZMET': 'TEMİZLİK', DURUM: tp.durum||'AKTİF', BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'', NOT1: tp.not_||'', _tpRef: true };
         allData.push(rec);
       }
       rec._tpFbId = tp._fbId;
       rec._tpRef = true;
-      rec.MAHALLE = tp.mahalle || rec.MAHALLE || '';
+      rec.MAHALLE = (tp.mahalle || rec.MAHALLE || '').toString().trim().toUpperCase();
       rec.DURUM = tp.durum || rec.DURUM || 'AKTİF';
       rec.NOT1 = tp.not_ || rec.NOT1 || '';
       rec.AY = tpAyBul(tp.sonGidilme) || rec.AY || '';
