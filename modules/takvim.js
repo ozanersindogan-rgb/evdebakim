@@ -159,28 +159,31 @@ function takvimGunTikla(tarihStr) {
           ${HIZMET_ICONS[hizmet]||''} ${hizmet} (${kayitlar.length} kişi)
         </div>
         ${kayitlar.map(r => {
-          const _hvKey = tarihStr + '|' + r.ISIM_SOYISIM;
+          // Günlük hizmet kaydında "VERİLEMEDİ" olarak kaydedilmiş mi kontrol et
+          // Format: "GG.MM.YYYY BANYO VERİLEMEDİ: ..." veya "GG.MM.YYYY KUAFOR VERİLEMEDİ: ..."
           const [_y,_m,_g] = tarihStr.split('-');
           const _tarihTR = _g+'.'+_m+'.'+_y;
-          const _notHV = (_tarihTR + ' HİZMET VERİLEMEDİ');
-          const _isHVdb = !!(r.NOT1 && r.NOT1.includes(_notHV)) || !!(r.NOT2 && r.NOT2.includes(_notHV));
-          if (_isHVdb) window._hvSet.add(_hvKey);
-          const _isHV = window._hvSet.has(_hvKey);
+          const _not1 = r.NOT1 || ''; const _not2 = r.NOT2 || ''; const _not3 = r.NOT3 || '';
+          const _tumNotlar = _not1 + ' ' + _not2 + ' ' + _not3;
+          // GK kaydındaki format: "GG.MM.YYYY BANYO VERİLEMEDİ:" veya "KUAFOR VERİLEMEDİ:" veya "TEMİZLİK VERİLEMEDİ:"
+          const _isHV = _tumNotlar.includes(_tarihTR + ' BANYO VERİLEMEDİ') ||
+                        _tumNotlar.includes(_tarihTR + ' KUAFOR VERİLEMEDİ') ||
+                        _tumNotlar.includes(_tarihTR + ' TEMİZLİK VERİLEMEDİ') ||
+                        _tumNotlar.includes(_tarihTR + ' HİZMET VERİLEMEDİ');
+          const _kartBg = _isHV ? '#fff7ed' : '#f8fafc';
+          const _kartOp = _isHV ? '0.75' : '1';
           return `
-          <div data-kisi="${r.ISIM_SOYISIM.replace(/"/g,'&quot;')}" style="background:${_isHV?'#fffbeb':'#f8fafc'};border-radius:8px;margin-bottom:6px;opacity:${_isHV?'0.65':'1'};transition:all .2s">
+          <div style="background:${_kartBg};border-radius:8px;margin-bottom:6px;opacity:${_kartOp}">
             <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer"
               onclick="showDetail('${r.ISIM_SOYISIM.replace(/'/g,"\'")}','${r['HİZMET']}','${r.AY}')">
               <div style="flex:1">
-                <div style="font-weight:800;font-size:13px;color:#0f172a">${r.ISIM_SOYISIM}${_isHV?' <span style=\'font-size:10px;color:#b45309\'>⚠ Hizmet Verilemedi</span>':''}</div>
-                <div style="font-size:11px;color:#64748b">📍 ${r.MAHALLE} ${gecmis ? '<span style="color:#16a34a;font-weight:700">✓ Gerçekleşti</span>' : ''}</div>
+                <div style="font-weight:800;font-size:13px;color:#0f172a">
+                  ${r.ISIM_SOYISIM}
+                  ${_isHV ? '<span style="font-size:10px;font-weight:800;color:#b45309;background:#fed7aa;padding:1px 7px;border-radius:10px;margin-left:6px">⚠ Hizmet Verilemedi</span>' : ''}
+                </div>
+                <div style="font-size:11px;color:#64748b">📍 ${r.MAHALLE} ${gecmis && !_isHV ? '<span style="color:#16a34a;font-weight:700">✓ Gerçekleşti</span>' : ''}</div>
               </div>
               <span style="font-size:11px;color:#94a3b8">›</span>
-            </div>
-            <div style="padding:0 12px 8px">
-              <button onclick="event.stopPropagation();toggleHizmetVerilemedi('${tarihStr}','${r.ISIM_SOYISIM.replace(/'/g,"\'")}',this)"
-                style="font-size:10px;font-weight:700;padding:3px 10px;border:none;border-radius:20px;cursor:pointer;background:${_isHV?'#fef3c7':'#fee2e2'};color:${_isHV?'#b45309':'#dc2626'};transition:all .15s">
-                ${_isHV?'↩ Geri Al':'✗ Hizmet Verilemedi'}
-              </button>
             </div>
           </div>`;
         }).join('')}
