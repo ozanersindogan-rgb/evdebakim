@@ -435,12 +435,20 @@ async function gkKaydet() {
 
   if (!rec) { showToast('Vatandas bulunamadi'); return; }
 
+  // Aynı tarihin iki kez eklenmesini önle
+  const tumTarihAlanlari = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5','SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'];
+  if (tumTarihAlanlari.some(f => rec[f] === tarih)) {
+    showToast('⚠️ Bu tarih zaten kayıtlı: ' + tarih);
+    return;
+  }
+
   const snapshot = JSON.parse(JSON.stringify(rec));
   _gkSetBusy(true, 'Kaydediliyor...');
 
   try {
+    // 1. Tarih alanını güncelle
     if (hizmet==='KUAFÖR') {
-      if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
+      if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); _gkSetBusy(false); return; }
       seciliTipler.forEach(t => {
         const fields = t==='SAC'?['SAC1','SAC2']:t==='TIRNAK'?['TIRNAK1','TIRNAK2']:['SAKAL1','SAKAL2'];
         if (!rec[fields[0]]) rec[fields[0]]=tarih; else rec[fields[1]]=tarih;
@@ -453,22 +461,30 @@ async function gkKaydet() {
 
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
 
+    // 2. Firebase'e yaz — önce vatandaşlar koleksiyonu
     if (rec._fbId) {
       await _gkVatandasKaydet(rec);
-    } else if (!rec._tpRef) {
-      throw new Error('Bu kayıt Firebase’de bulunamadı');
+    } else if (rec._tpRef && rec._tpFbId) {
+      // Temizlik kaydı vatandaşlar'da henüz yok, yeni doküman oluştur
+      const payload = Object.fromEntries(Object.entries(rec).filter(([k]) => !k.startsWith('_')));
+      const docRef = await firebase.firestore().collection('vatandaslar').add(payload);
+      rec._fbId = docRef.id;
+    } else {
+      throw new Error('Bu kayit Firebase ile iliskilendirilemedi. Sayfayi yenileyip tekrar deneyin.');
     }
 
+    // 3. Temizlik planini guncelle (varsa)
     if (rec._tpRef && rec._tpFbId) {
       const sd = { sonGidilme: tarih };
       if (not) sd.not_ = rec.NOT1;
       await _gkTemizlikPlanKaydet(rec, sd);
     }
 
+    // 4. Basari
     if (!window.gkRecs) window.gkRecs=[];
     window.gkRecs.push({
-      isim,hizmet,tarih,
-      tip:hizmet==='KUAFÖR'
+      isim, hizmet, tarih,
+      tip: hizmet==='KUAFÖR'
         ? (seciliTipler.length ? seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + ') : '—')
         : '—',
       not
@@ -478,117 +494,20 @@ async function gkKaydet() {
     gkTemizle();
     refreshAll();
     _gkGunlukListeyiTazele(tarih);
-    showToast('✅ Kaydedildi. Hafızaya tamamen eklendi.');
+    showToast('✅ ' + isim + ' — ' + tarih + ' kaydedildi.');
   } catch (e) {
+    // Hata: kaydı geri al
     const meta = {};
     Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
     Object.keys(rec).forEach(k => delete rec[k]);
     Object.assign(rec, snapshot, meta);
-    console.error('Günlük hizmet kaydı hatası:', e);
-    showToast('Kayıt tamamlanamadı, tekrar dene');
+    console.error('Gunluk hizmet kaydi hatasi:', e);
+    showToast('❌ Kayit basarisiz: ' + (e.message || 'Bilinmeyen hata'));
   } finally {
     _gkSetBusy(false);
   }
 }
 
-// ── HİZMET VERİLEMEDİ ──
-function gkVerilemediToggle() {
-  const cb = document.getElementById('gk-verilemedi-cb');
-  const form = document.getElementById('gk-verilemedi-form');
-  if (!form) return;
-
-  const acik = cb.checked;
-  form.style.display = acik ? 'block' : 'none';
-
-  // Hizmet Tarihi, Kuaför Tip, Not, Kaydet butonunu gizle/göster
-  const kilitliIdler = ['gk-tarih', 'gk-not'];
-  kilitliIdler.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const wrap = el.closest('.form-group');
-    if (wrap) wrap.style.display = acik ? 'none' : '';
-    el.disabled = acik;
-  });
-  const kaydetBtn = document.querySelector('[onclick="gkKaydet()"]');
-  if (kaydetBtn) { kaydetBtn.disabled = acik; kaydetBtn.style.display = acik ? 'none' : ''; }
-
-  if (acik) {
-    const tarih = document.getElementById('gk-tarih')?.value || new Date().toISOString().split('T')[0];
-    const tarihEl = document.getElementById('gk-verilemedi-tarih');
-    if (tarihEl) tarihEl.value = tarih;
-    document.getElementById('gk-verilemedi-aciklama')?.focus();
-    gkVerilemediLabelGuncelle();
-  }
-}
-
-function gkVerilemediLabelGuncelle() {
-  const hizmet = document.getElementById('gk-hizmet')?.value || '';
-  const label = document.getElementById('gk-verilemedi-label');
-  if (!label) return;
-  const etiket = hizmet === 'TEMİZLİK' ? 'Temizlik Hizmeti Verilemedi'
-    : hizmet === 'KUAFÖR' ? 'Kuaför Hizmeti Verilemedi'
-    : hizmet === 'ERKEK BANYO' ? 'Erkek Banyo Hizmeti Verilemedi'
-    : 'Banyo Hizmeti Verilemedi';
-  label.textContent = '⚠️ ' + etiket;
-}
-
-function gkVerilemediKaydet() {
-  const isim = (document.getElementById('gk-isim')?.value || document.getElementById('gk-isim-search')?.value || '').trim().toUpperCase();
-  const tarih = document.getElementById('gk-verilemedi-tarih')?.value;
-  const aciklama = document.getElementById('gk-verilemedi-aciklama')?.value.trim();
-  const hizmet = document.getElementById('gk-hizmet')?.value || '';
-
-  if (!isim) { showToast('Lutfen once vatandas secin'); return; }
-  if (!tarih) { showToast('Tarih zorunlu'); return; }
-  if (!aciklama) { showToast('Aciklama zorunlu'); return; }
-
-  const tarihTR = (d=>{const[y,m,g]=d.split('-');return g+'.'+m+'.'+y;})(tarih);
-  const hizmetEtiket = hizmet === 'TEMİZLİK' ? 'TEMİZLİK' : hizmet === 'KUAFÖR' ? 'KUAFOR' : 'BANYO';
-  const notMetin = tarihTR + ' ' + hizmetEtiket + ' VERİLEMEDİ: ' + aciklama.toUpperCase();
-
-  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-  if (rec) {
-    rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
-    // Tarihi de tarih alanına yaz — günlük listede ve takvimde görünsün
-    if (hizmet === 'KUAFÖR') {
-      if (!rec.SAC1) rec.SAC1 = tarih; else rec.SAC2 = tarih;
-    } else {
-      const fields = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-      const empty = fields.find(f=>!rec[f]);
-      if (empty) rec[empty] = tarih; else rec[fields[4]] = tarih;
-    }
-    // Temizlik planını güncelle
-    if (rec._tpRef && rec._tpFbId) {
-      const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
-      if (tp) { tp.not_ = rec.NOT1; tp.sonGidilme = tarih; }
-      firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId)
-        .update({ not_: rec.NOT1, sonGidilme: tarih }).catch(e=>console.warn(e));
-      tpRender();
-    }
-    // Her zaman vatandaslar koleksiyonuna da yaz
-    if (rec._fbId) {
-      fbUpdateDoc(allData.indexOf(rec), Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
-    }
-  }
-
-  // Formu sıfırla
-  const cb = document.getElementById('gk-verilemedi-cb');
-  if (cb) cb.checked = false;
-  document.getElementById('gk-verilemedi-form').style.display = 'none';
-  document.getElementById('gk-verilemedi-aciklama').value = '';
-  // Gizlenen alanları geri göster
-  ['gk-tarih','gk-tip','gk-not'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(!el) return;
-    const wrap=el.closest('.form-group');
-    if(wrap) wrap.style.display='';
-    el.disabled=false;
-  });
-  const kaydetBtn=document.querySelector('[onclick="gkKaydet()"]');
-  if(kaydetBtn){kaydetBtn.disabled=false;kaydetBtn.style.display='';}
-  refreshAll();
-  showToast(isim + ' - hizmet verilemedi notu eklendi');
-}
 function gkTemizle() {
   ['gk-isim','gk-isim-search','gk-tarih','gk-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const sel=document.getElementById('gk-isim');if(sel)sel.style.display='none';
