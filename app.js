@@ -668,5 +668,6 @@ function safeFunc(name) {
   'gkUpdateIsimler',
   'duUpdateIsimler',
   'renderGunluk',
-  'showDetail'
+  'showDetail',
+  'filterVat' // <-- BUNU EKLEDİK
 ].forEach(safeFunc);
