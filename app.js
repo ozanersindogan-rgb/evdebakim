@@ -651,23 +651,3 @@ async function tumKayitlaraIDVer() {
     showToast('❌ ID atama hatası: ' + err.message);
   }
 }
-
-function safeFunc(name) {
-  if (typeof window[name] !== 'function') {
-    window[name] = function () {
-      console.warn(name + ' yok, skip edildi');
-    };
-  }
-}
-
-[
-  'buildHizmetTabs',
-  'buildAyTabs',
-  'buildMahFilter',
-  'buildFormMah',
-  'gkUpdateIsimler',
-  'duUpdateIsimler',
-  'renderGunluk',
-  'showDetail',
-  'filterVat' // <-- BUNU EKLEDİK
-].forEach(safeFunc);
