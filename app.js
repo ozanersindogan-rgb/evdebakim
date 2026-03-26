@@ -4,6 +4,98 @@ let currentUser = null;
 let _docsMap = {}; // Firestore doc id -> allData index map
 let _initStarted = false;
 
+const KISI_ID_PREFIX = 'KISI_';
+
+function _trUpper(value) {
+  return (value || '').toString().trim().toLocaleUpperCase('tr-TR');
+}
+function normalizePersonName(value) {
+  return _trUpper(value)
+    .replace(/\s+/g, ' ')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .trim();
+}
+function normalizePhoneForId(value) {
+  return (value || '').toString().replace(/\D+/g, '').slice(-10);
+}
+function normalizeDateForId(value) {
+  const v = (value || '').toString().trim();
+  if (!v) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(v)) {
+    const [g,m,y] = v.split('.');
+    return `${y}-${m}-${g}`;
+  }
+  return v;
+}
+function simpleHash(str) {
+  let h = 2166136261 >>> 0;
+  const s = String(str || '');
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0).toString(36).toUpperCase();
+}
+function buildKisiAnchor(rec) {
+  if (!rec || typeof rec !== 'object') return '';
+  const isim = normalizePersonName(rec.ISIM_SOYISIM || rec.AD_SOYAD || rec.isim || '');
+  const dogum = normalizeDateForId(rec.DOGUM_TARIHI || rec.dogum || '');
+  const tel = normalizePhoneForId(rec.TELEFON || rec.tel || '');
+  const tc = (rec.TC || rec.tc || '').toString().replace(/\D+/g, '');
+  return [isim, dogum, tel, tc].filter(Boolean).join('|');
+}
+function kisiIdFromRecord(rec) {
+  const anchor = buildKisiAnchor(rec);
+  if (!anchor) return '';
+  return KISI_ID_PREFIX + simpleHash(anchor);
+}
+function ensureRecordKisiId(rec, options = {}) {
+  if (!rec || typeof rec !== 'object') return '';
+  if (rec.KISI_ID) return rec.KISI_ID;
+  let mevcut = '';
+  if (!options.skipLookup && Array.isArray(window.allData)) {
+    const isim = normalizePersonName(rec.ISIM_SOYISIM || rec.AD_SOYAD || '');
+    const dogum = normalizeDateForId(rec.DOGUM_TARIHI || '');
+    const tel = normalizePhoneForId(rec.TELEFON || '');
+    const eslesen = window.allData.find(x => {
+      if (!x || !x.KISI_ID) return false;
+      const xIsim = normalizePersonName(x.ISIM_SOYISIM || x.AD_SOYAD || '');
+      if (!isim || xIsim !== isim) return false;
+      const xDogum = normalizeDateForId(x.DOGUM_TARIHI || '');
+      const xTel = normalizePhoneForId(x.TELEFON || '');
+      if (dogum && xDogum && dogum !== xDogum) return false;
+      if (tel && xTel && tel !== xTel) return false;
+      return true;
+    });
+    if (eslesen && eslesen.KISI_ID) mevcut = eslesen.KISI_ID;
+  }
+  rec.KISI_ID = mevcut || kisiIdFromRecord(rec) || (KISI_ID_PREFIX + Date.now().toString(36).toUpperCase() + '_' + Math.random().toString(36).slice(2, 7).toUpperCase());
+  return rec.KISI_ID;
+}
+function findKayitByKisiId(kisiId, hizmet, ay) {
+  if (!kisiId || !Array.isArray(window.allData)) return null;
+  let adaylar = window.allData.filter(r => r && r.KISI_ID === kisiId);
+  if (hizmet) adaylar = adaylar.filter(r => r['HİZMET'] === hizmet);
+  if (ay) {
+    const ayniAy = adaylar.find(r => r.AY === ay);
+    if (ayniAy) return ayniAy;
+  }
+  adaylar.sort((a, b) => {
+    const aDurum = (a.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
+    const bDurum = (b.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
+    if (aDurum !== bDurum) return bDurum - aDurum;
+    const aAy = Array.isArray(window.AY_LISTESI) ? window.AY_LISTESI.indexOf(a.AY) : -1;
+    const bAy = Array.isArray(window.AY_LISTESI) ? window.AY_LISTESI.indexOf(b.AY) : -1;
+    return bAy - aAy;
+  });
+  return adaylar[0] || null;
+}
+window.normalizePersonName = normalizePersonName;
+window.ensureRecordKisiId = ensureRecordKisiId;
+window.findKayitByKisiId = findKayitByKisiId;
+
+
 function waitForModulesAndInit() {
   if (_initStarted) return;
   let tries = 0;
@@ -105,6 +197,7 @@ function normalizeRecord(r) {
   r.DURUM = (r.DURUM||'').toString().trim();
   r.AY = (r.AY||'').toString().trim().toUpperCase();
   r['HİZMET'] = (r['HİZMET']||'').toString().trim();
+  ensureRecordKisiId(r);
   return r;
 }
 
@@ -226,6 +319,14 @@ async function fbLoadData() {
       return;
     }
 
+    const eksikKisiId = [];
+    allData.forEach((r, idx) => {
+      if (!r.KISI_ID) {
+        ensureRecordKisiId(r);
+        if (r._fbId) eksikKisiId.push({ idx, fbId: r._fbId, KISI_ID: r.KISI_ID });
+      }
+    });
+
     await adresBilgiYukle();
     allData.forEach(r => {
       const bilgi = window._adresBilgi[r.ISIM_SOYISIM] || {};
@@ -234,6 +335,10 @@ async function fbLoadData() {
       if (!r.DOGUM_TARIHI && bilgi.dogum) r.DOGUM_TARIHI = bilgi.dogum;
     });
     allDataOptimize();
+    if (eksikKisiId.length) {
+      console.log('[KISI_ID] Eksik kayıtlar tamamlanıyor:', eksikKisiId.length);
+      eksikKisiId.forEach(item => fbUpdateDoc(item.idx, { KISI_ID: item.KISI_ID }));
+    }
     refreshAll();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
   } catch (e) {
@@ -248,7 +353,9 @@ async function fbSeedData(initialData) {
   for(let i=0; i<initialData.length; i+=batch_size) {
     const chunk = initialData.slice(i, i+batch_size);
     await Promise.all(chunk.map(async rec => {
-      const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
+      ensureRecordKisiId(rec, { skipLookup: true });
+      ensureRecordKisiId(rec);
+  const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
       const idx = allData.length;
       allData.push({...normalizeRecord({ ...rec }), _fbId: docRef.id});
       _docsMap[docRef.id] = idx;
@@ -397,6 +504,7 @@ async function fbAddDoc(rec) {
     isim: rec.ISIM_SOYISIM,
     degisiklik: 'YENİ KAYIT'
   };
+  ensureRecordKisiId(rec);
   const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
   await firebase.firestore().collection('islem_log').add(logEntry);
   return docRef.id;
@@ -620,34 +728,23 @@ document.addEventListener('DOMContentLoaded', () => console.log('DOM hazır'));
 
 async function tumKayitlaraIDVer() {
   try {
-    if (!_db) throw new Error('Firestore yok');
-
-    showToast('🔄 ID atanıyor...');
-
-    const colRef = collection(_db, 'evdebakim'); // koleksiyon adı farklıysa değiştir
-    const snap = await getDocs(colRef);
-
+    showToast('🔄 Kişi kimlikleri hazırlanıyor...');
+    const snap = await firebase.firestore().collection('vatandaslar').get();
     let guncellenen = 0;
 
     for (const docSnap of snap.docs) {
-      const data = docSnap.data();
-
-      if (!data.KISI_ID) {
-        const yeniID = 'KISI_' + Date.now() + '_' + Math.floor(Math.random()*1000);
-
-        await updateDoc(doc(_db, 'evdebakim', docSnap.id), {
-          KISI_ID: yeniID
-        });
-
+      const onceki = docSnap.data() || {};
+      const data = normalizeRecord({ ...onceki });
+      const yeniID = ensureRecordKisiId(data, { skipLookup: true });
+      if (yeniID && onceki.KISI_ID !== yeniID) {
+        await firebase.firestore().collection('vatandaslar').doc(docSnap.id).update({ KISI_ID: yeniID });
         guncellenen++;
       }
     }
 
-    showToast(`✅ ${guncellenen} kayda ID verildi`);
-    console.log('ID atama tamamlandı');
-
+    showToast(`✅ ${guncellenen} kayda KISI_ID yazıldı`);
   } catch (err) {
     console.error(err);
-    showToast('❌ ID atama hatası: ' + err.message);
+    showToast('❌ KISI_ID atama hatası: ' + (err.message || err));
   }
 }
