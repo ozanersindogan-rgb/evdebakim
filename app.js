@@ -580,7 +580,11 @@ function saveEdit() {
   closeEditModal();
   showToast('✅ Kaydedildi');
 }
-
+if (typeof buildHizmetTabs !== 'function') {
+  function buildHizmetTabs() {
+    console.warn('buildHizmetTabs yok, skip edildi');
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 3: Yedek saati 17:20 olarak güncelle
