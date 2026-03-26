@@ -371,13 +371,40 @@ function gkIsimFiltrele(q) {
   sel.innerHTML = liste.map(i=>`<option value="${i}">${i}</option>`).join('');
   sel.style.display = liste.length ? 'block' : 'none';
 }
+function _gkAySkoru(ay) {
+  const i = Array.isArray(window.AY_LISTESI) ? window.AY_LISTESI.indexOf(ay) : -1;
+  return i >= 0 ? i : -1;
+}
+function _gkKayitAdaylari(hizmet, isim) {
+  const hedef = (isim || '').trim().toUpperCase();
+  const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy)
+    || (typeof vatAy !== 'undefined' && vatAy)
+    || (typeof getSonAy === 'function' ? getSonAy() : '');
+
+  return allData
+    .filter(r => r['HİZMET'] === hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === hedef)
+    .sort((a, b) => {
+      const aAktif = a.AY === aktifAy ? 1 : 0;
+      const bAktif = b.AY === aktifAy ? 1 : 0;
+      if (aAktif !== bAktif) return bAktif - aAktif;
+
+      const aDurum = (a.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
+      const bDurum = (b.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
+      if (aDurum !== bDurum) return bDurum - aDurum;
+
+      return _gkAySkoru(b.AY) - _gkAySkoru(a.AY);
+    });
+}
+function _gkKayitBul(hizmet, isim) {
+  return _gkKayitAdaylari(hizmet, isim)[0] || null;
+}
 function gkIsimSecildi() {
   const hizmet = document.getElementById('gk-hizmet').value;
   const sel = document.getElementById('gk-isim');
   const searchEl = document.getElementById('gk-isim-search');
   if(searchEl && sel.value) searchEl.value = sel.value;
   const val = sel.value.trim().toUpperCase();
-  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===val);
+  const rec = _gkKayitBul(hizmet, val);
   if (rec) {
     document.getElementById('gk-mah').value = rec.MAHALLE||'';
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
@@ -431,11 +458,8 @@ async function gkKaydet() {
   const hizmet = document.getElementById('gk-hizmet').value;
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
   const not = document.getElementById('gk-not').value;
-  const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy) || (typeof vatAy !== 'undefined' && vatAy) || (typeof getSonAy === 'function' ? getSonAy() : '');
-  let rec = allData.find(r=>r['HİZMET']===hizmet && r.AY===aktifAy && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-  if (!rec) {
-    rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-  }
+  const adaylar = _gkKayitAdaylari(hizmet, isim);
+  const rec = adaylar[0];
 
   if (!rec) { showToast('Vatandas bulunamadi'); return; }
 
@@ -482,9 +506,11 @@ async function gkKaydet() {
     gkTemizle();
     refreshAll();
     _gkGunlukListeyiTazele(tarih);
-    showToast('✅ Kayıt başarılı. Sayfa yenileniyor...');
-    localStorage.setItem('postReloadPage', 'gunluk-kayit');
-    setTimeout(() => location.reload(), 700);
+    if (typeof navTo === 'function') {
+      const navEl = document.querySelector('.nav-item[onclick*="gunluk-kayit"]');
+      navTo('gunluk-kayit', navEl || null);
+    }
+    showToast(`✅ Kayıt başarılı: ${rec.ISIM_SOYISIM} · ${tarih}`);
   } catch (e) {
     const meta = {};
     Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
@@ -649,7 +675,7 @@ function buildFormMah() {
   }
 }
 
-function saveRec(){
+async function saveRec(){
   const isim=document.getElementById('f-isim').value.trim().toUpperCase();
   const mah=document.getElementById('f-mah').value;
   const seciliHizmetler = ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik']
@@ -670,7 +696,7 @@ function saveRec(){
   let dogum=dogumRaw;
   if(/^\d{4}-\d{2}-\d{2}$/.test(dogumRaw)){const[y,m,d]=dogumRaw.split('-');dogum=`${d}.${m}.${y}`;}
 
-  seciliHizmetler.forEach(hizmet => {
+  const eklenenKayitlar = seciliHizmetler.map(hizmet => {
     const rec={
       ONAY_TARIHI:onay, IPTAL_NEDEN:'',
       ISIM_SOYISIM:isim, MAHALLE:mah, AY:ay,
@@ -681,18 +707,40 @@ function saveRec(){
       NOT1:not1, NOT2:not2, NOT3:'',
       TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
     };
-    allData.push(rec); newRecs.push(rec);
-    fbAddDoc(rec).then(fbId => { rec._fbId = fbId; });
+    allData.push(rec);
+    newRecs.push(rec);
+    return rec;
   });
-  // adres_bilgi koleksiyonuna da kaydet
-  if(tel||adres||dogum){
-    const bilgi={tel,tel2,telAktif,adres,dogum};
-    firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
-    if(!window._adresBilgi)window._adresBilgi={};
-    window._adresBilgi[isim]=bilgi;
+  try {
+    await Promise.all(eklenenKayitlar.map(async rec => {
+      const fbId = await fbAddDoc(rec);
+      rec._fbId = fbId;
+    }));
+
+    // adres_bilgi koleksiyonuna da kaydet
+    if(tel||adres||dogum){
+      const bilgi={tel,tel2,telAktif,adres,dogum};
+      await firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
+      if(!window._adresBilgi)window._adresBilgi={};
+      window._adresBilgi[isim]=bilgi;
+    }
+
+    refreshAll();
+    renderNewTable();
+    clearForm();
+    showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kaydedildi`);
+  } catch (e) {
+    console.error('Yeni vatandaş kayıt hatası:', e);
+    eklenenKayitlar.forEach(rec => {
+      const iAll = allData.indexOf(rec);
+      if (iAll >= 0) allData.splice(iAll, 1);
+      const iNew = newRecs.indexOf(rec);
+      if (iNew >= 0) newRecs.splice(iNew, 1);
+    });
+    renderNewTable();
+    refreshAll();
+    showToast('❌ Kayıt tamamlanamadı, tekrar deneyin');
   }
-  buildSidebar(); renderNewTable(); clearForm();
-  showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kaydedildi`);
 }
 function clearForm(){
   ['f-isim','f-onay','f-dogum','f-tel','f-tel2','f-adres','f-not1','f-not2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
