@@ -397,10 +397,29 @@ async function fbAddDoc(rec) {
   return docRef.id;
 }
 
+function _safeCall(fnName, ...args) {
+  try {
+    const fn = window[fnName];
+    if (typeof fn === 'function') return fn(...args);
+    console.warn(fnName + ' yok, skip edildi');
+  } catch (e) {
+    console.error(fnName + ' çalıştırma hatası:', e);
+  }
+}
+
 function refreshAll() {
-  buildSidebar(); renderDashboard(); buildHizmetTabs(); buildAyTabs();
-  buildMahFilter(); buildFormMah(); gkUpdateIsimler(); duUpdateIsimler();
-  filterVat(); renderGunluk(); renderMahalle(); renderExpStats();
+  _safeCall('buildSidebar');
+  _safeCall('renderDashboard');
+  _safeCall('buildHizmetTabs');
+  _safeCall('buildAyTabs');
+  _safeCall('buildMahFilter');
+  _safeCall('buildFormMah');
+  _safeCall('gkUpdateIsimler');
+  _safeCall('duUpdateIsimler');
+  _safeCall('filterVat');
+  _safeCall('renderGunluk');
+  _safeCall('renderMahalle');
+  _safeCall('renderExpStats');
   const expMahSel = document.getElementById('exp-mah-sel');
   if(expMahSel) {
     expMahSel.innerHTML = '<option value="">Tümü</option>';
@@ -408,10 +427,10 @@ function refreshAll() {
       const o=document.createElement('option');o.value=o.textContent=m;expMahSel.appendChild(o);
     });
   }
-  // Yedekleme menüsü sadece Ozan'a görünür
   const navYedek = document.getElementById('nav-yedekler');
   if(navYedek) navYedek.style.display = (currentUser?.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
 }
+
 
 // ── İŞLEM LOGU SAYFASI ──
 async function renderIslemLog() {
@@ -580,11 +599,6 @@ function saveEdit() {
   closeEditModal();
   showToast('✅ Kaydedildi');
 }
-if (typeof buildHizmetTabs !== 'function') {
-  function buildHizmetTabs() {
-    console.warn('buildHizmetTabs yok, skip edildi');
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 3: Yedek saati 17:20 olarak güncelle
@@ -592,4 +606,31 @@ if (typeof buildHizmetTabs !== 'function') {
 // Yedekleme yardımcıları modules/helpers.js içine taşındı.
 
 
-document.addEventListener('DOMContentLoaded', () => console.log('DOM hazır'));
+
+function _gunlukSayfasiniAc() {
+  const adaylar = ['gunluk-hizmet-kaydi','gunluk-hizmet','gunlukKayit','gunluk-kayit'];
+  for (const id of adaylar) {
+    if (typeof window.openPage === 'function') {
+      try { window.openPage(id); return true; } catch(_) {}
+    }
+    if (typeof window.showSection === 'function') {
+      try { window.showSection(id); return true; } catch(_) {}
+    }
+  }
+  const btn = document.querySelector('[data-page="gunluk-hizmet-kaydi"], [onclick*="gunluk"], #nav-gunluk, .nav-gunluk');
+  if (btn && typeof btn.click === 'function') { btn.click(); return true; }
+  return false;
+}
+
+function restorePendingPage() {
+  try {
+    const aktifSayfa = localStorage.getItem('aktifSayfa');
+    if (aktifSayfa !== 'gunluk-hizmet-kaydi') return;
+    localStorage.removeItem('aktifSayfa');
+    setTimeout(() => { _gunlukSayfasiniAc(); }, 250);
+  } catch (e) {
+    console.warn('aktifSayfa geri yükleme hatası:', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => { console.log('DOM hazır'); restorePendingPage(); });
