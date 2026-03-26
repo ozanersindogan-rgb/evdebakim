@@ -122,99 +122,6 @@ function hesaplaYas(dogumTarihi) {
   return (yas >= 0 && yas < 130) ? yas : null;
 }
 
-function kisiAdAnahtari(ad) {
-  return (ad || '').toString().trim().toUpperCase().replace(/İ/g, 'I').replace(/İ/g, 'I');
-}
-function yeniKisiId() {
-  return 'KISI_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
-}
-function kayitKisiIdBul(kayit) {
-  if (!kayit) return '';
-  if (kayit.KISI_ID) return kayit.KISI_ID;
-  const ad = kisiAdAnahtari(kayit.ISIM_SOYISIM || kayit.AD_SOYAD);
-  if (!ad) return '';
-  const mevcut = (typeof allData !== 'undefined' ? allData : []).find(x => x && x !== kayit && kisiAdAnahtari(x.ISIM_SOYISIM || x.AD_SOYAD) === ad && x.KISI_ID);
-  return mevcut?.KISI_ID || '';
-}
-async function ensureKisiIds() {
-  const col = firebase.firestore().collection('vatandaslar');
-  const gruplar = new Map();
-  const guncellenecek = [];
-  (allData || []).forEach(r => {
-    if (!r || r._tpRef) return;
-    const ad = kisiAdAnahtari(r.ISIM_SOYISIM);
-    if (!ad) return;
-    if (!gruplar.has(ad)) gruplar.set(ad, []);
-    gruplar.get(ad).push(r);
-  });
-  for (const [ad, liste] of gruplar.entries()) {
-    let ortakId = liste.find(x => x.KISI_ID)?.KISI_ID || '';
-    if (!ortakId) ortakId = yeniKisiId();
-    for (const r of liste) {
-      if (r.KISI_ID !== ortakId) {
-        r.KISI_ID = ortakId;
-        if (r._fbId) guncellenecek.push({ id: r._fbId, KISI_ID: ortakId });
-      }
-    }
-  }
-  for (const item of guncellenecek) {
-    await col.doc(item.id).update({ KISI_ID: item.KISI_ID });
-  }
-  return guncellenecek.length;
-}
-async function tumKayitlardaKisiBilgisiGuncelle(eskiKayit, yeniAlanlar) {
-  const col = firebase.firestore().collection('vatandaslar');
-  const eskiIsim = kisiAdAnahtari(eskiKayit?.ISIM_SOYISIM || eskiKayit?.AD_SOYAD || '');
-  let kisiId = eskiKayit?.KISI_ID || kayitKisiIdBul(eskiKayit);
-  if (!kisiId) kisiId = yeniKisiId();
-  const payload = {
-    KISI_ID: kisiId,
-    ISIM_SOYISIM: (yeniAlanlar.ISIM_SOYISIM || '').toString().trim().toUpperCase(),
-    AD_SOYAD: (yeniAlanlar.ISIM_SOYISIM || '').toString().trim().toUpperCase(),
-    MAHALLE: (yeniAlanlar.MAHALLE || '').toString().trim().toUpperCase(),
-    TELEFON: (yeniAlanlar.TELEFON || '').toString().trim(),
-    TELEFON2: (yeniAlanlar.TELEFON2 || '').toString().trim(),
-    TELEFON_AKTIF: (yeniAlanlar.TELEFON_AKTIF || '1').toString(),
-    ADRES: (yeniAlanlar.ADRES || '').toString().trim(),
-    DOGUM_TARIHI: (yeniAlanlar.DOGUM_TARIHI || '').toString().trim(),
-    TC: (yeniAlanlar.TC || '').toString().trim(),
-    ENGEL: (yeniAlanlar.ENGEL || '').toString().trim(),
-    ENGEL_ACIKLAMA: (yeniAlanlar.ENGEL_ACIKLAMA || '').toString().trim()
-  };
-  const hedefler = (allData || []).filter(r => {
-    if (!r || r._tpRef) return false;
-    if (r.KISI_ID && kisiId) return r.KISI_ID === kisiId;
-    return kisiAdAnahtari(r.ISIM_SOYISIM) === eskiIsim;
-  });
-  for (const r of hedefler) Object.assign(r, payload);
-  await Promise.all(hedefler.filter(r => r._fbId).map(r => col.doc(r._fbId).update(payload)));
-  try {
-    const kbCol = firebase.firestore().collection('vatandaslar_bilgi');
-    let kbId = eskiKayit?._kbFbId || '';
-    if (!kbId) {
-      const snap = await kbCol.where('KISI_ID', '==', kisiId).limit(1).get();
-      if (!snap.empty) kbId = snap.docs[0].id;
-    }
-    const kbPayload = {
-      KISI_ID: kisiId,
-      AD_SOYAD: payload.ISIM_SOYISIM,
-      MAHALLE: payload.MAHALLE,
-      TELEFON: payload.TELEFON,
-      ADRES: payload.ADRES,
-      DOGUM_TARIHI: payload.DOGUM_TARIHI,
-      TC: payload.TC,
-      ENGEL: payload.ENGEL || 'Yok',
-      ENGEL_ACIKLAMA: payload.ENGEL_ACIKLAMA || ''
-    };
-    if (kbId) await kbCol.doc(kbId).set(kbPayload, { merge: true });
-    if (typeof kbData !== 'undefined' && Array.isArray(kbData)) {
-      const kbRec = kbData.find(x => x._fbId === kbId || (x.KISI_ID && x.KISI_ID === kisiId) || kisiAdAnahtari(x.AD_SOYAD) === eskiIsim);
-      if (kbRec) Object.assign(kbRec, kbPayload);
-    }
-  } catch (e) { console.warn('vatandaslar_bilgi eşitleme uyarısı:', e); }
-  return { adet: hedefler.length, kisiId, payload };
-}
-
 async function loadInitialData() {
   const manifestRes = await fetch(DATA_MANIFEST_URL, { cache: 'no-store' });
   if (!manifestRes.ok) {
@@ -312,8 +219,6 @@ async function fbLoadData() {
       if(rec.AY) window._yuklenenAylar.add(rec.AY);
     });
 
-    await ensureKisiIds();
-
     if(allData.length === 0) {
       const initialData = await loadInitialData();
       showToast('⏳ İlk kurulum: ' + initialData.length + ' kayıt yükleniyor...');
@@ -343,9 +248,7 @@ async function fbSeedData(initialData) {
   for(let i=0; i<initialData.length; i+=batch_size) {
     const chunk = initialData.slice(i, i+batch_size);
     await Promise.all(chunk.map(async rec => {
-      if (!rec.KISI_ID) rec.KISI_ID = kayitKisiIdBul(rec) || yeniKisiId();
-      if (!rec.KISI_ID) rec.KISI_ID = kayitKisiIdBul(rec) || yeniKisiId();
-  const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
+      const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
       const idx = allData.length;
       allData.push({...normalizeRecord({ ...rec }), _fbId: docRef.id});
       _docsMap[docRef.id] = idx;
@@ -653,7 +556,7 @@ function closeEditModal() {
   editIdx = null;
 }
 
-async function saveEdit() {
+function saveEdit() {
   if (editIdx === null) return;
   const r = allData[editIdx];
   if (!r) return;
@@ -661,7 +564,6 @@ async function saveEdit() {
 
   const isKuafor = r['HİZMET'] === 'KUAFÖR';
   const getV = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-  const eskiKayit = { ...r };
 
   r.ISIM_SOYISIM  = getV('ed-isim').trim().toUpperCase();
   r.MAHALLE       = getV('ed-mah');
@@ -692,28 +594,10 @@ async function saveEdit() {
     r.BANYO5 = getV('ed-b5');
   }
 
-  try {
-    await tumKayitlardaKisiBilgisiGuncelle(eskiKayit, {
-      ISIM_SOYISIM: r.ISIM_SOYISIM,
-      MAHALLE: r.MAHALLE,
-      TELEFON: r.TELEFON,
-      TELEFON2: r.TELEFON2,
-      TELEFON_AKTIF: r.TELEFON_AKTIF,
-      ADRES: r.ADRES,
-      DOGUM_TARIHI: r.DOGUM_TARIHI,
-      TC: r.TC || '',
-      ENGEL: r.ENGEL || '',
-      ENGEL_ACIKLAMA: r.ENGEL_ACIKLAMA || ''
-    });
-    const changes = Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('_')));
-    await fbUpdateDoc(editIdx, changes);
-    closeEditModal();
-    refreshAll();
-    showToast('✅ Kişi tüm aylarda güncellendi');
-  } catch (e) {
-    console.error('saveEdit hatası:', e);
-    showToast('❌ Güncelleme hatası: ' + (e.message || e));
-  }
+  const changes = Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('_')));
+  fbUpdateDoc(editIdx, changes);
+  closeEditModal();
+  showToast('✅ Kaydedildi');
 }
 if (typeof buildHizmetTabs !== 'function') {
   function buildHizmetTabs() {
@@ -736,12 +620,34 @@ document.addEventListener('DOMContentLoaded', () => console.log('DOM hazır'));
 
 async function tumKayitlaraIDVer() {
   try {
-    showToast('🔄 Kişi ID düzeni kuruluyor...');
-    const adet = await ensureKisiIds();
-    showToast(`✅ ${adet} kayıt için KISI_ID düzenlendi`);
-    console.log('KISI_ID düzeni tamamlandı:', adet);
+    if (!_db) throw new Error('Firestore yok');
+
+    showToast('🔄 ID atanıyor...');
+
+    const colRef = collection(_db, 'evdebakim'); // koleksiyon adı farklıysa değiştir
+    const snap = await getDocs(colRef);
+
+    let guncellenen = 0;
+
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+
+      if (!data.KISI_ID) {
+        const yeniID = 'KISI_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+
+        await updateDoc(doc(_db, 'evdebakim', docSnap.id), {
+          KISI_ID: yeniID
+        });
+
+        guncellenen++;
+      }
+    }
+
+    showToast(`✅ ${guncellenen} kayda ID verildi`);
+    console.log('ID atama tamamlandı');
+
   } catch (err) {
-    console.error('tumKayitlaraIDVer hatası:', err);
-    showToast('❌ ID atama hatası: ' + (err.message || err));
+    console.error(err);
+    showToast('❌ ID atama hatası: ' + err.message);
   }
 }
