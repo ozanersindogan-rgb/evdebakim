@@ -525,10 +525,24 @@
           <div style="display:flex;gap:9px;margin-top:6px;flex-wrap:wrap">
             <button class="btn btn-primary" onclick="gkKaydet()">💾 Hizmet Tarihi Ekle</button>
             <button class="btn btn-cancel" onclick="gkTemizle()">Temizle</button>
+            <button class="btn" onclick="gkMukerrerAnaliz()" style="background:#fff7ed;color:#b45309;border:1.5px solid #fed7aa">🧹 Mükerrer Kontrol</button>
           </div>
           </div>
 
-          
+          <div id="gk-mukerrer-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+            <div style="background:#fff;border-radius:16px;padding:24px 22px;width:520px;max-width:95vw;max-height:80vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,.15)">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px">
+                <div>
+                  <div style="font-size:16px;font-weight:900;color:#1A237E">🧹 Mükerrer Kontrol</div>
+                  <div id="gk-mukerrer-sayi" style="font-size:12px;color:#64748b;margin-top:4px">0 kayıt</div>
+                </div>
+                <button onclick="gkMukerrerKapat()" style="padding:8px 12px;background:#f1f5f9;color:#475569;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">Kapat</button>
+              </div>
+              <div style="font-size:12px;color:#64748b;margin-bottom:12px">Bu araç veri silmez. Günlük hizmet kaydı seçim listesinde hangi kayıtların tekilleştirildiğini gösterir.</div>
+              <div id="gk-mukerrer-body"></div>
+            </div>
+          </div>
+
           <!-- Günlük Liste Düzenleme Modalı -->
           <div id="gun-duzenle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
             <div style="background:#fff;border-radius:16px;padding:28px 24px;width:460px;max-width:95vw;box-shadow:0 8px 32px rgba(0,0,0,.15)">
