@@ -431,7 +431,11 @@ async function gkKaydet() {
   const hizmet = document.getElementById('gk-hizmet').value;
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
   const not = document.getElementById('gk-not').value;
-  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
+  const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy) || (typeof vatAy !== 'undefined' && vatAy) || (typeof getSonAy === 'function' ? getSonAy() : '');
+  let rec = allData.find(r=>r['HİZMET']===hizmet && r.AY===aktifAy && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
+  if (!rec) {
+    rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
+  }
 
   if (!rec) { showToast('Vatandas bulunamadi'); return; }
 
@@ -479,10 +483,8 @@ async function gkKaydet() {
     refreshAll();
     _gkGunlukListeyiTazele(tarih);
     showToast('✅ Kayıt başarılı. Sayfa yenileniyor...');
-    setTimeout(() => {
-      try { localStorage.setItem('aktifSayfa', 'gunluk-hizmet-kaydi'); } catch(_) {}
-      location.reload();
-    }, 800);
+    localStorage.setItem('postReloadPage', 'gunluk-kayit');
+    setTimeout(() => location.reload(), 700);
   } catch (e) {
     const meta = {};
     Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
