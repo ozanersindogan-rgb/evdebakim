@@ -652,32 +652,21 @@ async function tumKayitlaraIDVer() {
   }
 }
 
-if (typeof buildHizmetTabs !== 'function') {
-  function buildHizmetTabs() {
-    console.warn('buildHizmetTabs yok, skip edildi');
+function safeFunc(name) {
+  if (typeof window[name] !== 'function') {
+    window[name] = function () {
+      console.warn(name + ' yok, skip edildi');
+    };
   }
 }
 
-if (typeof buildAyTabs !== 'function') {
-  function buildAyTabs() {
-    console.warn('buildAyTabs yok, skip edildi');
-  }
-}
-
-if (typeof buildMahFilter !== 'function') {
-  function buildMahFilter() {
-    console.warn('buildMahFilter yok, skip edildi');
-  }
-}
-
-if (typeof buildFormMah !== 'function') {
-  function buildFormMah() {
-    console.warn('buildFormMah yok, skip edildi');
-  }
-}
-
-if (typeof showDetail !== 'function') {
-  function showDetail() {
-    console.warn('showDetail yok');
-  }
-}
+[
+  'buildHizmetTabs',
+  'buildAyTabs',
+  'buildMahFilter',
+  'buildFormMah',
+  'gkUpdateIsimler',
+  'duUpdateIsimler',
+  'renderGunluk',
+  'showDetail'
+].forEach(safeFunc);
