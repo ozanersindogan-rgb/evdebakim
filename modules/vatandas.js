@@ -126,14 +126,14 @@ function taListele() {
   if(!kaynak) { liste.innerHTML='<div style="padding:16px;color:var(--text-soft);font-size:13px;text-align:center">Kaynak ay seçin</div>'; return; }
 
   const hedef = document.getElementById('ta-hedef').value;
-  const hedefIsimler = new Set(hedef ? allData.filter(r=>r.AY===hedef).map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM) : []);
+  const hedefIsimler = new Set(hedef ? allData.filter(r=>r.AY===hedef).map(r=>(r.KISI_ID||r.ISIM_SOYISIM)+'|'+r['HİZMET']) : []);
 
   const kayitlar = allData.filter(r=>r.AY===kaynak && r.DURUM==='AKTİF' && (!hizmet||r['HİZMET']===hizmet));
   if(!kayitlar.length) { liste.innerHTML='<div style="padding:16px;color:var(--text-soft);font-size:13px;text-align:center">Bu ayda aktif kayıt yok</div>'; return; }
 
   const HC = {'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100'};
   liste.innerHTML = kayitlar.map((r,i) => {
-    const key = r['HİZMET']+'|'+r.ISIM_SOYISIM;
+    const key = (r.KISI_ID||r.ISIM_SOYISIM)+'|'+r['HİZMET'];
     const zatenVar = hedefIsimler.has(key);
     return `<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:${zatenVar?'default':'pointer'};opacity:${zatenVar?0.4:1}">
       <input type="checkbox" data-idx="${allData.indexOf(r)}" ${zatenVar?'disabled':''} onchange="taSecilenGuncelle()" style="width:15px;height:15px;cursor:pointer">
@@ -178,6 +178,7 @@ async function taUygula() {
         ISIM_SOYISIM: r.ISIM_SOYISIM, MAHALLE: r.MAHALLE,
         'HİZMET': r['HİZMET'], AY: hedef, DURUM: 'AKTİF',
         CİNSİYET: r.CİNSİYET||'', ONAY_TARIHI: r.ONAY_TARIHI||'',
+        KISI_ID: r.KISI_ID || (typeof ensureRecordKisiId === 'function' ? ensureRecordKisiId(r) : ''),
         IPTAL_NEDEN:'', IPTAL_TARIHI:'', NOT1:'', NOT2:'', NOT3:'',
         BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'',
         SAC1:'', SAC2:'', TIRNAK1:'', TIRNAK2:'', SAKAL1:'', SAKAL2:'',

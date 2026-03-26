@@ -353,10 +353,29 @@ function buildMahFilter() {
 function updateFormForHizmet() {} // legacy stub — not used
 function gkUpdateIsimler() {
   const hizmet = document.getElementById('gk-hizmet').value;
-  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet && r.DURUM==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
+  const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy)
+    || (typeof vatAy !== 'undefined' && vatAy)
+    || (typeof getSonAy === 'function' ? getSonAy() : '');
+  const map = new Map();
+  allData
+    .filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF' && r.ISIM_SOYISIM)
+    .forEach(r => {
+      const kisiId = r.KISI_ID || (typeof ensureRecordKisiId === 'function' ? ensureRecordKisiId(r) : '');
+      const key = kisiId || `${r['HİZMET']}|${r.ISIM_SOYISIM}`;
+      const onceki = map.get(key);
+      if (!onceki) {
+        map.set(key, { value: key, isim: r.ISIM_SOYISIM, mahalle: r.MAHALLE || '', kisiId, ay: r.AY || '' });
+        return;
+      }
+      const oncekiSkor = (onceki.ay === aktifAy ? 2 : 0) + (onceki.ay === getSonAy?.() ? 1 : 0);
+      const yeniSkor = ((r.AY || '') === aktifAy ? 2 : 0) + ((r.AY || '') === getSonAy?.() ? 1 : 0);
+      if (yeniSkor > oncekiSkor) map.set(key, { value: key, isim: r.ISIM_SOYISIM, mahalle: r.MAHALLE || '', kisiId, ay: r.AY || '' });
+    });
+  window._gkIsimler = [...map.values()].sort((a,b)=>a.isim.localeCompare(b.isim,'tr'));
   const searchEl = document.getElementById('gk-isim-search');
   if(searchEl) searchEl.value='';
-  document.getElementById('gk-isim').value='';
+  const sel = document.getElementById('gk-isim');
+  if (sel) sel.value='';
   document.getElementById('gk-mah').value='';
   document.getElementById('gk-durum-mevcut').value='';
   gkIsimFiltrele('');
@@ -367,8 +386,9 @@ function gkUpdateIsimler() {
 function gkIsimFiltrele(q) {
   const sel = document.getElementById('gk-isim');
   if(!sel) return;
-  const liste = (window._gkIsimler||[]).filter(i=>i.toUpperCase().includes(q.toUpperCase()));
-  sel.innerHTML = liste.map(i=>`<option value="${i}">${i}</option>`).join('');
+  const filtre = (q || '').toLocaleUpperCase('tr-TR');
+  const liste = (window._gkIsimler||[]).filter(i => !filtre || (i.isim || '').toLocaleUpperCase('tr-TR').includes(filtre));
+  sel.innerHTML = liste.map(i=>`<option value="${i.value}" data-kisi-id="${i.kisiId||''}">${i.isim}${i.mahalle ? ' — ' + i.mahalle : ''}</option>`).join('');
   sel.style.display = liste.length ? 'block' : 'none';
 }
 function _gkAySkoru(ay) {
@@ -402,10 +422,14 @@ function gkIsimSecildi() {
   const hizmet = document.getElementById('gk-hizmet').value;
   const sel = document.getElementById('gk-isim');
   const searchEl = document.getElementById('gk-isim-search');
-  if(searchEl && sel.value) searchEl.value = sel.value;
-  const val = sel.value.trim().toUpperCase();
-  const rec = _gkKayitBul(hizmet, val);
+  const opt = sel?.selectedOptions?.[0] || null;
+  const kisiId = opt?.dataset?.kisiId || sel?.value || '';
+  const rec = (typeof findKayitByKisiId === 'function' && kisiId)
+    ? findKayitByKisiId(kisiId, hizmet, document.getElementById('gk-tarih')?.value || '')
+    : _gkKayitBul(hizmet, searchEl?.value || '');
+  if(searchEl && rec?.ISIM_SOYISIM) searchEl.value = rec.ISIM_SOYISIM;
   if (rec) {
+    if (sel && rec.KISI_ID) sel.value = rec.KISI_ID;
     document.getElementById('gk-mah').value = rec.MAHALLE||'';
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
   }
@@ -450,18 +474,24 @@ function _gkGunlukListeyiTazele(tarih) {
 }
 
 async function gkKaydet() {
-  const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
+  const sel = document.getElementById('gk-isim');
+  const opt = sel?.selectedOptions?.[0] || null;
+  const kisiId = opt?.dataset?.kisiId || sel?.value || '';
+  const aramaIsmi = (document.getElementById('gk-isim-search')?.value || '').trim();
   const tarih = document.getElementById('gk-tarih').value;
-  if (!isim) { showToast('Vatandas adi zorunlu'); return; }
+  if (!kisiId && !aramaIsmi) { showToast('Vatandaş adı zorunlu'); return; }
   if (!tarih) { showToast('Tarih zorunlu'); return; }
 
   const hizmet = document.getElementById('gk-hizmet').value;
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
   const not = document.getElementById('gk-not').value;
-  const adaylar = _gkKayitAdaylari(hizmet, isim);
+  const adaylar = kisiId && typeof findKayitByKisiId === 'function'
+    ? [findKayitByKisiId(kisiId, hizmet)]
+    : _gkKayitAdaylari(hizmet, aramaIsmi);
   const rec = adaylar[0];
 
-  if (!rec) { showToast('Vatandas bulunamadi'); return; }
+  if (!rec) { showToast('Vatandaş bulunamadı'); return; }
+  const isim = (rec.ISIM_SOYISIM || aramaIsmi || '').trim().toUpperCase();
 
   const snapshot = JSON.parse(JSON.stringify(rec));
   _gkSetBusy(true, 'Kaydediliyor...');
@@ -696,17 +726,22 @@ async function saveRec(){
   let dogum=dogumRaw;
   if(/^\d{4}-\d{2}-\d{2}$/.test(dogumRaw)){const[y,m,d]=dogumRaw.split('-');dogum=`${d}.${m}.${y}`;}
 
+  const ortakKisiId = (typeof ensureRecordKisiId === 'function')
+    ? ensureRecordKisiId({ ISIM_SOYISIM: isim, DOGUM_TARIHI: dogum, TELEFON: tel })
+    : '';
   const eklenenKayitlar = seciliHizmetler.map(hizmet => {
     const rec={
       ONAY_TARIHI:onay, IPTAL_NEDEN:'',
       ISIM_SOYISIM:isim, MAHALLE:mah, AY:ay,
       'HİZMET':hizmet, CİNSİYET:cins, DURUM:'AKTİF',
       DOGUM_TARIHI:dogum,
+      KISI_ID: ortakKisiId,
       BANYO1:'',BANYO2:'',BANYO3:'',BANYO4:'',BANYO5:'',
       SAC1:'',SAC2:'',TIRNAK1:'',TIRNAK2:'',SAKAL1:'',SAKAL2:'',
       NOT1:not1, NOT2:not2, NOT3:'',
       TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
     };
+    if (!rec.KISI_ID && typeof ensureRecordKisiId === 'function') ensureRecordKisiId(rec);
     allData.push(rec);
     newRecs.push(rec);
     return rec;
