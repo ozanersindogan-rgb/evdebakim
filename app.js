@@ -617,3 +617,37 @@ if (typeof buildAyTabs !== 'function') {
 
 
 document.addEventListener('DOMContentLoaded', () => console.log('DOM hazır'));
+
+async function tumKayitlaraIDVer() {
+  try {
+    if (!_db) throw new Error('Firestore yok');
+
+    showToast('🔄 ID atanıyor...');
+
+    const colRef = collection(_db, 'evdebakim'); // koleksiyon adı farklıysa değiştir
+    const snap = await getDocs(colRef);
+
+    let guncellenen = 0;
+
+    for (const docSnap of snap.docs) {
+      const data = docSnap.data();
+
+      if (!data.KISI_ID) {
+        const yeniID = 'KISI_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+
+        await updateDoc(doc(_db, 'evdebakim', docSnap.id), {
+          KISI_ID: yeniID
+        });
+
+        guncellenen++;
+      }
+    }
+
+    showToast(`✅ ${guncellenen} kayda ID verildi`);
+    console.log('ID atama tamamlandı');
+
+  } catch (err) {
+    console.error(err);
+    showToast('❌ ID atama hatası: ' + err.message);
+  }
+}
