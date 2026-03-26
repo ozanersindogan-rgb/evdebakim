@@ -670,13 +670,8 @@ function saveRec(){
   let dogum=dogumRaw;
   if(/^\d{4}-\d{2}-\d{2}$/.test(dogumRaw)){const[y,m,d]=dogumRaw.split('-');dogum=`${d}.${m}.${y}`;}
 
-  const ortakKisiId =
-    (allData.find(r => kisiAdAnahtari(r.ISIM_SOYISIM) === kisiAdAnahtari(isim) && r.KISI_ID) || {}).KISI_ID ||
-    yeniKisiId();
-
   seciliHizmetler.forEach(hizmet => {
     const rec={
-      KISI_ID:ortakKisiId,
       ONAY_TARIHI:onay, IPTAL_NEDEN:'',
       ISIM_SOYISIM:isim, MAHALLE:mah, AY:ay,
       'HİZMET':hizmet, CİNSİYET:cins, DURUM:'AKTİF',
