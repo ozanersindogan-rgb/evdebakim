@@ -351,11 +351,17 @@ function buildMahFilter() {
   mahs.forEach(m=>{const o=document.createElement('option');o.value=o.textContent=m;sel.appendChild(o);});
 }
 function updateFormForHizmet() {} // legacy stub — not used
+function _gkIsimListesiniGoster(goster) {
+  const sel = document.getElementById('gk-isim');
+  if (!sel) return;
+  sel.style.display = goster ? 'block' : 'none';
+}
 function gkUpdateIsimler() {
   const hizmet = document.getElementById('gk-hizmet').value;
   const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy)
     || (typeof vatAy !== 'undefined' && vatAy)
     || (typeof getSonAy === 'function' ? getSonAy() : '');
+  const sonAy = (typeof getSonAy === 'function' ? getSonAy() : '');
   const map = new Map();
   allData
     .filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF' && r.ISIM_SOYISIM)
@@ -367,18 +373,21 @@ function gkUpdateIsimler() {
         map.set(key, { value: key, isim: r.ISIM_SOYISIM, mahalle: r.MAHALLE || '', kisiId, ay: r.AY || '' });
         return;
       }
-      const oncekiSkor = (onceki.ay === aktifAy ? 2 : 0) + (onceki.ay === getSonAy?.() ? 1 : 0);
-      const yeniSkor = ((r.AY || '') === aktifAy ? 2 : 0) + ((r.AY || '') === getSonAy?.() ? 1 : 0);
+      const oncekiSkor = (onceki.ay === aktifAy ? 2 : 0) + (onceki.ay === sonAy ? 1 : 0);
+      const yeniSkor = ((r.AY || '') === aktifAy ? 2 : 0) + ((r.AY || '') === sonAy ? 1 : 0);
       if (yeniSkor > oncekiSkor) map.set(key, { value: key, isim: r.ISIM_SOYISIM, mahalle: r.MAHALLE || '', kisiId, ay: r.AY || '' });
     });
   window._gkIsimler = [...map.values()].sort((a,b)=>a.isim.localeCompare(b.isim,'tr'));
   const searchEl = document.getElementById('gk-isim-search');
   if(searchEl) searchEl.value='';
   const sel = document.getElementById('gk-isim');
-  if (sel) sel.value='';
+  if (sel) {
+    sel.value='';
+    sel.innerHTML='';
+  }
+  _gkIsimListesiniGoster(false);
   document.getElementById('gk-mah').value='';
   document.getElementById('gk-durum-mevcut').value='';
-  gkIsimFiltrele('');
   if (typeof gkVerilemediLabelGuncelle === 'function') gkVerilemediLabelGuncelle();
   const isKuafor = hizmet==='KUAFÖR';
   const tipWrap = document.getElementById('gk-tip-wrap'); if(tipWrap) tipWrap.style.display = isKuafor ? '' : 'none';
@@ -386,10 +395,19 @@ function gkUpdateIsimler() {
 function gkIsimFiltrele(q) {
   const sel = document.getElementById('gk-isim');
   if(!sel) return;
-  const filtre = (q || '').toLocaleUpperCase('tr-TR');
+  const filtre = (q || '').trim().toLocaleUpperCase('tr-TR');
   const liste = (window._gkIsimler||[]).filter(i => !filtre || (i.isim || '').toLocaleUpperCase('tr-TR').includes(filtre));
   sel.innerHTML = liste.map(i=>`<option value="${i.value}" data-kisi-id="${i.kisiId||''}">${i.isim}${i.mahalle ? ' — ' + i.mahalle : ''}</option>`).join('');
-  sel.style.display = liste.length ? 'block' : 'none';
+  if (!liste.length) {
+    _gkIsimListesiniGoster(false);
+    return;
+  }
+  if (liste.length === 1 && filtre) {
+    sel.selectedIndex = 0;
+    gkIsimSecildi();
+    return;
+  }
+  _gkIsimListesiniGoster(true);
 }
 function _gkAySkoru(ay) {
   const i = Array.isArray(window.AY_LISTESI) ? window.AY_LISTESI.indexOf(ay) : -1;
@@ -424,8 +442,11 @@ function gkIsimSecildi() {
   const searchEl = document.getElementById('gk-isim-search');
   const opt = sel?.selectedOptions?.[0] || null;
   const kisiId = opt?.dataset?.kisiId || sel?.value || '';
+  const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy)
+    || (typeof vatAy !== 'undefined' && vatAy)
+    || (typeof getSonAy === 'function' ? getSonAy() : '');
   const rec = (typeof findKayitByKisiId === 'function' && kisiId)
-    ? findKayitByKisiId(kisiId, hizmet, document.getElementById('gk-tarih')?.value || '')
+    ? findKayitByKisiId(kisiId, hizmet, aktifAy)
     : _gkKayitBul(hizmet, searchEl?.value || '');
   if(searchEl && rec?.ISIM_SOYISIM) searchEl.value = rec.ISIM_SOYISIM;
   if (rec) {
@@ -433,6 +454,7 @@ function gkIsimSecildi() {
     document.getElementById('gk-mah').value = rec.MAHALLE||'';
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
   }
+  _gkIsimListesiniGoster(false);
 }
 
 function _gkKaydetBtn() {
@@ -942,3 +964,25 @@ function renderVat() {
 }
 function goPage(p){const tp=Math.ceil(vatFiltered.length/PER);if(p<1||p>tp)return;vatPage=p;renderVat();}
 
+
+
+function _gkBaglayicilariKur() {
+  const searchEl = document.getElementById('gk-isim-search');
+  const sel = document.getElementById('gk-isim');
+  if (!searchEl || !sel || searchEl.dataset.gkBound === '1') return;
+  searchEl.dataset.gkBound = '1';
+  searchEl.addEventListener('focus', () => {
+    if ((searchEl.value || '').trim() || (window._gkIsimler||[]).length) gkIsimFiltrele(searchEl.value || '');
+  });
+  searchEl.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown' && sel.options.length) {
+      _gkIsimListesiniGoster(true);
+      sel.focus();
+      sel.selectedIndex = Math.max(sel.selectedIndex, 0);
+      e.preventDefault();
+    }
+    if (e.key === 'Escape') _gkIsimListesiniGoster(false);
+  });
+  sel.addEventListener('blur', () => setTimeout(() => _gkIsimListesiniGoster(false), 150));
+}
+setTimeout(_gkBaglayicilariKur, 0);
