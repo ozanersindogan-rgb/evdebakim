@@ -657,3 +657,9 @@ if (typeof buildMahFilter !== 'function') {
     console.warn('buildMahFilter yok, skip edildi');
   }
 }
+
+if (typeof showDetail !== 'function') {
+  function showDetail() {
+    console.warn('showDetail yok');
+  }
+}
