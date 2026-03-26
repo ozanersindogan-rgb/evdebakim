@@ -202,27 +202,30 @@ function allDataOptimize() {
 
 async function fbLoadData() {
   showToast('🔄 Veriler yükleniyor...');
-  const snap = await firebase.firestore()
-    .collection('vatandaslar')
-    .get();
+  try {
+    const snap = await firebase.firestore()
+      .collection('vatandaslar')
+      .get();
 
-  allData = [];
-  _docsMap = {};
-  window._yuklenenAylar = new Set();
+    allData = [];
+    _docsMap = {};
+    window._yuklenenAylar = new Set();
 
-  snap.forEach(d => {
-    const idx = allData.length;
-    const rec = {...normalizeRecord({ ...d.data() }), _fbId: d.id};
-    allData.push(rec);
-    _docsMap[d.id] = idx;
-    if(rec.AY) window._yuklenenAylar.add(rec.AY);
-  });
+    snap.forEach(d => {
+      const idx = allData.length;
+      const rec = {...normalizeRecord({ ...d.data() }), _fbId: d.id};
+      allData.push(rec);
+      _docsMap[d.id] = idx;
+      if(rec.AY) window._yuklenenAylar.add(rec.AY);
+    });
 
-  if(allData.length === 0) {
-    const initialData = await loadInitialData();
-    showToast('⏳ İlk kurulum: ' + initialData.length + ' kayıt yükleniyor...');
-    await fbSeedData(initialData);
-  } else {
+    if(allData.length === 0) {
+      const initialData = await loadInitialData();
+      showToast('⏳ İlk kurulum: ' + initialData.length + ' kayıt yükleniyor...');
+      await fbSeedData(initialData);
+      return;
+    }
+
     await adresBilgiYukle();
     allData.forEach(r => {
       const bilgi = window._adresBilgi[r.ISIM_SOYISIM] || {};
@@ -230,10 +233,12 @@ async function fbLoadData() {
       if (!r.ADRES && bilgi.adres) r.ADRES = bilgi.adres;
       if (!r.DOGUM_TARIHI && bilgi.dogum) r.DOGUM_TARIHI = bilgi.dogum;
     });
-    // Bellek optimizasyonu: eski ayların detaylarını temizle
     allDataOptimize();
-    showToast('✅ ' + allData.length + ' kayıt yüklendi');
     refreshAll();
+    showToast('✅ ' + allData.length + ' kayıt yüklendi');
+  } catch (e) {
+    console.error('fbLoadData hatası:', e);
+    showToast('❌ Veriler yüklenemedi: ' + (e.message || e));
   }
 }
 
@@ -397,29 +402,25 @@ async function fbAddDoc(rec) {
   return docRef.id;
 }
 
-function _safeCall(fnName, ...args) {
-  try {
-    const fn = window[fnName];
-    if (typeof fn === 'function') return fn(...args);
-    console.warn(fnName + ' yok, skip edildi');
-  } catch (e) {
-    console.error(fnName + ' çalıştırma hatası:', e);
-  }
-}
-
 function refreshAll() {
-  _safeCall('buildSidebar');
-  _safeCall('renderDashboard');
-  _safeCall('buildHizmetTabs');
-  _safeCall('buildAyTabs');
-  _safeCall('buildMahFilter');
-  _safeCall('buildFormMah');
-  _safeCall('gkUpdateIsimler');
-  _safeCall('duUpdateIsimler');
-  _safeCall('filterVat');
-  _safeCall('renderGunluk');
-  _safeCall('renderMahalle');
-  _safeCall('renderExpStats');
+  const safe = (fn, name) => {
+    if (typeof fn !== 'function') return;
+    try { fn(); } catch (e) { console.warn(name + ' hatası:', e); }
+  };
+
+  safe(buildSidebar, 'buildSidebar');
+  safe(renderDashboard, 'renderDashboard');
+  safe(buildHizmetTabs, 'buildHizmetTabs');
+  safe(buildAyTabs, 'buildAyTabs');
+  safe(buildMahFilter, 'buildMahFilter');
+  safe(buildFormMah, 'buildFormMah');
+  safe(gkUpdateIsimler, 'gkUpdateIsimler');
+  safe(duUpdateIsimler, 'duUpdateIsimler');
+  safe(filterVat, 'filterVat');
+  safe(renderGunluk, 'renderGunluk');
+  safe(renderMahalle, 'renderMahalle');
+  safe(renderExpStats, 'renderExpStats');
+
   const expMahSel = document.getElementById('exp-mah-sel');
   if(expMahSel) {
     expMahSel.innerHTML = '<option value="">Tümü</option>';
@@ -430,7 +431,6 @@ function refreshAll() {
   const navYedek = document.getElementById('nav-yedekler');
   if(navYedek) navYedek.style.display = (currentUser?.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
 }
-
 
 // ── İŞLEM LOGU SAYFASI ──
 async function renderIslemLog() {
@@ -599,6 +599,16 @@ function saveEdit() {
   closeEditModal();
   showToast('✅ Kaydedildi');
 }
+if (typeof buildHizmetTabs !== 'function') {
+  function buildHizmetTabs() {
+    console.warn('buildHizmetTabs yok, skip edildi');
+  }
+}
+if (typeof buildAyTabs !== 'function') {
+  function buildAyTabs() {
+    console.warn('buildAyTabs yok, skip edildi');
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DÜZELTME 3: Yedek saati 17:20 olarak güncelle
@@ -606,31 +616,4 @@ function saveEdit() {
 // Yedekleme yardımcıları modules/helpers.js içine taşındı.
 
 
-
-function _gunlukSayfasiniAc() {
-  const adaylar = ['gunluk-hizmet-kaydi','gunluk-hizmet','gunlukKayit','gunluk-kayit'];
-  for (const id of adaylar) {
-    if (typeof window.openPage === 'function') {
-      try { window.openPage(id); return true; } catch(_) {}
-    }
-    if (typeof window.showSection === 'function') {
-      try { window.showSection(id); return true; } catch(_) {}
-    }
-  }
-  const btn = document.querySelector('[data-page="gunluk-hizmet-kaydi"], [onclick*="gunluk"], #nav-gunluk, .nav-gunluk');
-  if (btn && typeof btn.click === 'function') { btn.click(); return true; }
-  return false;
-}
-
-function restorePendingPage() {
-  try {
-    const aktifSayfa = localStorage.getItem('aktifSayfa');
-    if (aktifSayfa !== 'gunluk-hizmet-kaydi') return;
-    localStorage.removeItem('aktifSayfa');
-    setTimeout(() => { _gunlukSayfasiniAc(); }, 250);
-  } catch (e) {
-    console.warn('aktifSayfa geri yükleme hatası:', e);
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => { console.log('DOM hazır'); restorePendingPage(); });
+document.addEventListener('DOMContentLoaded', () => console.log('DOM hazır'));
