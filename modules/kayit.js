@@ -483,6 +483,7 @@ function _gkSeciliRecBul() {
   return null;
 }
 function gkMukerrerAnaliz() {
+  try {
   const hizmet = document.getElementById('gk-hizmet')?.value || '';
   const adaylar = window._gkAdaylar || _gkAdayListesiOlustur(hizmet);
   const tamMukerrerler = adaylar.filter(a => a.exactDuplicateCount > 1);
@@ -521,12 +522,15 @@ function gkMukerrerAnaliz() {
   }
   body.innerHTML = html;
   sayi.textContent = `${tamMukerrerler.length} tam mükerrer • ${ayniIsimFarkliMah.length} aynı isim grubu`;
-  const modal = document.getElementById('gk-mukerrer-modal');
-  if (modal) modal.style.display = 'flex';
+  const panel = document.getElementById('gk-mukerrer-panel');
+  if (panel) panel.style.display = 'block';
+  else alert(sayi.textContent);
+}
+  } catch (e) { console.error('gkMukerrerAnaliz hata', e); alert('Mükerrer kontrol açılırken hata oluştu'); }
 }
 function gkMukerrerKapat() {
-  const modal = document.getElementById('gk-mukerrer-modal');
-  if (modal) modal.style.display = 'none';
+  const panel = document.getElementById('gk-mukerrer-panel');
+  if (panel) panel.style.display = 'none';
 }
 
 function _gkKaydetBtn() {
