@@ -652,9 +652,27 @@ async function tumKayitlaraIDVer() {
   }
 }
 
+if (typeof buildHizmetTabs !== 'function') {
+  function buildHizmetTabs() {
+    console.warn('buildHizmetTabs yok, skip edildi');
+  }
+}
+
+if (typeof buildAyTabs !== 'function') {
+  function buildAyTabs() {
+    console.warn('buildAyTabs yok, skip edildi');
+  }
+}
+
 if (typeof buildMahFilter !== 'function') {
   function buildMahFilter() {
     console.warn('buildMahFilter yok, skip edildi');
+  }
+}
+
+if (typeof buildFormMah !== 'function') {
+  function buildFormMah() {
+    console.warn('buildFormMah yok, skip edildi');
   }
 }
 
