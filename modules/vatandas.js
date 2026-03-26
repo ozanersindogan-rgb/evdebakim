@@ -401,15 +401,24 @@ async function kbYukle() {
   try {
     const snap = await firebase.firestore().collection('vatandaslar_bilgi').get();
     kbData = [];
-    snap.forEach(d => kbData.push({ _fbId: d.id, ...d.data() }));
+    snap.forEach(d => kbData.push({ _fbId: d.id, _kbFbId: d.id, ...d.data() }));
     if (kbData.length===0 && allData.length>0) { await kbAllDatadanDoldur(); return; }
-    const mevcut=new Set(kbData.map(r=>(r.AD_SOYAD||'').toUpperCase()));
-    const eksik=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))].filter(n=>!mevcut.has(n.toUpperCase()));
+    const mevcut=new Set(kbData.map(r=>kisiAdAnahtari(r.AD_SOYAD)));
+    const eksik=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))].filter(n=>!mevcut.has(kisiAdAnahtari(n)));
+    for (const row of kbData) {
+      if (!row.KISI_ID) {
+        const ilgili = allData.find(r => kisiAdAnahtari(r.ISIM_SOYISIM) === kisiAdAnahtari(row.AD_SOYAD) && r.KISI_ID);
+        const kisiId = ilgili?.KISI_ID || yeniKisiId();
+        row.KISI_ID = kisiId;
+        await firebase.firestore().collection('vatandaslar_bilgi').doc(row._fbId).set({ KISI_ID: kisiId }, { merge: true });
+      }
+    }
     for (const isim of eksik) {
       const o=allData.find(r=>r.ISIM_SOYISIM===isim);
-      const y={AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
+      const kisiId = o?.KISI_ID || kayitKisiIdBul(o) || yeniKisiId();
+      const y={KISI_ID:kisiId,AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
       const d=await firebase.firestore().collection('vatandaslar_bilgi').add(y);
-      kbData.push({_fbId:d.id,...y});
+      kbData.push({_fbId:d.id,_kbFbId:d.id,...y});
     }
     if (eksik.length) showToast(eksik.length+' yeni kisi eklendi');
     kbMahalleListesiDoldur(); kbRender();
@@ -420,9 +429,10 @@ async function kbAllDatadanDoldur() {
     const tek=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))];
     for (const isim of tek) {
       const o=allData.find(r=>r.ISIM_SOYISIM===isim);
-      const y={AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
+      const kisiId = o?.KISI_ID || kayitKisiIdBul(o) || yeniKisiId();
+      const y={KISI_ID:kisiId,AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
       const d=await firebase.firestore().collection('vatandaslar_bilgi').add(y);
-      kbData.push({_fbId:d.id,...y});
+      kbData.push({_fbId:d.id,_kbFbId:d.id,...y});
     }
     showToast(tek.length+' kisi yuklendi');
     kbMahalleListesiDoldur(); kbRender();
@@ -577,7 +587,14 @@ async function kbKaydet() {
   if (!kbEditId) return;
   const r = kbData.find(x => x._fbId === kbEditId);
   if (!r) return;
+  const eskiKayit = {
+    ISIM_SOYISIM: r.AD_SOYAD,
+    AD_SOYAD: r.AD_SOYAD,
+    KISI_ID: r.KISI_ID || '',
+    _kbFbId: kbEditId
+  };
   const changes = {
+    KISI_ID:         r.KISI_ID || kayitKisiIdBul({ ISIM_SOYISIM: r.AD_SOYAD }) || yeniKisiId(),
     AD_SOYAD:       document.getElementById('kbe-ad')?.value.trim().toUpperCase() || r.AD_SOYAD,
     TC:             document.getElementById('kbe-tc')?.value.trim() || r.TC,
     TELEFON:        document.getElementById('kbe-tel')?.value.trim() || r.TELEFON,
@@ -588,12 +605,24 @@ async function kbKaydet() {
     ENGEL_ACIKLAMA: document.getElementById('kbe-engelac')?.value.trim() || r.ENGEL_ACIKLAMA,
   };
   try {
-    await firebase.firestore().collection('vatandaslar_bilgi').doc(kbEditId).update(changes);
+    await firebase.firestore().collection('vatandaslar_bilgi').doc(kbEditId).set(changes, { merge: true });
     Object.assign(r, changes);
+    await tumKayitlardaKisiBilgisiGuncelle(eskiKayit, {
+      ISIM_SOYISIM: changes.AD_SOYAD,
+      MAHALLE: changes.MAHALLE,
+      TELEFON: changes.TELEFON,
+      ADRES: changes.ADRES,
+      DOGUM_TARIHI: changes.DOGUM_TARIHI,
+      TC: changes.TC,
+      ENGEL: changes.ENGEL,
+      ENGEL_ACIKLAMA: changes.ENGEL_ACIKLAMA
+    });
     kbCloseModal();
     kbRender();
-    showToast('✅ Kişi bilgisi güncellendi');
+    if (typeof refreshAll === 'function') refreshAll();
+    showToast('✅ Kişi tüm aylarda güncellendi');
   } catch(e) {
+    console.error('kbKaydet hatası:', e);
     showToast('❌ Güncelleme hatası: ' + e.message);
   }
 }
