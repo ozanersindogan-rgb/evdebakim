@@ -651,3 +651,9 @@ async function tumKayitlaraIDVer() {
     showToast('❌ ID atama hatası: ' + err.message);
   }
 }
+
+if (typeof buildMahFilter !== 'function') {
+  function buildMahFilter() {
+    console.warn('buildMahFilter yok, skip edildi');
+  }
+}
