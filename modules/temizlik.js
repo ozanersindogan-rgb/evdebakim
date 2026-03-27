@@ -77,7 +77,7 @@ function tpRender() {
 
     const origIdx = r._origIdx;
     return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
-      <td style="padding:8px 8px;font-weight:700"><span style="cursor:pointer;color:#1A237E;text-decoration:underline dotted" onclick="showDetail('${r.isim.replace(/'/g,"\\'")}','TEMİZLİK')">${dot} ${r.isim}</span></td>
+      <td style="padding:8px 8px;font-weight:700"><span style="cursor:pointer;color:#1A237E;text-decoration:underline dotted" onclick="openVatandasCard('${r.isim.replace(/'/g,"\\'")}')">${dot} ${r.isim}</span></td>
       <td style="padding:8px 8px;color:var(--text-soft)">${r.mahalle}</td>
       <td style="padding:8px 8px;font-weight:600">${r.ekip||'—'}</td>
       <td style="padding:8px 8px;white-space:nowrap">${tarihStr}</td>
