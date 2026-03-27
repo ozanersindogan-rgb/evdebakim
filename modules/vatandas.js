@@ -261,22 +261,33 @@ function arRenderLog() {
 // ═══════════════════════════════════════════════════════════
 // VATANDAŞ BİLGİ KARTI — Global Modal
 // ═══════════════════════════════════════════════════════════
+function _vkNorm(v) {
+  return String(v ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g,'I').replace(/İ/g,'I')
+    .replace(/Ş/g,'S').replace(/Ğ/g,'G').replace(/Ü/g,'U').replace(/Ö/g,'O').replace(/Ç/g,'C')
+    .replace(/ı/g,'I').replace(/ş/g,'S').replace(/ğ/g,'G').replace(/ü/g,'U').replace(/ö/g,'O').replace(/ç/g,'C');
+}
+
+function _vkAdresBilgiBul(isim) {
+  const hedef = _vkNorm(isim);
+  const map = window._adresBilgi || {};
+  for (const [key, val] of Object.entries(map)) {
+    if (_vkNorm(key) === hedef) return val || {};
+  }
+  return {};
+}
+
 function showDetail(isim, hizmet, ay) {
   const modal = document.getElementById('vk-modal');
   if (!modal) return;
 
-  const norm = (v) =>
-    String(v || '')
-      .trim()
-      .replace(/\s+/g, ' ')
-      .toLocaleUpperCase('tr-TR');
-
-  const arananIsim = norm(isim);
-
-  const tumKayitlar = allData.filter(r => norm(r.ISIM_SOYISIM) === arananIsim);
+  const arananIsim = _vkNorm(isim);
+  const tumKayitlar = (Array.isArray(allData) ? allData : []).filter(r => _vkNorm(r?.ISIM_SOYISIM) === arananIsim);
 
   let r;
-
   if (hizmet && ay) {
     r = tumKayitlar.find(x => x['HİZMET'] === hizmet && x.AY === ay)
       || tumKayitlar.find(x => x['HİZMET'] === hizmet)
@@ -287,25 +298,25 @@ function showDetail(isim, hizmet, ay) {
     r = tumKayitlar[0];
   }
 
-  // allData içinde kayıt yoksa bile adres modülünden kart aç
+  const adresBilgiFallback = _vkAdresBilgiBul(isim);
+
   if (!r) {
-    const adresBilgi = (window._adresBilgi && window._adresBilgi[arananIsim]) || null;
-    if (!adresBilgi) {
+    if (!Object.keys(adresBilgiFallback).length) {
       alert('Vatandaş bulunamadı');
       return;
     }
 
     r = {
-      ISIM_SOYISIM: arananIsim,
-      MAHALLE: '',
-      AY: '',
+      ISIM_SOYISIM: String(isim || '').trim(),
+      MAHALLE: adresBilgiFallback.mahalle || '',
+      AY: ay || '',
       'HİZMET': hizmet || '',
       DURUM: '',
-      TELEFON: adresBilgi.tel || '',
-      ADRES: adresBilgi.adres || '',
-      TELEFON2: '',
-      TELEFON_AKTIF: '1',
-      DOGUM_TARIHI: '',
+      TELEFON: adresBilgiFallback.tel || '',
+      ADRES: adresBilgiFallback.adres || '',
+      TELEFON2: adresBilgiFallback.tel2 || '',
+      TELEFON_AKTIF: adresBilgiFallback.telAktif || '1',
+      DOGUM_TARIHI: adresBilgiFallback.dogum || '',
       NOT1: '',
       NOT2: '',
       NOT3: '',
@@ -316,32 +327,21 @@ function showDetail(isim, hizmet, ay) {
       BANYO5: ''
     };
   }
-  if(hizmet && ay) {
-    r = tumKayitlar.find(r=>r['HİZMET']===hizmet && r.AY===ay) || tumKayitlar.find(r=>r['HİZMET']===hizmet) || tumKayitlar[0];
-  } else if(hizmet) {
-    r = tumKayitlar.find(r=>r['HİZMET']===hizmet) || tumKayitlar[0];
-  } else {
-    r = tumKayitlar[0];
-  }
-  if(!r)return;
+
   const HZ_RENK={'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100'};
   const renk=HZ_RENK[r['HİZMET']]||'#1A237E';
   document.getElementById('vk-header').style.background=renk;
   document.getElementById('vk-isim').textContent=r.ISIM_SOYISIM;
-  const yas = hesaplaYas(r.DOGUM_TARIHI);
+  const yas = hesaplaYas(r.DOGUM_TARIHI || adresBilgiFallback.dogum || '');
   const yasBilgi = yas !== null ? ` • ${yas} yas` : '';
-  document.getElementById('vk-hizmet-badge').textContent=(r['HİZMET']||'')+' • '+(r.MAHALLE||'')+' • '+(r.AY||'')+yasBilgi;
-  const adresBilgi =
-  (window._adresBilgi && (
-    window._adresBilgi[r.ISIM_SOYISIM] ||
-    window._adresBilgi[norm(r.ISIM_SOYISIM)]
-  )) || {};
+  document.getElementById('vk-hizmet-badge').textContent=(r['HİZMET']||'')+' • '+(r.MAHALLE||adresBilgiFallback.mahalle||'')+' • '+(r.AY||'')+yasBilgi;
+  const adresBilgi = _vkAdresBilgiBul(r.ISIM_SOYISIM);
   const tel=r.TELEFON||adresBilgi.tel||'';
-  const tel2=r.TELEFON2||'';
-  const telAktif=r.TELEFON_AKTIF||'1';
+  const tel2=r.TELEFON2||adresBilgi.tel2||'';
+  const telAktif=r.TELEFON_AKTIF||adresBilgi.telAktif||'1';
   const aktifTel = telAktif==='2' && tel2 ? tel2 : tel;
   const adresHam=r.ADRES||adresBilgi.adres||'';
-  const mahalle=(r.MAHALLE||'').trim();
+  const mahalle=(r.MAHALLE||adresBilgi.mahalle||'').trim();
   const adres=(function(){
     const a=(adresHam||'').trim();
     if(!a) return '';
@@ -362,7 +362,10 @@ function showDetail(isim, hizmet, ay) {
   tarihler.sort((a,b)=>b.tarih.localeCompare(a.tarih));
   const durRenk={'AKTİF':'#C8E6C9|#1B5E20','İPTAL':'#FFCDD2|#B71C1C','VEFAT':'#CFD8DC|#263238','PASİF':'#ECEFF1|#546E7A','BEKLEME':'#FFF9C4|#F57F17'};
   const [dbg,dfg]=(durRenk[r.DURUM]||'#e2e8f0|#475569').split('|');
-  const digerHizmetler=allData.filter(x=>x.ISIM_SOYISIM===isim&&x['HİZMET']!==hz).map(x=>`<span style="background:${HZ_RENK[x['HİZMET']]||'#64748b'}22;color:${HZ_RENK[x['HİZMET']]||'#64748b'};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">${x['HİZMET']}</span>`).join(' ');
+  const digerHizmetler=(Array.isArray(allData)?allData:[])
+    .filter(x=>_vkNorm(x?.ISIM_SOYISIM)===arananIsim && x['HİZMET']!==hz)
+    .map(x=>`<span style="background:${HZ_RENK[x['HİZMET']]||'#64748b'}22;color:${HZ_RENK[x['HİZMET']]||'#64748b'};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">${x['HİZMET']}</span>`)
+    .join(' ');
   document.getElementById('vk-body').innerHTML=`
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center">
       <span style="background:${dbg};color:${dfg};padding:4px 12px;border-radius:20px;font-size:12px;font-weight:800">${r.DURUM}</span>
@@ -384,9 +387,9 @@ function showDetail(isim, hizmet, ay) {
     </div>`:''}
     ${(r.NOT1||r.NOT2||r.NOT3)?`<div style="background:#FFFDE7;border:1px solid #FDD835;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#795548">
       Not: ${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')}</div>`:''}
-    ${r.DOGUM_TARIHI?`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+    ${(r.DOGUM_TARIHI||adresBilgi.dogum)?`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
       <div><span style="font-size:11px;font-weight:700;color:#94a3b8">DOGUM TARIHI</span><br>
-      <span style="font-size:13px;color:#374151;font-weight:600">${r.DOGUM_TARIHI}</span></div>
+      <span style="font-size:13px;color:#374151;font-weight:600">${r.DOGUM_TARIHI||adresBilgi.dogum||''}</span></div>
       ${yas!==null?`<div style="background:#16a34a;color:#fff;border-radius:12px;padding:4px 14px;font-size:18px;font-weight:900">${yas}</div>`:''}
     </div>`:''}
     ${tarihler.length?`<div style="margin-bottom:12px">
@@ -395,8 +398,8 @@ function showDetail(isim, hizmet, ay) {
         <span style="color:#475569;font-weight:600">${t.tip}</span><span style="font-weight:700;color:#1e40af">${fmt(t.tarih)}</span></div>`).join('')}
     </div>`:'<div style="text-align:center;color:#94a3b8;font-size:13px;padding:8px 0">Henuz kayit yok</div>'}
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0">
-      <button onclick="vkKapat();openEditModal(${allData.indexOf(r)})"
-        style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;color:#475569">Duzenle</button>
+      ${r._fbId ? `<button onclick="vkKapat();openEditModal(${allData.indexOf(r)})"
+        style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;color:#475569">Duzenle</button>` : ''}
       ${aktifTel?`<a href="tel:${aktifTel.replace(/\s/g,'')}"
         style="flex:1;background:${renk};color:#fff;border:none;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;text-align:center;display:block">📞 Ara (Aktif)</a>`:''}
       ${(()=>{const digerTel=telAktif==='2'?tel:tel2;return digerTel?`<a href="tel:${digerTel.replace(/\s/g,'')}" style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;text-align:center;display:block;color:#475569">📞 ${telAktif==='2'?'1.':'2.'} Tel</a>`:'';})()}
@@ -784,40 +787,33 @@ async function kbExcelIndir() {
   a.click();
   URL.revokeObjectURL(url);
   showToast(`✅ ${filtered.length} kayıt Excel olarak indirildi`);
--e 
 }
 
 // GLOBAL ÇAĞRILABİLİR KART AÇICI
 window.openVatandasCard = function(isim){
   try {
-    const temizIsim = isim.trim().toUpperCase();
-
-    // tüm veriyi tara
-    const kaynaklar = [
-      ...(window.allData?.vatandas || []),
-      ...(window.allData?.temizlik || []),
-      ...(window.allData?.hizmet || [])
-    ];
-
-    // kişiyi bul
-    const kisi = kaynaklar.find(x =>
-      (x.AD_SOYAD || x.isim || '').toUpperCase() === temizIsim
-    );
-
-    if(!kisi){
-      alert("Vatandaş bulunamadı");
+    if(typeof showDetail !== 'function'){
+      alert('Kart sistemi yüklenmedi');
       return;
     }
 
-    // mevcut sistemdeki kart fonksiyonunu kullan
-    if(typeof showDetail === "function"){
-      showDetail(temizIsim);
-    }else{
-      alert("Kart sistemi yüklenmedi");
+    const hedef = _vkNorm(isim);
+    const kayit = (Array.isArray(allData) ? allData : []).find(x => _vkNorm(x?.ISIM_SOYISIM) === hedef);
+
+    if (kayit) {
+      showDetail(kayit.ISIM_SOYISIM, kayit['HİZMET'] || 'TEMİZLİK', kayit.AY || '');
+      return;
     }
 
+    const adresBilgi = _vkAdresBilgiBul(isim);
+    if (Object.keys(adresBilgi).length) {
+      showDetail(String(isim || '').trim(), 'TEMİZLİK');
+      return;
+    }
+
+    alert('Vatandaş bulunamadı');
   } catch(e){
     console.error(e);
-    alert("Kart açılırken hata oluştu");
+    alert('Kart açılırken hata oluştu');
   }
 }
