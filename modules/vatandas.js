@@ -732,3 +732,38 @@ async function kbExcelIndir() {
   showToast(`✅ ${filtered.length} kayıt Excel olarak indirildi`);
 -e 
 }
+
+// GLOBAL ÇAĞRILABİLİR KART AÇICI
+window.openVatandasCard = function(isim){
+  try {
+    const temizIsim = isim.trim().toUpperCase();
+
+    // tüm veriyi tara
+    const kaynaklar = [
+      ...(window.allData?.vatandas || []),
+      ...(window.allData?.temizlik || []),
+      ...(window.allData?.hizmet || [])
+    ];
+
+    // kişiyi bul
+    const kisi = kaynaklar.find(x =>
+      (x.AD_SOYAD || x.isim || '').toUpperCase() === temizIsim
+    );
+
+    if(!kisi){
+      alert("Vatandaş bulunamadı");
+      return;
+    }
+
+    // mevcut sistemdeki kart fonksiyonunu kullan
+    if(typeof showDetail === "function"){
+      showDetail(temizIsim);
+    }else{
+      alert("Kart sistemi yüklenmedi");
+    }
+
+  } catch(e){
+    console.error(e);
+    alert("Kart açılırken hata oluştu");
+  }
+}
