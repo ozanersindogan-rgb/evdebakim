@@ -262,10 +262,60 @@ function arRenderLog() {
 // VATANDAŞ BİLGİ KARTI — Global Modal
 // ═══════════════════════════════════════════════════════════
 function showDetail(isim, hizmet, ay) {
-  const modal=document.getElementById('vk-modal');
-  if(!modal)return;
-  const tumKayitlar=allData.filter(r=>r.ISIM_SOYISIM===isim);
+  const modal = document.getElementById('vk-modal');
+  if (!modal) return;
+
+  const norm = (v) =>
+    String(v || '')
+      .trim()
+      .replace(/\s+/g, ' ')
+      .toLocaleUpperCase('tr-TR');
+
+  const arananIsim = norm(isim);
+
+  const tumKayitlar = allData.filter(r => norm(r.ISIM_SOYISIM) === arananIsim);
+
   let r;
+
+  if (hizmet && ay) {
+    r = tumKayitlar.find(x => x['HİZMET'] === hizmet && x.AY === ay)
+      || tumKayitlar.find(x => x['HİZMET'] === hizmet)
+      || tumKayitlar[0];
+  } else if (hizmet) {
+    r = tumKayitlar.find(x => x['HİZMET'] === hizmet) || tumKayitlar[0];
+  } else {
+    r = tumKayitlar[0];
+  }
+
+  // allData içinde kayıt yoksa bile adres modülünden kart aç
+  if (!r) {
+    const adresBilgi = (window._adresBilgi && window._adresBilgi[arananIsim]) || null;
+    if (!adresBilgi) {
+      alert('Vatandaş bulunamadı');
+      return;
+    }
+
+    r = {
+      ISIM_SOYISIM: arananIsim,
+      MAHALLE: '',
+      AY: '',
+      'HİZMET': hizmet || '',
+      DURUM: '',
+      TELEFON: adresBilgi.tel || '',
+      ADRES: adresBilgi.adres || '',
+      TELEFON2: '',
+      TELEFON_AKTIF: '1',
+      DOGUM_TARIHI: '',
+      NOT1: '',
+      NOT2: '',
+      NOT3: '',
+      BANYO1: '',
+      BANYO2: '',
+      BANYO3: '',
+      BANYO4: '',
+      BANYO5: ''
+    };
+  }
   if(hizmet && ay) {
     r = tumKayitlar.find(r=>r['HİZMET']===hizmet && r.AY===ay) || tumKayitlar.find(r=>r['HİZMET']===hizmet) || tumKayitlar[0];
   } else if(hizmet) {
@@ -281,7 +331,11 @@ function showDetail(isim, hizmet, ay) {
   const yas = hesaplaYas(r.DOGUM_TARIHI);
   const yasBilgi = yas !== null ? ` • ${yas} yas` : '';
   document.getElementById('vk-hizmet-badge').textContent=(r['HİZMET']||'')+' • '+(r.MAHALLE||'')+' • '+(r.AY||'')+yasBilgi;
-  const adresBilgi=(window._adresBilgi&&window._adresBilgi[r.ISIM_SOYISIM])||{};
+  const adresBilgi =
+  (window._adresBilgi && (
+    window._adresBilgi[r.ISIM_SOYISIM] ||
+    window._adresBilgi[norm(r.ISIM_SOYISIM)]
+  )) || {};
   const tel=r.TELEFON||adresBilgi.tel||'';
   const tel2=r.TELEFON2||'';
   const telAktif=r.TELEFON_AKTIF||'1';
