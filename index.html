@@ -573,6 +573,28 @@
         <div class="form-section">
           <h3>➕ Yeni Vatandaş Kaydı</h3>
           <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Hizmete yeni başlayacak vatandaşı sisteme kaydedin.</p>
+          <div style="margin:-2px 0 14px 0;padding:12px;border:1px dashed var(--border);border-radius:12px;background:#f8fafc">
+            <div style="font-size:13px;font-weight:800;margin-bottom:8px;color:var(--text)">📋 Vatandaş Kopyala</div>
+            <div style="color:var(--text-soft);font-size:12px;line-height:1.5;margin-bottom:10px">Mevcut bir kaydı seçin. İsim, mahalle, telefon, adres ve notlar forma otomatik dolsun. Sonra sadece yeni hizmeti işaretleyip kaydedin.</div>
+            <div class="form-row" style="margin-bottom:0">
+              <div class="form-group"><label>Mevcut Hizmet</label>
+                <select class="form-select" id="f-copy-hizmet" onchange="fvCopyUpdateIsimler()">
+                  <option value="">Hizmet seçin...</option>
+                  <option value="KADIN BANYO">Kadın Banyo</option>
+                  <option value="ERKEK BANYO">Erkek Banyo</option>
+                  <option value="KUAFÖR">Kuaför</option>
+                  <option value="TEMİZLİK">Temizlik</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Vatandaş Ara</label>
+                <input type="text" id="f-copy-search" placeholder="İsim yazın..." autocomplete="off" oninput="fvCopyFilter(this.value)">
+              </div>
+              <div class="form-group"><label>Vatandaş Listesi</label>
+                <select class="form-select" id="f-copy-isim" size="5" onchange="fvCopySelect()"></select>
+              </div>
+            </div>
+            <div id="f-copy-info" style="font-size:12px;color:var(--text-soft);margin-top:8px">Önce mevcut hizmeti seçin.</div>
+          </div>
           <div class="form-row">
             <div class="form-group full"><label>Hizmet Türü * <span style="font-weight:400;color:var(--text-soft)">(birden fazla seçilebilir)</span></label>
               <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px">
