@@ -289,15 +289,20 @@ async function yedekGeriYukle(yedekId, tarih, kayitSayisi) {
 
 // ── JSON DOSYASINDAN GERİ YÜKLEME ──
 function yedekJsonSecDosya() {
+  // Artık kullanılmıyor — HTML'deki label/input ile tetikleniyor
+  const inp = document.getElementById('json-yukle-input');
+  if (inp) inp.click();
+}
+window.yedekJsonSecDosya = yedekJsonSecDosya;
+
+async function yedekJsonDosyaSecildi(inputEl) {
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json,application/json';
-  input.onchange = async (e) => {
-    const dosya = e.target.files[0];
-    if (!dosya) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
+  const dosya = inputEl.files[0];
+  if (!dosya) return;
+  // Input'u sıfırla — aynı dosya tekrar seçilebilsin
+  inputEl.value = '';
+  const reader = new FileReader();
+  reader.onload = async (ev) => {
       try {
         const parsed = JSON.parse(ev.target.result);
         // Hem düz array hem meta+veri formatını destekle
@@ -350,10 +355,8 @@ function yedekJsonSecDosya() {
       }
     };
     reader.readAsText(dosya);
-  };
-  input.click();
-}
-window.yedekJsonSecDosya = yedekJsonSecDosya;
+};
+window.yedekJsonDosyaSecildi = yedekJsonDosyaSecildi;
 
 // Artık kullanılmıyor ama eski çağrılar için boş bırakıldı
 function yedekleriGoster() { navTo('yedekler', document.getElementById('nav-yedekler')); }
