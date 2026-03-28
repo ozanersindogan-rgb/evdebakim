@@ -43,9 +43,12 @@ function tpRender() {
   // Personel filtresi
   if(window._tpPersonelFiltre) {
     if(window._tpPersonelFiltre === 'Atanmamış') {
-      rows = rows.filter(r=>!(r.ekip||'').trim());
+      rows = rows.filter(r=>!(r.PERSONEL1||r.ekip||'').trim() && !r.PERSONEL2 && !r.PERSONEL3);
     } else {
-      rows = rows.filter(r=>(r.ekip||'').trim()===window._tpPersonelFiltre);
+      rows = rows.filter(r=>{
+        const p1 = r.PERSONEL1 || r.ekip || '';
+        return p1===window._tpPersonelFiltre || r.PERSONEL2===window._tpPersonelFiltre || r.PERSONEL3===window._tpPersonelFiltre;
+      });
     }
   }
 

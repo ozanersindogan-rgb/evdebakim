@@ -1083,8 +1083,14 @@ function renderVat() {
     <th>Yaş</th><th>Notlar</th><th>Telefon</th><th>Adres</th><th>Durum</th>${vatHizmet==='KADIN BANYO'?'<th>Personel</th>':''}${isErkekBanyo?'<th>Personel</th>':''}${isKuafor?'<th>Personel</th>':''}<th style="width:36px"></th></tr></thead>
     <tbody>${slice.map((r,ri)=>{
       const globalIdx=allData.indexOf(r);
-      const kbilgi = (window._adresBilgi && window._adresBilgi[r.ISIM_SOYISIM]) || KUAFOR_BILGI[r.ISIM_SOYISIM] || {};
-      const yas = hesaplaYas(r.DOGUM_TARIHI);
+      const _isimKey = r.ISIM_SOYISIM;
+      const _adresBilgiObj = window._adresBilgi || {};
+      const kbilgi = _adresBilgiObj[_isimKey]
+        || _adresBilgiObj[_isimKey.toLowerCase()]
+        || _adresBilgiObj[_isimKey.toUpperCase()]
+        || (() => { const k = Object.keys(_adresBilgiObj).find(k => k.toLowerCase() === _isimKey.toLowerCase()); return k ? _adresBilgiObj[k] : null; })()
+        || KUAFOR_BILGI[_isimKey] || {};
+      const yas = hesaplaYas(r.DOGUM_TARIHI || kbilgi.dogum || '');
       return `<tr onclick="showDetail('${esc(r.ISIM_SOYISIM)}','${esc(r['HİZMET'])}','${esc(r.AY)}')" style="cursor:pointer">
       <td><span class="hizmet-dot dot-${HIZMET_COLORS[r['HİZMET']]}"></span><span style="font-size:11px;font-weight:700">${r['HİZMET']}</span></td>
       <td class="name-cell">${r.ISIM_SOYISIM}</td>
