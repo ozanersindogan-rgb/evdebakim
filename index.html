@@ -42,7 +42,7 @@
     <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
     <div class="nav-item" onclick="navTo('vatandaslar',this)"><span class="icon">👥</span>Vatandaşlar</div>
     <div class="nav-section">Hizmetler</div>
-    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
+    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this);setTimeout(()=>{if(typeof kbRenderPersonelStats==='function')kbRenderPersonelStats(window._kbPersonelFiltre||'')}),200)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
     <div class="nav-item" onclick="quickFilter('ERKEK BANYO',this)"><span class="icon">🚿</span>Erkek Banyo<span class="hizmet-tag tag-erkek">EB</span></div>
     <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
     <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
@@ -51,6 +51,7 @@
     <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
     <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">📊</span>Sayı Ver</div>
     <div class="nav-item" onclick="navTo('islem-log',this)"><span class="icon">📋</span>İşlem Logu</div>
+    <div class="nav-item" id="nav-ayarlar" onclick="navTo('ayarlar',this)" style="display:none"><span class="icon">⚙️</span>Ayarlar</div>
     <div class="nav-item" id="nav-yedekler" onclick="navTo('yedekler',this)" style="display:none"><span class="icon">💾</span>Yedekler</div>
   </nav>
 </div>
@@ -404,6 +405,12 @@
         <div class="hizmet-tabs" id="hizmet-tabs-vat"></div>
         <div class="ay-tab" id="ay-tab-vat"></div>
         <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
+          <!-- KB Personel İstatistikleri — sadece Kadın Banyo'da görünür -->
+          <div id="kb-personel-stats-wrap" style="display:none;margin-bottom:12px">
+            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
+                        text-transform:uppercase;margin-bottom:8px">👩 Personel Dağılımı (Aktif Evler)</div>
+            <div id="kb-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </div>
           <input class="search-box" id="vat-search" placeholder="İsim ara..." oninput="filterVat()">
           <select class="filter" id="vat-mah" onchange="filterVat()"><option value="">Tüm Mahalleler</option></select>
           <select class="filter" id="vat-durum" onchange="filterVat()">
@@ -745,6 +752,57 @@
       </div>
 
       <!-- ─── YEDEKLEME ─── -->
+
+      <!-- ─── AYARLAR ─── -->
+      <div class="page" id="page-ayarlar">
+        <div class="form-section" style="margin-bottom:18px">
+          <h3>⚙️ Personel Yönetimi</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">
+            Hizmet birimlerine personel ekleyin, pasif edin veya silin.
+            Kadın Banyo personelleri vatandaş atama ekranında görünür.
+            Temizlik personelleri Temizlik Planı ekip filtresinde kullanılır.
+          </p>
+          <div id="ayarlar-personel-liste">
+            <div style="text-align:center;padding:32px;color:#94a3b8">⏳ Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── PERSONEL ATAMA MODAL ─── -->
+      <div id="personel-modal" onclick="if(event.target===this)kbPersonelModalKapat()"
+        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
+               align-items:center;justify-content:center;padding:16px">
+        <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
+                    box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
+          <div style="background:linear-gradient(135deg,#C2185B,#880E4F);padding:16px 20px">
+            <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
+                        text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata</div>
+            <div id="personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
+          </div>
+          <div style="padding:16px 20px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">
+              Seçili (maks. 3):
+            </div>
+            <div id="personel-modal-chips" style="min-height:28px;margin-bottom:12px;
+                                                   display:flex;flex-wrap:wrap;gap:6px"></div>
+            <div id="personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+            <div id="personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
+          </div>
+          <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
+            <button onclick="kbPersonelModalKapat()"
+              style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
+                     background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
+              İptal
+            </button>
+            <button onclick="kbPersonelKaydet()"
+              style="flex:2;padding:10px;border:none;border-radius:10px;
+                     background:#C2185B;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+              💾 Kaydet
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="page" id="page-yedekler">
         <div class="form-section" style="margin-bottom:18px">
           <h3>💾 Yedekleme</h3>
@@ -1212,6 +1270,7 @@
 <script src="./modules/vatandas.js"></script>
 <script src="./modules/adres.js"></script>
 <script src="./modules/raporlar.js"></script>
+<script src="./modules/personel.js"></script>
 <script src="./app.js"></script>
 
 <!-- ADRES DÜZENLE MODAL -->
