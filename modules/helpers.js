@@ -61,7 +61,7 @@ function concat(...arrays){
 
 // ═══════════════════════════════════════════════════════════
 // YEDEKLEME SİSTEMİ
-// ─ Her gün ilk girişte otomatik yedek alır (TR saati ~18:00 sonrası)
+// ─ Her gün ilk girişte otomatik yedek alır (TR saati ~08:30 sonrası)
 // ─ Yedekler Firestore'da "yedekler" koleksiyonunda saklanır
 // ─ Son 30 yedek tutulur, eskiler silinir
 // ═══════════════════════════════════════════════════════════
@@ -88,8 +88,11 @@ async function yedekGunlukKontrol() {
   try {
     const bugun = trBugunTarih();
     const saat  = trSaat();
-    if (saat < 18) {
-      console.log(`[Yedek] Saat ${saat}:00 — yedek saati henüz gelmedi (18:00 bekleniyor)`);
+    // Sabah 08:30 sonrası ilk girişte yedek al
+    const trDakika = parseInt(new Date().toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', minute: '2-digit' }));
+    const trToplamDakika = saat * 60 + trDakika;
+    if (trToplamDakika < 8 * 60 + 30) {
+      console.log(`[Yedek] Saat ${saat}:${String(trDakika).padStart(2,'0')} — yedek saati henüz gelmedi (08:30 bekleniyor)`);
       return;
     }
     const mevcutSnap = await firebase.firestore()
@@ -282,6 +285,75 @@ async function yedekGeriYukle(yedekId, tarih, kayitSayisi) {
     showToast('❌ Geri yükleme hatası: '+e.message);
   }
 }
+
+
+// ── JSON DOSYASINDAN GERİ YÜKLEME ──
+function yedekJsonSecDosya() {
+  if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = async (e) => {
+    const dosya = e.target.files[0];
+    if (!dosya) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        // Hem düz array hem meta+veri formatını destekle
+        let veri = Array.isArray(parsed) ? parsed : (parsed.veri || null);
+        if (!veri || !Array.isArray(veri)) { showToast('❌ Geçersiz yedek dosyası'); return; }
+        const meta = parsed.meta || {};
+        const kayitSayisi = veri.length;
+        const tarih = meta.tarih || dosya.name;
+
+        if (!confirm(
+          `⚠️ DİKKAT — JSON'dan GERİ YÜKLEME\n\n` +
+          `Dosya: ${dosya.name}\n` +
+          `${tarih ? 'Tarih: ' + tarih + '\n' : ''}` +
+          `Kayıt sayısı: ${kayitSayisi}\n\n` +
+          `Mevcut TÜM veriler silinip bu dosyadaki veriler yüklenecek.\n` +
+          `Bu işlem GERİ ALINAMAZ!\n\n` +
+          `Devam etmek istiyor musunuz?`
+        )) return;
+
+        const girdi = prompt(`Son onay için "EVET" yazın:\n(${kayitSayisi} kayıt yüklenecek)`);
+        if ((girdi||'').trim().toUpperCase() !== 'EVET') { showToast('İptal edildi'); return; }
+
+        showToast('⏳ JSON yükleniyor... Lütfen bekleyin');
+        // Mevcut verileri sil
+        const mevcutSnap = await firebase.firestore().collection('vatandaslar').get();
+        for (let i = 0; i < mevcutSnap.docs.length; i += 400) {
+          await Promise.all(mevcutSnap.docs.slice(i, i+400).map(d => d.ref.delete()));
+        }
+        // JSON verisini yükle
+        for (let i = 0; i < veri.length; i += 400) {
+          await Promise.all(veri.slice(i, i+400).map(r =>
+            firebase.firestore().collection('vatandaslar').add(normalizeRecord({...r}))
+          ));
+          showToast(`⏳ Yükleniyor: ${Math.min(i+400, veri.length)}/${veri.length}`);
+        }
+        // İşlemi logla
+        if (currentUser) {
+          firebase.firestore().collection('islem_log').add({
+            yapan: currentUser.ad, uid: currentUser.uid,
+            zaman: firebase.firestore.FieldValue.serverTimestamp(),
+            isim: '-', degisiklik: 'JSON GERİ YÜKLEME',
+            detay: `Dosya: ${dosya.name} | ${kayitSayisi} kayıt`
+          }).catch(() => {});
+        }
+        showToast('✅ JSON geri yükleme tamamlandı! Sayfa yenileniyor...');
+        setTimeout(() => location.reload(), 1800);
+      } catch(e) {
+        console.error('[Yedek JSON] Hata:', e);
+        showToast('❌ Dosya okunamadı: ' + e.message);
+      }
+    };
+    reader.readAsText(dosya);
+  };
+  input.click();
+}
+window.yedekJsonSecDosya = yedekJsonSecDosya;
 
 // Artık kullanılmıyor ama eski çağrılar için boş bırakıldı
 function yedekleriGoster() { navTo('yedekler', document.getElementById('nav-yedekler')); }
