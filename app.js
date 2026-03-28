@@ -265,8 +265,29 @@ async function fbSeedData(initialData) {
 }
 
 // Bekleyen kayıtlar kuyruğu — internet kesilirse burada bekler
-window._saveQueue = window._saveQueue || [];
 window._saveRetryTimer = null;
+
+// Offline kuyruk: localStorage'dan bekleyen kayıtları yükle
+function _loadQueueFromStorage() {
+  try {
+    const stored = localStorage.getItem('evdebakim_saveQueue');
+    return stored ? JSON.parse(stored) : [];
+  } catch(e) { return []; }
+}
+function _saveQueueToStorage(queue) {
+  try {
+    if (queue && queue.length > 0) {
+      localStorage.setItem('evdebakim_saveQueue', JSON.stringify(queue));
+    } else {
+      localStorage.removeItem('evdebakim_saveQueue');
+    }
+  } catch(e) {}
+}
+
+// Kuyruk başlangıcı: bellekte yoksa localStorage'dan al
+if (!window._saveQueue || window._saveQueue.length === 0) {
+  window._saveQueue = _loadQueueFromStorage();
+}
 
 async function fbUpdateDoc(idx, changes) {
   const r = allData[idx];
@@ -277,6 +298,7 @@ async function fbUpdateDoc(idx, changes) {
   }
   // Kuyruğa ekle
   window._saveQueue.push({ type: 'update', fbId: r._fbId, isim: r.ISIM_SOYISIM, changes });
+  _saveQueueToStorage(window._saveQueue);
   await _flushSaveQueue();
 }
 
@@ -352,6 +374,7 @@ async function _flushSaveQueue() {
 
   if (failed.length > 0) {
     window._saveQueue = [...failed, ...window._saveQueue];
+    _saveQueueToStorage(window._saveQueue); // kuyruğu güncelle
     // Hatayı ekranda göster
     const ilkHata = failed[0];
     _saveGostergesi('hata', failed.length);
@@ -365,6 +388,7 @@ async function _flushSaveQueue() {
       _flushSaveQueue();
     }, 10000);
   } else {
+    _saveQueueToStorage([]); // başarılı — localStorage temizle
     if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
     clearTimeout(window._saveRetryTimer);
     window._saveRetryTimer = setTimeout(() => {

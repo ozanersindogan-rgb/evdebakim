@@ -506,6 +506,9 @@
             <div class="form-group"><label>Mevcut Durum</label>
               <input type="text" id="gk-durum-mevcut" readonly style="background:var(--bg-soft);color:var(--text-soft)" placeholder="Otomatik dolacak">
             </div>
+            <div class="form-group">
+              <span id="gk-son-ziyaret" style="font-size:12px;font-weight:600;padding:4px 0;display:block"></span>
+            </div>
             <div class="form-group"><label>Hizmet Tarihi *</label><input type="date" id="gk-tarih"></div>
             <div class="form-group" id="gk-tip-wrap"><label>Hizmet Türü (Kuaför)</label>
               <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:4px">
@@ -943,6 +946,32 @@
         <div class="form-section">
           <h3>📊 Sistem İstatistikleri</h3>
           <div id="exp-stats"></div>
+        </div>
+        <div class="form-section">
+          <h3>📅 Aylık Özet Export</h3>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <select id="aylik-exp-ay" style="padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);font-size:13px;font-weight:600;background:var(--bg-soft)">
+              <option value="">— Ay seçin —</option>
+              <option value="OCAK">Ocak</option>
+              <option value="ŞUBAT">Şubat</option>
+              <option value="MART">Mart</option>
+              <option value="NİSAN">Nisan</option>
+              <option value="MAYIS">Mayıs</option>
+              <option value="HAZİRAN">Haziran</option>
+              <option value="TEMMUZ">Temmuz</option>
+              <option value="AĞUSTOS">Ağustos</option>
+              <option value="EYLÜL">Eylül</option>
+              <option value="EKİM">Ekim</option>
+              <option value="KASIM">Kasım</option>
+              <option value="ARALIK">Aralık</option>
+            </select>
+            <button class="btn btn-green" onclick="aylikOzetIndir()" style="padding:8px 18px;font-size:13px">
+              ⬇️ Excel İndir
+            </button>
+          </div>
+          <div style="font-size:11px;color:var(--text-soft);margin-top:8px">
+            Seçilen aya ait tüm vatandaşlar: isim, hizmet, mahalle, ziyaret sayısı ve tarihleri ile birlikte.
+          </div>
         </div>
       </div>
 
