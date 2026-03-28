@@ -411,6 +411,18 @@
                         text-transform:uppercase;margin-bottom:8px">👩 Personel Dağılımı (Aktif Evler)</div>
             <div id="kb-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
           </div>
+          <!-- EB Personel İstatistikleri — sadece Erkek Banyo'da görünür -->
+          <div id="eb-personel-stats-wrap" style="display:none;margin-bottom:12px">
+            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
+                        text-transform:uppercase;margin-bottom:8px">🚿 Personel Dağılımı (Aktif Evler)</div>
+            <div id="eb-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </div>
+          <!-- KF Personel İstatistikleri — sadece Kuaför'de görünür -->
+          <div id="kf-personel-stats-wrap" style="display:none;margin-bottom:12px">
+            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
+                        text-transform:uppercase;margin-bottom:8px">✂️ Personel Dağılımı (Aktif Evler)</div>
+            <div id="kf-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </div>
           <input class="search-box" id="vat-search" placeholder="İsim ara..." oninput="filterVat()">
           <select class="filter" id="vat-mah" onchange="filterVat()"><option value="">Tüm Mahalleler</option></select>
           <select class="filter" id="vat-durum" onchange="filterVat()">
@@ -803,6 +815,76 @@
         </div>
       </div>
 
+      <!-- ─── ERKEK BANYO PERSONEL ATAMA MODAL ─── -->
+      <div id="eb-personel-modal" onclick="if(event.target===this)ebPersonelModalKapat()"
+        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
+               align-items:center;justify-content:center;padding:16px">
+        <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
+                    box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
+          <div style="background:linear-gradient(135deg,#1565C0,#0D47A1);padding:16px 20px">
+            <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
+                        text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata — Erkek Banyo</div>
+            <div id="eb-personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
+          </div>
+          <div style="padding:16px 20px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">
+              Seçili (maks. 3):
+            </div>
+            <div id="eb-personel-modal-chips" style="min-height:28px;margin-bottom:12px;
+                                                   display:flex;flex-wrap:wrap;gap:6px"></div>
+            <div id="eb-personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+            <div id="eb-personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
+          </div>
+          <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
+            <button onclick="ebPersonelModalKapat()"
+              style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
+                     background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
+              İptal
+            </button>
+            <button onclick="ebPersonelKaydet()"
+              style="flex:2;padding:10px;border:none;border-radius:10px;
+                     background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+              💾 Kaydet
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ─── KUAFÖR PERSONEL ATAMA MODAL ─── -->
+      <div id="kf-personel-modal" onclick="if(event.target===this)kfPersonelModalKapat()"
+        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
+               align-items:center;justify-content:center;padding:16px">
+        <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
+                    box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
+          <div style="background:linear-gradient(135deg,#2E7D32,#1B5E20);padding:16px 20px">
+            <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
+                        text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata — Kuaför</div>
+            <div id="kf-personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
+          </div>
+          <div style="padding:16px 20px">
+            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">
+              Seçili (maks. 3):
+            </div>
+            <div id="kf-personel-modal-chips" style="min-height:28px;margin-bottom:12px;
+                                                   display:flex;flex-wrap:wrap;gap:6px"></div>
+            <div id="kf-personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+            <div id="kf-personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
+          </div>
+          <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
+            <button onclick="kfPersonelModalKapat()"
+              style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
+                     background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
+              İptal
+            </button>
+            <button onclick="kfPersonelKaydet()"
+              style="flex:2;padding:10px;border:none;border-radius:10px;
+                     background:#2E7D32;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
+              💾 Kaydet
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div class="page" id="page-yedekler">
         <div class="form-section" style="margin-bottom:18px">
           <h3>💾 Yedekleme</h3>
@@ -1089,11 +1171,11 @@
                 <tr style="background:var(--primary);color:#fff">
                   <th style="padding:10px 8px;text-align:left;white-space:nowrap">İsim Soyisim</th>
                   <th style="padding:10px 8px;text-align:left">Mahalle</th>
-                  <th style="padding:10px 8px;text-align:left">Ekip</th>
                   <th style="padding:10px 8px;text-align:left;white-space:nowrap">Son Gidiş</th>
                   <th style="padding:10px 8px;text-align:center;white-space:nowrap">Geçen Gün</th>
                   <th style="padding:10px 8px;text-align:left">Not / Neden</th>
                   <th style="padding:10px 8px;text-align:center">Durum</th>
+                  <th style="padding:10px 8px;text-align:center">Personel</th>
                   <th style="padding:10px 8px;text-align:center">İşlem</th>
                 </tr>
               </thead>
@@ -1329,12 +1411,13 @@
               box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
     <div style="background:linear-gradient(135deg,#E65100,#BF360C);padding:16px 20px">
       <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
-                  text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Ekip Ata — Temizlik</div>
+                  text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata — Temizlik</div>
       <div id="tp-personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
     </div>
     <div style="padding:16px 20px">
-      <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">Seçili Ekip:</div>
+      <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">Seçili (maks. 3):</div>
       <div id="tp-personel-modal-chips" style="min-height:28px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px"></div>
+      <div id="tp-personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
       <div id="tp-personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
     </div>
     <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
