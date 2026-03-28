@@ -1018,14 +1018,27 @@ function filterVat() {
   const srch=document.getElementById('vat-search').value.toLowerCase();
   const mah=document.getElementById('vat-mah').value;
   const dur=document.getElementById('vat-durum').value;
+  const kbFiltre = window._kbPersonelFiltre || '';
   vatFiltered=allData.filter(r=>{
     const hOk=!vatHizmet||r['HİZMET']===vatHizmet;
     const aOk=!vatAy||r.AY===vatAy;
     const sOk=!srch||r.ISIM_SOYISIM.toLowerCase().includes(srch)||r.MAHALLE.toLowerCase().includes(srch);
     const mOk=!mah||r.MAHALLE===mah;
     const dOk=!dur||r.DURUM===dur;
-    return hOk&&aOk&&sOk&&mOk&&dOk;
+    // Kadın banyo personel filtresi
+    let pOk = true;
+    if (kbFiltre && vatHizmet === 'KADIN BANYO') {
+      if (kbFiltre === 'Atanmamış') {
+        pOk = !r.PERSONEL1 && !r.PERSONEL2 && !r.PERSONEL3;
+      } else {
+        pOk = r.PERSONEL1===kbFiltre || r.PERSONEL2===kbFiltre || r.PERSONEL3===kbFiltre;
+      }
+    }
+    return hOk&&aOk&&sOk&&mOk&&dOk&&pOk;
   });
+  // KB stats panelini göster/gizle
+  const wrap = document.getElementById('kb-personel-stats-wrap');
+  if (wrap) wrap.style.display = vatHizmet==='KADIN BANYO' ? '' : 'none';
   vatPage=1; renderVat();
 }
 
@@ -1039,6 +1052,7 @@ function renderVat() {
   document.getElementById('vat-table').innerHTML=`
     <thead><tr><th>Hizmet</th><th>İsim Soyisim</th><th>Mahalle</th><th>Ay</th>
     ${isKuafor?'<th>Saç</th><th>Tırnak</th><th>Sakal</th>':'<th>Tarihler</th>'}
+    ${vatHizmet==='KADIN BANYO'?'<th>Personel</th>':''}
     <th>Yaş</th><th>Notlar</th><th>Telefon</th><th>Adres</th><th>Durum</th><th style="width:36px"></th></tr></thead>
     <tbody>${slice.map((r,ri)=>{
       const globalIdx=allData.indexOf(r);
@@ -1059,8 +1073,9 @@ function renderVat() {
       <td style="font-size:11px;white-space:nowrap;color:#0369a1">${(()=>{const aktTel=(r.TELEFON_AKTIF==='2'&&r.TELEFON2)?r.TELEFON2:(r.TELEFON||kbilgi.tel||'');return aktTel?`<a href="tel:${aktTel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${aktTel}</a>`:'—';})()}</td>
       <td style="font-size:11px;color:var(--text-soft);max-width:180px">${r.ADRES||kbilgi.adres||'—'}</td>
       <td>${durBadge(r.DURUM)}</td>
+      ${vatHizmet==='KADIN BANYO'?`<td style="font-size:11px;white-space:nowrap">${[r.PERSONEL1,r.PERSONEL2,r.PERSONEL3].filter(Boolean).map(p=>`<span style="display:inline-block;background:#fdf2f8;color:#C2185B;border:1px solid #f9a8d4;border-radius:12px;padding:1px 7px;font-size:10px;font-weight:700;margin:1px">${p.split(' ')[0]}</span>`).join('')||'<span style="color:#94a3b8;font-size:10px">—</span>'}</td>`:''}
       <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">
-        <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
+        ${vatHizmet==='KADIN BANYO'?`<button class="btn" onclick="kbPersonelAta(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fdf2f8;border:1px solid #f9a8d4;color:#C2185B;border-radius:6px;cursor:pointer;margin-bottom:3px" title="Personel Ata">👩</button><br>`:''}        <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
         <button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>
       </td>
     </tr>`;}).join('')}

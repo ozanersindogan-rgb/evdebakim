@@ -61,7 +61,7 @@ function initApp() {
   const now = new Date();
   document.getElementById('current-date').textContent = now.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
   document.getElementById('gun-date').value = now.toISOString().split('T')[0];
-  fbLoadData().then(()=>{ yedekGunlukKontrol(); });
+  fbLoadData().then(()=>{ yedekGunlukKontrol(); if(typeof personelYukle==='function') personelYukle().then(()=>{ if(typeof kbRenderPersonelStats==='function') kbRenderPersonelStats(''); }); });
   kanbanYukle();
 }
 
