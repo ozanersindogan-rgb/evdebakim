@@ -113,13 +113,8 @@ function tpRender() {
     const tarihStr = r.sonGidilme ? r.sonGidilme.split('-').reverse().join('.') : '—';
     const gunStr   = r.gun !== null ? `${r.gun} gün` : '—';
     const durumColor = r.durum==='AKTİF'?'#16a34a':r.durum==='PASİF'?'#64748b':'#ef4444';
-    const ekipRenk = EKIP_RENK[r.ekip] || '#94a3b8';
-    const ekipBadge = r.ekip
-      ? `<span style="background:${ekipRenk}18;color:${ekipRenk};border:1px solid ${ekipRenk}55;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:800">${r.ekip}</span>`
-      : `<span style="color:#94a3b8;font-size:11px">—</span>`;
 
     const origIdx = r._origIdx;
-    const EKIP_RENK = {'Gülin':'#C2185B','Hava':'#1565C0','Nihal':'#2E7D32','Tüm Ekip':'#7c3aed'};
     const personeller = [r.PERSONEL1 || r.ekip, r.PERSONEL2, r.PERSONEL3].filter(Boolean);
     const personelBadges = personeller.length
       ? personeller.map(p => {
