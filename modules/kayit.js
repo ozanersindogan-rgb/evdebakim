@@ -1,4 +1,16 @@
 // ── KAYIT (Günlük + Yeni Vatandaş + Durum) ──
+
+// Eşzamanlı kayıt koruması
+let _gkIslemDevam = false;
+
+// Tarih formatı: YYYY-MM-DD → DD.MM.YYYY (allData ile uyumlu)
+function _isoToDDMMYYYY(d) {
+  if (!d) return d;
+  if (d.includes('.')) return d; // zaten DD.MM.YYYY
+  const [y, m, g] = d.split('-');
+  return `${g}.${m}.${y}`;
+}
+
 // ============ GÜNLÜK ============
 function _gunlukDateTR(iso) {
   if (!iso || !iso.includes('-')) return '';
@@ -450,10 +462,15 @@ function _gkGunlukListeyiTazele(tarih) {
 }
 
 async function gkKaydet() {
+  if (_gkIslemDevam) { showToast('⏳ Önceki kayıt devam ediyor, lütfen bekleyin...'); return; }
+  _gkIslemDevam = true;
+
   const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
   const tarih = document.getElementById('gk-tarih').value;
-  if (!isim) { showToast('Vatandas adi zorunlu'); return; }
-  if (!tarih) { showToast('Tarih zorunlu'); return; }
+  if (!isim) { _gkIslemDevam = false; showToast('Vatandas adi zorunlu'); return; }
+  if (!tarih) { _gkIslemDevam = false; showToast('Tarih zorunlu'); return; }
+
+  const tarihDB = _isoToDDMMYYYY(tarih); // allData ile uyumlu DD.MM.YYYY
 
   const hizmet = document.getElementById('gk-hizmet').value;
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
@@ -461,7 +478,7 @@ async function gkKaydet() {
   const adaylar = _gkKayitAdaylari(hizmet, isim);
   const rec = adaylar[0];
 
-  if (!rec) { showToast('Vatandas bulunamadi'); return; }
+  if (!rec) { _gkIslemDevam = false; showToast('Vatandas bulunamadi'); return; }
 
   const snapshot = JSON.parse(JSON.stringify(rec));
   _gkSetBusy(true, 'Kaydediliyor...');
@@ -471,12 +488,12 @@ async function gkKaydet() {
       if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
       seciliTipler.forEach(t => {
         const fields = t==='SAC'?['SAC1','SAC2']:t==='TIRNAK'?['TIRNAK1','TIRNAK2']:['SAKAL1','SAKAL2'];
-        if (!rec[fields[0]]) rec[fields[0]]=tarih; else rec[fields[1]]=tarih;
+        if (!rec[fields[0]]) rec[fields[0]]=tarihDB; else rec[fields[1]]=tarihDB;
       });
     } else {
       const fields=['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
       const empty=fields.find(f=>!rec[f]);
-      if (empty) rec[empty]=tarih; else rec[fields[4]]=tarih;
+      if (empty) rec[empty]=tarihDB; else rec[fields[4]]=tarihDB;
     }
 
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
@@ -488,7 +505,7 @@ async function gkKaydet() {
     }
 
     if (rec._tpRef && rec._tpFbId) {
-      const sd = { sonGidilme: tarih };
+      const sd = { sonGidilme: tarihDB };
       if (not) sd.not_ = rec.NOT1;
       await _gkTemizlikPlanKaydet(rec, sd);
     }
@@ -520,6 +537,7 @@ async function gkKaydet() {
     showToast('Kayıt tamamlanamadı, tekrar dene');
   } finally {
     _gkSetBusy(false);
+    _gkIslemDevam = false;
   }
 }
 
