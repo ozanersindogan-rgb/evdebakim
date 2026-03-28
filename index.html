@@ -42,7 +42,7 @@
     <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
     <div class="nav-item" onclick="navTo('vatandaslar',this)"><span class="icon">👥</span>Vatandaşlar</div>
     <div class="nav-section">Hizmetler</div>
-    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this);setTimeout(()=>{if(typeof kbRenderPersonelStats==='function')kbRenderPersonelStats(window._kbPersonelFiltre||'')}),200)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
+    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this);setTimeout(()=>{if(typeof kbRenderPersonelStats==='function')kbRenderPersonelStats(window._kbPersonelFiltre||'')},200)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
     <div class="nav-item" onclick="quickFilter('ERKEK BANYO',this)"><span class="icon">🚿</span>Erkek Banyo<span class="hizmet-tag tag-erkek">EB</span></div>
     <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
     <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
