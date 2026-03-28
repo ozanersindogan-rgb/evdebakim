@@ -1052,8 +1052,7 @@ function renderVat() {
   document.getElementById('vat-table').innerHTML=`
     <thead><tr><th>Hizmet</th><th>İsim Soyisim</th><th>Mahalle</th><th>Ay</th>
     ${isKuafor?'<th>Saç</th><th>Tırnak</th><th>Sakal</th>':'<th>Tarihler</th>'}
-    ${vatHizmet==='KADIN BANYO'?'<th>Personel</th>':''}
-    <th>Yaş</th><th>Notlar</th><th>Telefon</th><th>Adres</th><th>Durum</th><th style="width:36px"></th></tr></thead>
+    <th>Yaş</th><th>Notlar</th><th>Telefon</th><th>Adres</th><th>Durum</th>${vatHizmet==='KADIN BANYO'?'<th>Personel</th>':''}<th style="width:36px"></th></tr></thead>
     <tbody>${slice.map((r,ri)=>{
       const globalIdx=allData.indexOf(r);
       const kbilgi = (window._adresBilgi && window._adresBilgi[r.ISIM_SOYISIM]) || KUAFOR_BILGI[r.ISIM_SOYISIM] || {};
