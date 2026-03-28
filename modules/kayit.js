@@ -1034,11 +1034,38 @@ function filterVat() {
         pOk = r.PERSONEL1===kbFiltre || r.PERSONEL2===kbFiltre || r.PERSONEL3===kbFiltre;
       }
     }
+    // Erkek banyo personel filtresi
+    const ebFiltre = window._ebPersonelFiltre || '';
+    if (ebFiltre && vatHizmet === 'ERKEK BANYO') {
+      if (ebFiltre === 'Atanmamış') {
+        pOk = !r.EB_PERSONEL1 && !r.EB_PERSONEL2 && !r.EB_PERSONEL3;
+      } else {
+        pOk = r.EB_PERSONEL1===ebFiltre || r.EB_PERSONEL2===ebFiltre || r.EB_PERSONEL3===ebFiltre;
+      }
+    }
+    // Kuaför personel filtresi
+    const kfFiltre = window._kfPersonelFiltre || '';
+    if (kfFiltre && vatHizmet === 'KUAFÖR') {
+      if (kfFiltre === 'Atanmamış') {
+        pOk = !r.KF_PERSONEL1 && !r.KF_PERSONEL2 && !r.KF_PERSONEL3;
+      } else {
+        pOk = r.KF_PERSONEL1===kfFiltre || r.KF_PERSONEL2===kfFiltre || r.KF_PERSONEL3===kfFiltre;
+      }
+    }
     return hOk&&aOk&&sOk&&mOk&&dOk&&pOk;
   });
   // KB stats panelini göster/gizle
   const wrap = document.getElementById('kb-personel-stats-wrap');
   if (wrap) wrap.style.display = vatHizmet==='KADIN BANYO' ? '' : 'none';
+  // EB stats panelini göster/gizle
+  const ebWrap = document.getElementById('eb-personel-stats-wrap');
+  if (ebWrap) ebWrap.style.display = vatHizmet==='ERKEK BANYO' ? '' : 'none';
+  // KF stats panelini göster/gizle
+  const kfWrap = document.getElementById('kf-personel-stats-wrap');
+  if (kfWrap) kfWrap.style.display = vatHizmet==='KUAFÖR' ? '' : 'none';
+  // Render stats
+  if (vatHizmet==='ERKEK BANYO' && typeof ebRenderPersonelStats === 'function') ebRenderPersonelStats(window._ebPersonelFiltre||'');
+  if (vatHizmet==='KUAFÖR' && typeof kfRenderPersonelStats === 'function') kfRenderPersonelStats(window._kfPersonelFiltre||'');
   vatPage=1; renderVat();
 }
 
@@ -1049,10 +1076,11 @@ function renderVat() {
   document.getElementById('vat-count').textContent=`${total} kayıt`;
 
   const isKuafor = vatHizmet==='KUAFÖR';
+  const isErkekBanyo = vatHizmet==='ERKEK BANYO';
   document.getElementById('vat-table').innerHTML=`
     <thead><tr><th>Hizmet</th><th>İsim Soyisim</th><th>Mahalle</th><th>Ay</th>
     ${isKuafor?'<th>Saç</th><th>Tırnak</th><th>Sakal</th>':'<th>Tarihler</th>'}
-    <th>Yaş</th><th>Notlar</th><th>Telefon</th><th>Adres</th><th>Durum</th>${vatHizmet==='KADIN BANYO'?'<th>Personel</th>':''}<th style="width:36px"></th></tr></thead>
+    <th>Yaş</th><th>Notlar</th><th>Telefon</th><th>Adres</th><th>Durum</th>${vatHizmet==='KADIN BANYO'?'<th>Personel</th>':''}${isErkekBanyo?'<th>Personel</th>':''}${isKuafor?'<th>Personel</th>':''}<th style="width:36px"></th></tr></thead>
     <tbody>${slice.map((r,ri)=>{
       const globalIdx=allData.indexOf(r);
       const kbilgi = (window._adresBilgi && window._adresBilgi[r.ISIM_SOYISIM]) || KUAFOR_BILGI[r.ISIM_SOYISIM] || {};
@@ -1073,8 +1101,13 @@ function renderVat() {
       <td style="font-size:11px;color:var(--text-soft);max-width:180px">${r.ADRES||kbilgi.adres||'—'}</td>
       <td>${durBadge(r.DURUM)}</td>
       ${vatHizmet==='KADIN BANYO'?`<td style="font-size:11px;white-space:nowrap">${[r.PERSONEL1,r.PERSONEL2,r.PERSONEL3].filter(Boolean).map(p=>`<span style="display:inline-block;background:#fdf2f8;color:#C2185B;border:1px solid #f9a8d4;border-radius:12px;padding:1px 7px;font-size:10px;font-weight:700;margin:1px">${p.split(' ')[0]}</span>`).join('')||'<span style="color:#94a3b8;font-size:10px">—</span>'}</td>`:''}
+      ${isErkekBanyo?`<td style="font-size:11px;white-space:nowrap">${[r.EB_PERSONEL1,r.EB_PERSONEL2,r.EB_PERSONEL3].filter(Boolean).map(p=>`<span style="display:inline-block;background:#eff6ff;color:#1565C0;border:1px solid #bfdbfe;border-radius:12px;padding:1px 7px;font-size:10px;font-weight:700;margin:1px">${p.split(' ')[0]}</span>`).join('')||'<span style="color:#94a3b8;font-size:10px">—</span>'}</td>`:''}
+      ${isKuafor?`<td style="font-size:11px;white-space:nowrap">${[r.KF_PERSONEL1,r.KF_PERSONEL2,r.KF_PERSONEL3].filter(Boolean).map(p=>`<span style="display:inline-block;background:#f0fdf4;color:#2E7D32;border:1px solid #bbf7d0;border-radius:12px;padding:1px 7px;font-size:10px;font-weight:700;margin:1px">${p.split(' ')[0]}</span>`).join('')||'<span style="color:#94a3b8;font-size:10px">—</span>'}</td>`:''}
       <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">
-        ${vatHizmet==='KADIN BANYO'?`<button class="btn" onclick="kbPersonelAta(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fdf2f8;border:1px solid #f9a8d4;color:#C2185B;border-radius:6px;cursor:pointer;margin-bottom:3px" title="Personel Ata">👩</button><br>`:''}        <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
+        ${vatHizmet==='KADIN BANYO'?`<button class="btn" onclick="kbPersonelAta(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fdf2f8;border:1px solid #f9a8d4;color:#C2185B;border-radius:6px;cursor:pointer;margin-bottom:3px" title="Personel Ata">👩</button><br>`:''}
+        ${isErkekBanyo?`<button class="btn" onclick="ebPersonelAta(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#eff6ff;border:1px solid #bfdbfe;color:#1565C0;border-radius:6px;cursor:pointer;margin-bottom:3px" title="Personel Ata">🚿</button><br>`:''}
+        ${isKuafor?`<button class="btn" onclick="kfPersonelAta(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f0fdf4;border:1px solid #bbf7d0;color:#2E7D32;border-radius:6px;cursor:pointer;margin-bottom:3px" title="Personel Ata">✂️</button><br>`:''}
+        <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
         <button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>
       </td>
     </tr>`;}).join('')}

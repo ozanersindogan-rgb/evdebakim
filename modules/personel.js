@@ -332,6 +332,373 @@ function tpPersonelModalKapat() {
 }
 window.tpPersonelModalKapat = tpPersonelModalKapat;
 
+// ─── ERKEK BANYO personel istatistikleri ───
+function ebPersonelStats() {
+  const hizmet = 'ERKEK BANYO';
+  const personeller = personelListesi(hizmet);
+  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF');
+
+  const sayar = {};
+  personeller.forEach(p => { sayar[p.ad] = 0; });
+  sayar['Atanmamış'] = 0;
+
+  aktifKayitlar.forEach(r => {
+    const atananlar = [r.EB_PERSONEL1, r.EB_PERSONEL2, r.EB_PERSONEL3].filter(Boolean);
+    if (!atananlar.length) {
+      sayar['Atanmamış'] = (sayar['Atanmamış'] || 0) + 1;
+    } else {
+      atananlar.forEach(p => { sayar[p] = (sayar[p] || 0) + 1; });
+    }
+  });
+  return sayar;
+}
+
+function ebRenderPersonelStats(filtre) {
+  const statsEl = document.getElementById('eb-personel-stats');
+  if (!statsEl) return;
+  const sayar = ebPersonelStats();
+  const renkler = ['#1565C0','#2E7D32','#C2185B','#E65100','#7c3aed','#0891b2','#64748b'];
+  statsEl.innerHTML = Object.entries(sayar)
+    .filter(([, s]) => s > 0 || !(window._ebPersonelFiltre))
+    .map(([ad, sayi], i) => {
+      const renk = ad === 'Atanmamış' ? '#94a3b8' : renkler[i % renkler.length];
+      const aktif = filtre === ad;
+      return `<div onclick="ebPersonelFiltrele('${ad.replace(/'/g,"\\'")}') "
+        style="display:flex;align-items:center;gap:10px;background:${aktif ? renk+'22' : '#fff'};
+               border:2px solid ${aktif ? renk : renk+'44'};border-radius:12px;padding:10px 16px;
+               min-width:110px;cursor:pointer;transition:all .15s">
+        <div style="width:34px;height:34px;border-radius:50%;background:${renk};display:flex;align-items:center;
+                    justify-content:center;color:#fff;font-weight:900;font-size:13px;flex-shrink:0">
+          ${ad === 'Atanmamış' ? '?' : ad.charAt(0)}
+        </div>
+        <div>
+          <div style="font-weight:800;font-size:12px;color:#1e293b;white-space:nowrap">${ad}</div>
+          <div style="font-size:20px;font-weight:900;color:${renk};line-height:1.1">
+            ${sayi} <span style="font-size:11px;font-weight:600;color:#64748b">ev</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+window._ebPersonelFiltre = '';
+function ebPersonelFiltrele(ad) {
+  window._ebPersonelFiltre = (window._ebPersonelFiltre === ad) ? '' : ad;
+  ebRenderPersonelStats(window._ebPersonelFiltre);
+  if (typeof filterVat === 'function') filterVat();
+}
+window.ebPersonelFiltrele = ebPersonelFiltrele;
+
+function ebPersonelAta(idx) {
+  const r = allData[idx];
+  if (!r || r['HİZMET'] !== 'ERKEK BANYO') return;
+
+  const mevcut = [r.EB_PERSONEL1, r.EB_PERSONEL2, r.EB_PERSONEL3].filter(Boolean);
+  const personeller = personelListesi('ERKEK BANYO');
+
+  const modal = document.getElementById('eb-personel-modal');
+  const body  = document.getElementById('eb-personel-modal-body');
+  if (!modal || !body) return;
+
+  document.getElementById('eb-personel-modal-isim').textContent = r.ISIM_SOYISIM;
+
+  body.innerHTML = personeller.map(p => {
+    const secili = mevcut.includes(p.ad);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+                          border:1.5px solid ${secili ? '#1565C0' : '#e2e8f0'};
+                          background:${secili ? '#eff6ff' : '#fff'};cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" value="${p.ad}" ${secili ? 'checked' : ''}
+             style="width:16px;height:16px;accent-color:#1565C0"
+             onchange="ebPersonelSecimGuncelle()">
+      <span style="font-weight:700;font-size:13px">${p.ad}</span>
+    </label>`;
+  }).join('');
+
+  modal.dataset.idx = idx;
+  modal.style.display = 'flex';
+  ebPersonelSecimGuncelle();
+}
+window.ebPersonelAta = ebPersonelAta;
+
+function ebPersonelSecimGuncelle() {
+  const secili = [...document.querySelectorAll('#eb-personel-modal-body input:checked')].map(c => c.value);
+  const uyari  = document.getElementById('eb-personel-modal-uyari');
+  if (uyari) {
+    uyari.textContent = secili.length > 3 ? '⚠️ Maksimum 3 personel atanabilir' : '';
+    uyari.style.color = '#b45309';
+  }
+  const chips = document.getElementById('eb-personel-modal-chips');
+  if (chips) {
+    chips.innerHTML = secili.length
+      ? secili.map(s => `<span style="background:#eff6ff;border:1px solid #1565C0;color:#1565C0;
+                                      border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700">${s}</span>`).join(' ')
+      : '<span style="color:#94a3b8;font-size:12px">Henüz seçilmedi</span>';
+  }
+}
+window.ebPersonelSecimGuncelle = ebPersonelSecimGuncelle;
+
+async function ebPersonelKaydet() {
+  const modal = document.getElementById('eb-personel-modal');
+  const idx   = parseInt(modal.dataset.idx);
+  const r     = allData[idx];
+  if (!r) return;
+
+  const secili = [...document.querySelectorAll('#eb-personel-modal-body input:checked')].map(c => c.value);
+  if (secili.length > 3) { showToast('⚠️ Maksimum 3 personel seçilebilir'); return; }
+
+  r.EB_PERSONEL1 = secili[0] || '';
+  r.EB_PERSONEL2 = secili[1] || '';
+  r.EB_PERSONEL3 = secili[2] || '';
+
+  if (r._fbId) {
+    await firebase.firestore().collection('vatandaslar').doc(r._fbId).update({
+      EB_PERSONEL1: r.EB_PERSONEL1, EB_PERSONEL2: r.EB_PERSONEL2, EB_PERSONEL3: r.EB_PERSONEL3
+    });
+  }
+
+  modal.style.display = 'none';
+  ebRenderPersonelStats(window._ebPersonelFiltre);
+  if (typeof filterVat === 'function') filterVat();
+  showToast(`✅ ${r.ISIM_SOYISIM} — personel güncellendi`);
+}
+window.ebPersonelKaydet = ebPersonelKaydet;
+
+function ebPersonelModalKapat() {
+  const modal = document.getElementById('eb-personel-modal');
+  if (modal) modal.style.display = 'none';
+}
+window.ebPersonelModalKapat = ebPersonelModalKapat;
+
+// ─── KUAFÖR personel istatistikleri ───
+function kfPersonelStats() {
+  const hizmet = 'KUAFÖR';
+  const personeller = personelListesi(hizmet);
+  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF');
+
+  const sayar = {};
+  personeller.forEach(p => { sayar[p.ad] = 0; });
+  sayar['Atanmamış'] = 0;
+
+  aktifKayitlar.forEach(r => {
+    const atananlar = [r.KF_PERSONEL1, r.KF_PERSONEL2, r.KF_PERSONEL3].filter(Boolean);
+    if (!atananlar.length) {
+      sayar['Atanmamış'] = (sayar['Atanmamış'] || 0) + 1;
+    } else {
+      atananlar.forEach(p => { sayar[p] = (sayar[p] || 0) + 1; });
+    }
+  });
+  return sayar;
+}
+
+function kfRenderPersonelStats(filtre) {
+  const statsEl = document.getElementById('kf-personel-stats');
+  if (!statsEl) return;
+  const sayar = kfPersonelStats();
+  const renkler = ['#2E7D32','#C2185B','#1565C0','#E65100','#7c3aed','#0891b2','#64748b'];
+  statsEl.innerHTML = Object.entries(sayar)
+    .filter(([, s]) => s > 0 || !(window._kfPersonelFiltre))
+    .map(([ad, sayi], i) => {
+      const renk = ad === 'Atanmamış' ? '#94a3b8' : renkler[i % renkler.length];
+      const aktif = filtre === ad;
+      return `<div onclick="kfPersonelFiltrele('${ad.replace(/'/g,"\\'")}') "
+        style="display:flex;align-items:center;gap:10px;background:${aktif ? renk+'22' : '#fff'};
+               border:2px solid ${aktif ? renk : renk+'44'};border-radius:12px;padding:10px 16px;
+               min-width:110px;cursor:pointer;transition:all .15s">
+        <div style="width:34px;height:34px;border-radius:50%;background:${renk};display:flex;align-items:center;
+                    justify-content:center;color:#fff;font-weight:900;font-size:13px;flex-shrink:0">
+          ${ad === 'Atanmamış' ? '?' : ad.charAt(0)}
+        </div>
+        <div>
+          <div style="font-weight:800;font-size:12px;color:#1e293b;white-space:nowrap">${ad}</div>
+          <div style="font-size:20px;font-weight:900;color:${renk};line-height:1.1">
+            ${sayi} <span style="font-size:11px;font-weight:600;color:#64748b">ev</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+window._kfPersonelFiltre = '';
+function kfPersonelFiltrele(ad) {
+  window._kfPersonelFiltre = (window._kfPersonelFiltre === ad) ? '' : ad;
+  kfRenderPersonelStats(window._kfPersonelFiltre);
+  if (typeof filterVat === 'function') filterVat();
+}
+window.kfPersonelFiltrele = kfPersonelFiltrele;
+
+function kfPersonelAta(idx) {
+  const r = allData[idx];
+  if (!r || r['HİZMET'] !== 'KUAFÖR') return;
+
+  const mevcut = [r.KF_PERSONEL1, r.KF_PERSONEL2, r.KF_PERSONEL3].filter(Boolean);
+  const personeller = personelListesi('KUAFÖR');
+
+  const modal = document.getElementById('kf-personel-modal');
+  const body  = document.getElementById('kf-personel-modal-body');
+  if (!modal || !body) return;
+
+  document.getElementById('kf-personel-modal-isim').textContent = r.ISIM_SOYISIM;
+
+  body.innerHTML = personeller.map(p => {
+    const secili = mevcut.includes(p.ad);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+                          border:1.5px solid ${secili ? '#2E7D32' : '#e2e8f0'};
+                          background:${secili ? '#f0fdf4' : '#fff'};cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" value="${p.ad}" ${secili ? 'checked' : ''}
+             style="width:16px;height:16px;accent-color:#2E7D32"
+             onchange="kfPersonelSecimGuncelle()">
+      <span style="font-weight:700;font-size:13px">${p.ad}</span>
+    </label>`;
+  }).join('');
+
+  modal.dataset.idx = idx;
+  modal.style.display = 'flex';
+  kfPersonelSecimGuncelle();
+}
+window.kfPersonelAta = kfPersonelAta;
+
+function kfPersonelSecimGuncelle() {
+  const secili = [...document.querySelectorAll('#kf-personel-modal-body input:checked')].map(c => c.value);
+  const uyari  = document.getElementById('kf-personel-modal-uyari');
+  if (uyari) {
+    uyari.textContent = secili.length > 3 ? '⚠️ Maksimum 3 personel atanabilir' : '';
+    uyari.style.color = '#b45309';
+  }
+  const chips = document.getElementById('kf-personel-modal-chips');
+  if (chips) {
+    chips.innerHTML = secili.length
+      ? secili.map(s => `<span style="background:#f0fdf4;border:1px solid #2E7D32;color:#2E7D32;
+                                      border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700">${s}</span>`).join(' ')
+      : '<span style="color:#94a3b8;font-size:12px">Henüz seçilmedi</span>';
+  }
+}
+window.kfPersonelSecimGuncelle = kfPersonelSecimGuncelle;
+
+async function kfPersonelKaydet() {
+  const modal = document.getElementById('kf-personel-modal');
+  const idx   = parseInt(modal.dataset.idx);
+  const r     = allData[idx];
+  if (!r) return;
+
+  const secili = [...document.querySelectorAll('#kf-personel-modal-body input:checked')].map(c => c.value);
+  if (secili.length > 3) { showToast('⚠️ Maksimum 3 personel seçilebilir'); return; }
+
+  r.KF_PERSONEL1 = secili[0] || '';
+  r.KF_PERSONEL2 = secili[1] || '';
+  r.KF_PERSONEL3 = secili[2] || '';
+
+  if (r._fbId) {
+    await firebase.firestore().collection('vatandaslar').doc(r._fbId).update({
+      KF_PERSONEL1: r.KF_PERSONEL1, KF_PERSONEL2: r.KF_PERSONEL2, KF_PERSONEL3: r.KF_PERSONEL3
+    });
+  }
+
+  modal.style.display = 'none';
+  kfRenderPersonelStats(window._kfPersonelFiltre);
+  if (typeof filterVat === 'function') filterVat();
+  showToast(`✅ ${r.ISIM_SOYISIM} — personel güncellendi`);
+}
+window.kfPersonelKaydet = kfPersonelKaydet;
+
+function kfPersonelModalKapat() {
+  const modal = document.getElementById('kf-personel-modal');
+  if (modal) modal.style.display = 'none';
+}
+window.kfPersonelModalKapat = kfPersonelModalKapat;
+
+// ─── TEMİZLİK çoklu personel (PERSONEL1/2/3 alanlarına) ───
+function tpPersonelAta_Coklu(idx) {
+  const r = window.TP_DATA[idx];
+  if (!r) return;
+
+  const mevcut = [r.PERSONEL1, r.PERSONEL2, r.PERSONEL3].filter(Boolean);
+  const personeller = personelListesi('TEMİZLİK');
+
+  const modal = document.getElementById('tp-personel-modal');
+  const body  = document.getElementById('tp-personel-modal-body');
+  if (!modal || !body) return;
+
+  document.getElementById('tp-personel-modal-isim').textContent = r.isim;
+
+  body.innerHTML = personeller.map(p => {
+    const secili = mevcut.includes(p.ad);
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+                          border:1.5px solid ${secili ? '#E65100' : '#e2e8f0'};
+                          background:${secili ? '#fff7ed' : '#fff'};cursor:pointer;margin-bottom:8px">
+      <input type="checkbox" value="${p.ad}" ${secili ? 'checked' : ''}
+             style="width:16px;height:16px;accent-color:#E65100"
+             onchange="tpPersonelSecimGuncelle_Coklu()">
+      <span style="font-weight:700;font-size:13px">${p.ad}</span>
+    </label>`;
+  }).join('') + `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+    border:1.5px solid ${!mevcut.length ? '#E65100' : '#e2e8f0'};
+    background:${!mevcut.length ? '#fff7ed' : '#fff'};cursor:pointer;margin-bottom:8px">
+    <input type="checkbox" value="__SIFIRLA__" id="tp-sifirla-cb"
+           style="width:16px;height:16px;accent-color:#E65100"
+           onchange="tpPersonelSifirla()">
+    <span style="font-weight:700;font-size:13px;color:#94a3b8">— Atanmamış (Sıfırla)</span>
+  </label>`;
+
+  modal.dataset.idx = idx;
+  modal.style.display = 'flex';
+  tpPersonelSecimGuncelle_Coklu();
+}
+window.tpPersonelAta = tpPersonelAta_Coklu;
+
+function tpPersonelSifirla() {
+  const cb = document.getElementById('tp-sifirla-cb');
+  if (cb && cb.checked) {
+    document.querySelectorAll('#tp-personel-modal-body input[type="checkbox"]:not(#tp-sifirla-cb)').forEach(c => c.checked = false);
+  }
+  tpPersonelSecimGuncelle_Coklu();
+}
+window.tpPersonelSifirla = tpPersonelSifirla;
+
+function tpPersonelSecimGuncelle_Coklu() {
+  const secili = [...document.querySelectorAll('#tp-personel-modal-body input[type="checkbox"]:not(#tp-sifirla-cb):checked')].map(c => c.value);
+  const uyari  = document.getElementById('tp-personel-modal-uyari');
+  if (uyari) {
+    uyari.textContent = secili.length > 3 ? '⚠️ Maksimum 3 personel atanabilir' : '';
+    uyari.style.color = '#b45309';
+  }
+  const chips = document.getElementById('tp-personel-modal-chips');
+  if (chips) {
+    chips.innerHTML = secili.length
+      ? secili.map(s => `<span style="background:#fff7ed;border:1px solid #E65100;color:#E65100;
+                                      border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700">${s}</span>`).join(' ')
+      : '<span style="color:#94a3b8;font-size:12px">Henüz seçilmedi</span>';
+  }
+}
+window.tpPersonelSecimGuncelle = tpPersonelSecimGuncelle_Coklu;
+
+async function tpPersonelKaydet_Coklu() {
+  const modal = document.getElementById('tp-personel-modal');
+  const idx   = parseInt(modal.dataset.idx);
+  const r     = window.TP_DATA[idx];
+  if (!r) return;
+
+  const secili = [...document.querySelectorAll('#tp-personel-modal-body input[type="checkbox"]:not(#tp-sifirla-cb):checked')].map(c => c.value);
+  if (secili.length > 3) { showToast('⚠️ Maksimum 3 personel seçilebilir'); return; }
+
+  r.PERSONEL1 = secili[0] || '';
+  r.PERSONEL2 = secili[1] || '';
+  r.PERSONEL3 = secili[2] || '';
+  // ekip alanını da ilk personel ile güncelle (geriye uyumluluk)
+  r.ekip = r.PERSONEL1 || '';
+
+  if (r._fbId) {
+    await firebase.firestore().collection('temizlik_plan').doc(r._fbId).update({
+      PERSONEL1: r.PERSONEL1, PERSONEL2: r.PERSONEL2, PERSONEL3: r.PERSONEL3, ekip: r.ekip
+    });
+  }
+
+  modal.style.display = 'none';
+  tpRenderPersonelStats(window._tpPersonelFiltre);
+  if (typeof tpRender === 'function') tpRender();
+  showToast(`✅ ${r.isim} — personel güncellendi`);
+}
+window.tpPersonelKaydet = tpPersonelKaydet_Coklu;
+
 // ─── AYARLAR: Personel CRUD ───
 async function ayarlarPersonelRender() {
   const el = document.getElementById('ayarlar-personel-liste');

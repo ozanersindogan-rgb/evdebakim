@@ -116,17 +116,25 @@ function tpRender() {
       : `<span style="color:#94a3b8;font-size:11px">—</span>`;
 
     const origIdx = r._origIdx;
+    const EKIP_RENK = {'Gülin':'#C2185B','Hava':'#1565C0','Nihal':'#2E7D32','Tüm Ekip':'#7c3aed'};
+    const personeller = [r.PERSONEL1 || r.ekip, r.PERSONEL2, r.PERSONEL3].filter(Boolean);
+    const personelBadges = personeller.length
+      ? personeller.map(p => {
+          const renk = EKIP_RENK[p] || '#64748b';
+          return `<span style="display:inline-block;background:${renk}18;color:${renk};border:1px solid ${renk}55;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:800;margin:1px">${p}</span>`;
+        }).join('')
+      : `<span style="color:#94a3b8;font-size:11px">—</span>`;
     return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
       <td style="padding:8px 8px;font-weight:700"><span style="cursor:pointer;color:#1A237E;text-decoration:underline dotted" onclick="openVatandasCard('${r.isim.replace(/'/g,"\\'")}')">${dot} ${r.isim}</span></td>
       <td style="padding:8px 8px;color:var(--text-soft)">${r.mahalle}</td>
-      <td style="padding:8px 8px">${ekipBadge}</td>
       <td style="padding:8px 8px;white-space:nowrap">${tarihStr}</td>
       <td style="padding:8px 8px;text-align:center;font-weight:800;font-size:14px">${gunStr}</td>
       <td style="padding:8px 8px;font-size:12px;color:var(--text-soft);max-width:220px">${r.not_||'—'}</td>
       <td style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800;color:${durumColor}">${r.durum}</td>
+      <td style="padding:8px 8px;text-align:center;white-space:nowrap">${personelBadges}</td>
       <td style="padding:8px 8px;text-align:center">
         <div style="display:flex;gap:4px;justify-content:center">
-          <button onclick="tpPersonelAta(${origIdx})" title="Ekip Ata"
+          <button onclick="tpPersonelAta(${origIdx})" title="Personel Ata"
             style="background:#E65100;color:#fff;border:none;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer">👤</button>
           <button onclick="tpEdit(${origIdx})"
             style="background:var(--primary);color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer">✏️</button>
