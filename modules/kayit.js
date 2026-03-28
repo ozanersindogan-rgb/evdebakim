@@ -1,3 +1,5 @@
+let gkSaving = false;
+
 // ── KAYIT (Günlük + Yeni Vatandaş + Durum) ──
 // ============ GÜNLÜK ============
 function _gunlukDateTR(iso) {
@@ -353,16 +355,31 @@ function buildMahFilter() {
 function updateFormForHizmet() {} // legacy stub — not used
 function gkUpdateIsimler() {
   const hizmet = document.getElementById('gk-hizmet').value;
-  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet && r.DURUM==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
-  const searchEl = document.getElementById('gk-isim-search');
-  if(searchEl) searchEl.value='';
-  document.getElementById('gk-isim').value='';
-  document.getElementById('gk-mah').value='';
-  document.getElementById('gk-durum-mevcut').value='';
+
+  const tekilMap = new Map();
+
+  allData.forEach(r => {
+    if ((r['HİZMET'] || '').trim() !== hizmet) return;
+    if ((r.DURUM || '').toUpperCase() !== 'AKTİF') return;
+
+    const ad = (r.ISIM_SOYISIM || '').trim();
+    if (!ad) return;
+
+    const key = ad.toUpperCase().replace(/\s+/g, ' ');
+
+    if (!tekilMap.has(key)) {
+      tekilMap.set(key, ad);
+    }
+  });
+
+  window._gkIsimler = [...tekilMap.values()]
+    .sort((a, b) => a.localeCompare(b, 'tr'));
+
+  document.getElementById('gk-isim').value = '';
+  document.getElementById('gk-mah').value = '';
+  document.getElementById('gk-durum-mevcut').value = '';
+
   gkIsimFiltrele('');
-  if (typeof gkVerilemediLabelGuncelle === 'function') gkVerilemediLabelGuncelle();
-  const isKuafor = hizmet==='KUAFÖR';
-  const tipWrap = document.getElementById('gk-tip-wrap'); if(tipWrap) tipWrap.style.display = isKuafor ? '' : 'none';
 }
 function gkIsimFiltrele(q) {
   const sel = document.getElementById('gk-isim');
@@ -371,40 +388,13 @@ function gkIsimFiltrele(q) {
   sel.innerHTML = liste.map(i=>`<option value="${i}">${i}</option>`).join('');
   sel.style.display = liste.length ? 'block' : 'none';
 }
-function _gkAySkoru(ay) {
-  const i = Array.isArray(window.AY_LISTESI) ? window.AY_LISTESI.indexOf(ay) : -1;
-  return i >= 0 ? i : -1;
-}
-function _gkKayitAdaylari(hizmet, isim) {
-  const hedef = (isim || '').trim().toUpperCase();
-  const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy)
-    || (typeof vatAy !== 'undefined' && vatAy)
-    || (typeof getSonAy === 'function' ? getSonAy() : '');
-
-  return allData
-    .filter(r => r['HİZMET'] === hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === hedef)
-    .sort((a, b) => {
-      const aAktif = a.AY === aktifAy ? 1 : 0;
-      const bAktif = b.AY === aktifAy ? 1 : 0;
-      if (aAktif !== bAktif) return bAktif - aAktif;
-
-      const aDurum = (a.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
-      const bDurum = (b.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
-      if (aDurum !== bDurum) return bDurum - aDurum;
-
-      return _gkAySkoru(b.AY) - _gkAySkoru(a.AY);
-    });
-}
-function _gkKayitBul(hizmet, isim) {
-  return _gkKayitAdaylari(hizmet, isim)[0] || null;
-}
 function gkIsimSecildi() {
   const hizmet = document.getElementById('gk-hizmet').value;
   const sel = document.getElementById('gk-isim');
   const searchEl = document.getElementById('gk-isim-search');
   if(searchEl && sel.value) searchEl.value = sel.value;
   const val = sel.value.trim().toUpperCase();
-  const rec = _gkKayitBul(hizmet, val);
+  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===val);
   if (rec) {
     document.getElementById('gk-mah').value = rec.MAHALLE||'';
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
@@ -450,76 +440,101 @@ function _gkGunlukListeyiTazele(tarih) {
 }
 
 async function gkKaydet() {
-  const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
+
+  if (gkSaving) {
+    showToast('⏳ Kayıt devam ediyor...');
+    return;
+  }
+  gkSaving = true;
+
+  const btn = document.querySelector('[onclick="gkKaydet()"]');
+  if (btn) btn.disabled = true;
+
+  const isim = (document.getElementById('gk-isim').value || document.getElementById('gk-isim-search')?.value || '').trim().toUpperCase();
   const tarih = document.getElementById('gk-tarih').value;
-  if (!isim) { showToast('Vatandas adi zorunlu'); return; }
-  if (!tarih) { showToast('Tarih zorunlu'); return; }
-
   const hizmet = document.getElementById('gk-hizmet').value;
-  const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
   const not = document.getElementById('gk-not').value;
-  const adaylar = _gkKayitAdaylari(hizmet, isim);
-  const rec = adaylar[0];
 
-  if (!rec) { showToast('Vatandas bulunamadi'); return; }
+  if (!isim) return reset('Vatandaş adı zorunlu');
+  if (!tarih) return reset('Tarih zorunlu');
 
-  const snapshot = JSON.parse(JSON.stringify(rec));
-  _gkSetBusy(true, 'Kaydediliyor...');
+  let rec = allData.find(r =>
+    r['HİZMET'] === hizmet &&
+    r.ISIM_SOYISIM &&
+    r.ISIM_SOYISIM.toUpperCase() === isim
+  );
+
+  if (!rec) return reset('Vatandaş bulunamadı');
 
   try {
-    if (hizmet==='KUAFÖR') {
-      if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
-      seciliTipler.forEach(t => {
-        const fields = t==='SAC'?['SAC1','SAC2']:t==='TIRNAK'?['TIRNAK1','TIRNAK2']:['SAKAL1','SAKAL2'];
-        if (!rec[fields[0]]) rec[fields[0]]=tarih; else rec[fields[1]]=tarih;
-      });
+
+    if (hizmet === 'KUAFÖR') {
+      if (!rec.SAC1) rec.SAC1 = tarih;
+      else rec.SAC2 = tarih;
     } else {
-      const fields=['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-      const empty=fields.find(f=>!rec[f]);
-      if (empty) rec[empty]=tarih; else rec[fields[4]]=tarih;
+      const fields = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+      const empty = fields.find(f => !rec[f]);
+      if (empty) rec[empty] = tarih;
+      else rec[fields[4]] = tarih;
     }
 
-    if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
+    if (not) {
+      rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + not : not;
+    }
 
     if (rec._fbId) {
-      await _gkVatandasKaydet(rec);
-    } else if (!rec._tpRef) {
-      throw new Error('Bu kayıt Firebase’de bulunamadı');
+      await firebase.firestore()
+        .collection('vatandaslar')
+        .doc(rec._fbId)
+        .update(
+          Object.fromEntries(
+            Object.entries(rec).filter(([k]) => !k.startsWith('_'))
+          )
+        );
     }
 
     if (rec._tpRef && rec._tpFbId) {
-      const sd = { sonGidilme: tarih };
-      if (not) sd.not_ = rec.NOT1;
-      await _gkTemizlikPlanKaydet(rec, sd);
+      await firebase.firestore()
+        .collection('temizlik_plan')
+        .doc(rec._tpFbId)
+        .update({ sonGidilme: tarih });
     }
 
-    if (!window.gkRecs) window.gkRecs=[];
-    window.gkRecs.push({
-      isim,hizmet,tarih,
-      tip:hizmet==='KUAFÖR'
-        ? (seciliTipler.length ? seciliTipler.map(t=>t==='SAC'?'✂️Saç':t==='TIRNAK'?'💅Tırnak':'🪒Sakal').join(' + ') : '—')
-        : '—',
+    if (!window.gkRecs) window.gkRecs = [];
+
+    window.gkRecs.unshift({
+      isim,
+      hizmet,
+      tarih,
+      tip: '—',
       not
     });
 
     renderGkTable();
-    gkTemizle();
-    refreshAll();
-    _gkGunlukListeyiTazele(tarih);
-    if (typeof navTo === 'function') {
-      const navEl = document.querySelector('.nav-item[onclick*="gunluk-kayit"]');
-      navTo('gunluk-kayit', navEl || null);
+
+    const gunDate = document.getElementById('gun-date');
+    if (gunDate) {
+      gunDate.value = tarih;
+      if (typeof renderGunluk === 'function') {
+        renderGunluk();
+      }
     }
-    showToast(`✅ Kayıt başarılı: ${rec.ISIM_SOYISIM} · ${tarih}`);
+
+    showToast('✅ Kayıt eklendi');
+
+    gkTemizle();
+
   } catch (e) {
-    const meta = {};
-    Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
-    Object.keys(rec).forEach(k => delete rec[k]);
-    Object.assign(rec, snapshot, meta);
-    console.error('Günlük hizmet kaydı hatası:', e);
-    showToast('Kayıt tamamlanamadı, tekrar dene');
+    console.error(e);
+    showToast('❌ Kayıt hatası');
   } finally {
-    _gkSetBusy(false);
+    reset();
+  }
+
+  function reset(msg) {
+    if (msg) showToast(msg);
+    gkSaving = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -673,125 +688,9 @@ function buildFormMah() {
       `<option value="${a}"${a===sonrakiAy?' selected':''}>${AY_LABELS[a]}</option>`
     ).join('');
   }
-  fvCopyReset();
 }
 
-function _findVatandasKayitlari(isim) {
-  const hedef=(isim||'').trim().toUpperCase();
-  return allData.filter(r=>r.ISIM_SOYISIM&&r.ISIM_SOYISIM.toUpperCase()===hedef);
-}
-function _findVatandasOzetKayit(isim, tercihHizmet='') {
-  return _findVatandasKayitlari(isim).sort((a,b)=>{
-    const aTer = tercihHizmet && a['HİZMET']===tercihHizmet ? 1 : 0;
-    const bTer = tercihHizmet && b['HİZMET']===tercihHizmet ? 1 : 0;
-    if (aTer!==bTer) return bTer-aTer;
-    const aAktif=(a.DURUM||'').toUpperCase()==='AKTİF'?1:0;
-    const bAktif=(b.DURUM||'').toUpperCase()==='AKTİF'?1:0;
-    if (aAktif!==bAktif) return bAktif-aAktif;
-    return _gkAySkoru(b.AY)-_gkAySkoru(a.AY);
-  })[0] || null;
-}
-function fvCopyUpdateIsimler() {
-  const hizmet = document.getElementById('f-copy-hizmet')?.value || '';
-  const isimler = hizmet
-    ? [...new Set(allData.filter(r=>r['HİZMET']===hizmet && (r.DURUM||'').toUpperCase()==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort()
-    : [];
-  window._fvCopyIsimler = isimler;
-  const searchEl = document.getElementById('f-copy-search');
-  const sel = document.getElementById('f-copy-isim');
-  if(searchEl) searchEl.value='';
-  if(sel) sel.value='';
-  fvCopyFilter('');
-  const info=document.getElementById('f-copy-info');
-  if(info) info.textContent = hizmet ? 'Vatandaş seçin; bilgiler forma doldurulacak.' : 'Önce mevcut hizmeti seçin.';
-}
-function fvCopyFilter(q='') {
-  const sel = document.getElementById('f-copy-isim');
-  if(!sel) return;
-  const liste = (window._fvCopyIsimler||[]).filter(i=>i.toUpperCase().includes((q||'').trim().toUpperCase()));
-  sel.innerHTML = liste.length
-    ? liste.map(i=>`<option value="${i}">${i}</option>`).join('')
-    : '<option value="">Kayıt bulunamadı</option>';
-}
-function fvCopyApplyExistingServices(hizmetler=[]) {
-  const map = {
-    'KADIN BANYO':'fh-kadin',
-    'ERKEK BANYO':'fh-erkek',
-    'KUAFÖR':'fh-kuafor',
-    'TEMİZLİK':'fh-temizlik'
-  };
-  Object.values(map).forEach(id=>{
-    const el=document.getElementById(id);
-    if(!el) return;
-    el.disabled=false;
-    el.checked=false;
-    const label = el.closest('label');
-    if(label) {
-      label.style.opacity='1';
-      label.title='';
-    }
-  });
-  hizmetler.forEach(h=>{
-    const id=map[h];
-    const el=id?document.getElementById(id):null;
-    if(!el) return;
-    el.checked=false;
-    el.disabled=true;
-    const label = el.closest('label');
-    if(label) {
-      label.style.opacity='0.55';
-      label.title='Bu hizmet zaten kayıtlı';
-    }
-  });
-}
-function fvCopySelect() {
-  const isim = (document.getElementById('f-copy-isim')?.value || '').trim().toUpperCase();
-  const hizmet = document.getElementById('f-copy-hizmet')?.value || '';
-  if(!isim) return;
-  const rec = _findVatandasOzetKayit(isim, hizmet);
-  if(!rec) {
-    showToast('⚠️ Kopyalanacak kayıt bulunamadı');
-    return;
-  }
-  const bilgi = (window._adresBilgi && window._adresBilgi[isim]) || {};
-  document.getElementById('f-isim').value = rec.ISIM_SOYISIM || '';
-  document.getElementById('f-mah').value = rec.MAHALLE || '';
-  document.getElementById('f-cins').value = rec.CİNSİYET || '';
-  document.getElementById('f-onay').value = rec.ONAY_TARIHI || '';
-  document.getElementById('f-dogum').value = _toDateInputValue(bilgi.dogum || rec.DOGUM_TARIHI || '');
-  document.getElementById('f-tel').value = bilgi.tel || rec.TELEFON || '';
-  document.getElementById('f-tel2').value = bilgi.tel2 || rec.TELEFON2 || '';
-  document.getElementById('f-tel-aktif').value = bilgi.telAktif || rec.TELEFON_AKTIF || '1';
-  document.getElementById('f-adres').value = bilgi.adres || rec.ADRES || '';
-  document.getElementById('f-not1').value = rec.NOT1 || '';
-  document.getElementById('f-not2').value = rec.NOT2 || '';
-
-  const mevcutHizmetler = [...new Set(_findVatandasKayitlari(isim).filter(r=>(r.DURUM||'').toUpperCase()==='AKTİF').map(r=>r['HİZMET']).filter(Boolean))];
-  fvCopyApplyExistingServices(mevcutHizmetler);
-  const info=document.getElementById('f-copy-info');
-  if(info) info.innerHTML = `<strong>${rec.ISIM_SOYISIM}</strong> kopyalandı. Mevcut hizmetler: ${mevcutHizmetler.length ? mevcutHizmetler.join(', ') : 'yok'}. Sadece eklenecek yeni hizmeti işaretleyin.`;
-  showToast('✅ Vatandaş bilgileri forma kopyalandı');
-}
-function fvCopyReset() {
-  window._fvCopyIsimler = [];
-  const hizmetEl=document.getElementById('f-copy-hizmet'); if(hizmetEl) hizmetEl.value='';
-  const searchEl=document.getElementById('f-copy-search'); if(searchEl) searchEl.value='';
-  const isimEl=document.getElementById('f-copy-isim'); if(isimEl) isimEl.innerHTML='';
-  const info=document.getElementById('f-copy-info'); if(info) info.textContent='Önce mevcut hizmeti seçin.';
-  fvCopyApplyExistingServices([]);
-}
-function _toDateInputValue(val) {
-  const s=(val||'').trim();
-  if(!s) return '';
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  if(/^\d{2}\.\d{2}\.\d{4}$/.test(s)) {
-    const [d,m,y]=s.split('.');
-    return `${y}-${m}-${d}`;
-  }
-  return '';
-}
-
-async function saveRec(){
+function saveRec(){
   const isim=document.getElementById('f-isim').value.trim().toUpperCase();
   const mah=document.getElementById('f-mah').value;
   const seciliHizmetler = ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik']
@@ -799,8 +698,6 @@ async function saveRec(){
     .filter(cb=>cb&&cb.checked).map(cb=>cb.value);
   if(!isim||!mah){showToast('⚠️ İsim ve mahalle zorunlu');return;}
   if(!seciliHizmetler.length){showToast('⚠️ En az bir hizmet seçin');return;}
-  const zatenOlanlar = seciliHizmetler.filter(h=>allData.some(r=>r.ISIM_SOYISIM&&r.ISIM_SOYISIM.toUpperCase()===isim&&r['HİZMET']===h&&(r.DURUM||'').toUpperCase()==='AKTİF'));
-  if(zatenOlanlar.length){showToast(`⚠️ Zaten kayıtlı hizmet var: ${zatenOlanlar.join(', ')}`);return;}
   const ay=document.getElementById('f-ay').value;
   const cins=document.getElementById('f-cins').value;
   const onay=document.getElementById('f-onay').value||new Date().toISOString().split('T')[0];
@@ -814,7 +711,7 @@ async function saveRec(){
   let dogum=dogumRaw;
   if(/^\d{4}-\d{2}-\d{2}$/.test(dogumRaw)){const[y,m,d]=dogumRaw.split('-');dogum=`${d}.${m}.${y}`;}
 
-  const eklenenKayitlar = seciliHizmetler.map(hizmet => {
+  seciliHizmetler.forEach(hizmet => {
     const rec={
       ONAY_TARIHI:onay, IPTAL_NEDEN:'',
       ISIM_SOYISIM:isim, MAHALLE:mah, AY:ay,
@@ -825,46 +722,23 @@ async function saveRec(){
       NOT1:not1, NOT2:not2, NOT3:'',
       TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
     };
-    allData.push(rec);
-    newRecs.push(rec);
-    return rec;
+    allData.push(rec); newRecs.push(rec);
+    fbAddDoc(rec).then(fbId => { rec._fbId = fbId; });
   });
-  try {
-    await Promise.all(eklenenKayitlar.map(async rec => {
-      const fbId = await fbAddDoc(rec);
-      rec._fbId = fbId;
-    }));
-
-    // adres_bilgi koleksiyonuna da kaydet
-    if(tel||adres||dogum){
-      const bilgi={tel,tel2,telAktif,adres,dogum};
-      await firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
-      if(!window._adresBilgi)window._adresBilgi={};
-      window._adresBilgi[isim]=bilgi;
-    }
-
-    refreshAll();
-    renderNewTable();
-    clearForm();
-    showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kaydedildi`);
-  } catch (e) {
-    console.error('Yeni vatandaş kayıt hatası:', e);
-    eklenenKayitlar.forEach(rec => {
-      const iAll = allData.indexOf(rec);
-      if (iAll >= 0) allData.splice(iAll, 1);
-      const iNew = newRecs.indexOf(rec);
-      if (iNew >= 0) newRecs.splice(iNew, 1);
-    });
-    renderNewTable();
-    refreshAll();
-    showToast('❌ Kayıt tamamlanamadı, tekrar deneyin');
+  // adres_bilgi koleksiyonuna da kaydet
+  if(tel||adres||dogum){
+    const bilgi={tel,tel2,telAktif,adres,dogum};
+    firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
+    if(!window._adresBilgi)window._adresBilgi={};
+    window._adresBilgi[isim]=bilgi;
   }
+  buildSidebar(); renderNewTable(); clearForm();
+  showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kaydedildi`);
 }
 function clearForm(){
   ['f-isim','f-onay','f-dogum','f-tel','f-tel2','f-adres','f-not1','f-not2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
   const ta=document.getElementById('f-tel-aktif');if(ta)ta.value='1';
-  fvCopyReset();
 }
 function renderNewTable(){
   document.getElementById('new-count').textContent=newRecs.length+' kayıt';
