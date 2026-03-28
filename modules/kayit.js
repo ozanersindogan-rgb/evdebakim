@@ -64,6 +64,18 @@ async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
       await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(
         Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_')))
       );
+      // Silme işlemini logla
+      if (typeof currentUser !== 'undefined' && currentUser) {
+        firebase.firestore().collection('islem_log').add({
+          yapan: currentUser.ad,
+          uid: currentUser.uid,
+          zaman: firebase.firestore.FieldValue.serverTimestamp(),
+          isim: rec.ISIM_SOYISIM || '',
+          hizmet: rec['HİZMET'] || '',
+          degisiklik: 'ZİYARET SİLİNDİ',
+          detay: 'Alan: ' + (hedefAlan || '') + ' | Tarih: ' + iso
+        }).catch(() => {});
+      }
     }
     refreshAll();
     if (!opts.silent) showToast('Silindi');
@@ -420,6 +432,29 @@ function gkIsimSecildi() {
   if (rec) {
     document.getElementById('gk-mah').value = rec.MAHALLE||'';
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
+
+    // Son ziyaret tarihini göster
+    const tarihler = hizmet === 'KUAFÖR'
+      ? [rec.SAC1,rec.SAC2,rec.TIRNAK1,rec.TIRNAK2,rec.SAKAL1,rec.SAKAL2]
+      : [rec.BANYO1,rec.BANYO2,rec.BANYO3,rec.BANYO4,rec.BANYO5];
+    const dolu = tarihler.filter(Boolean);
+    const el = document.getElementById('gk-son-ziyaret');
+    if (el) {
+      if (dolu.length) {
+        // En son tarihi bul (DD.MM.YYYY veya YYYY-MM-DD her ikisini destekle)
+        const enSon = dolu.sort((a, b) => {
+          const parse = t => t.includes('-')
+            ? new Date(t)
+            : new Date(t.split('.').reverse().join('-'));
+          return parse(b) - parse(a);
+        })[0];
+        el.textContent = '📅 Son ziyaret: ' + enSon;
+        el.style.color = '#15803d';
+      } else {
+        el.textContent = '📅 Henüz ziyaret yok';
+        el.style.color = '#6b7280';
+      }
+    }
   }
 }
 
@@ -645,6 +680,7 @@ function gkTemizle() {
   document.getElementById('gk-mah').value='';
   document.getElementById('gk-durum-mevcut').value='';
   ['gk-tip-sac','gk-tip-tirnak','gk-tip-sakal'].forEach(id=>{const cb=document.getElementById(id);if(cb)cb.checked=false;});
+  const sonEl=document.getElementById('gk-son-ziyaret');if(sonEl)sonEl.textContent='';
 }
 function renderGkTable() {
   if (!window.gkRecs) window.gkRecs=[];

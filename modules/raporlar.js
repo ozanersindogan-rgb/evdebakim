@@ -962,3 +962,118 @@ function dlCSV(rows,fn){
 }
 function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
 
+
+// ── AYLIK ÖZET EXPORT ──
+async function aylikOzetIndir() {
+  const ay = document.getElementById('aylik-exp-ay')?.value || '';
+  if (!ay) { showToast('⚠️ Lütfen bir ay seçin'); return; }
+
+  const kayitlar = allData.filter(r => (r.AY || '').toUpperCase() === ay.toUpperCase() && r.ISIM_SOYISIM);
+
+  if (!kayitlar.length) { showToast('Bu ayda kayıt bulunamadı'); return; }
+
+  // Sıralama: hizmet → mahalle → isim
+  kayitlar.sort((a, b) =>
+    (a['HİZMET'] || '').localeCompare(b['HİZMET'] || '') ||
+    (a.MAHALLE || '').localeCompare(b.MAHALLE || '') ||
+    (a.ISIM_SOYISIM || '').localeCompare(b.ISIM_SOYISIM || '')
+  );
+
+  const HIZMET_TARIH_ALANLARI = {
+    'KADIN BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
+    'ERKEK BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
+    'KUAFÖR':      ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'],
+    'TEMİZLİK':   ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
+  };
+
+  const satirlar = kayitlar.map((r, i) => {
+    const alanlar = HIZMET_TARIH_ALANLARI[r['HİZMET']] || [];
+    const tarihler = alanlar.map(a => r[a] || '').filter(Boolean);
+    return {
+      no: i + 1,
+      isim: r.ISIM_SOYISIM || '',
+      hizmet: r['HİZMET'] || '',
+      mahalle: r.MAHALLE || '',
+      durum: r.DURUM || '',
+      ziyaretSayisi: tarihler.length,
+      tarihler: tarihler.join(', ') || '—',
+      not: [r.NOT1, r.NOT2, r.NOT3].filter(Boolean).join(' | ') || ''
+    };
+  });
+
+  // Basit XML tabanlı xlsx oluştur
+  const esc = s => (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const HEADERS = ['#','İsim Soyisim','Hizmet','Mahalle','Durum','Ziyaret Sayısı','Ziyaret Tarihleri','Notlar'];
+  const WIDTHS  = [4, 28, 14, 16, 10, 8, 36, 30];
+
+  let sharedStrs = [];
+  const strIdx = s => { let i = sharedStrs.indexOf(s); if(i===-1){i=sharedStrs.length;sharedStrs.push(s);} return i; };
+
+  const headerRow = HEADERS.map(h => `<c t="s"><v>${strIdx(h)}</v></c>`).join('');
+  const dataRows = satirlar.map(r => {
+    const vals = [r.no, r.isim, r.hizmet, r.mahalle, r.durum, r.ziyaretSayisi, r.tarihler, r.not];
+    return '<row>' + vals.map((v, ci) =>
+      ci === 0 || ci === 5
+        ? `<c t="n"><v>${v}</v></c>`
+        : `<c t="s"><v>${strIdx(String(v))}</v></c>`
+    ).join('') + '</row>';
+  }).join('');
+
+  const colDefs = WIDTHS.map(w => `<col customWidth="1" width="${w}"/>`).join('');
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<cols>${colDefs}</cols>
+<sheetData>
+<row>${headerRow}</row>
+${dataRows}
+</sheetData></worksheet>`;
+
+  const ssXml = `<?xml version="1.0" encoding="UTF-8"?>
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStrs.length}" uniqueCount="${sharedStrs.length}">
+${sharedStrs.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}
+</sst>`;
+
+  const wbXml = `<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+          xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="${esc(ay)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+
+  const CT = `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml"  ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml"           ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml"  ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/sharedStrings.xml"      ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+</Types>`;
+
+  const RELS = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
+</Relationships>`;
+
+  const APP_RELS = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+
+  const e = s => new TextEncoder().encode(s);
+  const zip = await buildZip([
+    ['[Content_Types].xml', e(CT), true],
+    ['_rels/.rels', e(APP_RELS), true],
+    ['xl/workbook.xml', e(wbXml), false],
+    ['xl/_rels/workbook.xml.rels', e(RELS), true],
+    ['xl/worksheets/sheet1.xml', e(sheetXml), false],
+    ['xl/sharedStrings.xml', e(ssXml), false],
+  ]);
+
+  const blob = new Blob([zip], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `aylik_ozet_${ay.toLowerCase()}.xlsx`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast(`✅ ${ay} özeti indirildi (${satirlar.length} kayıt)`);
+}
+window.aylikOzetIndir = aylikOzetIndir;
