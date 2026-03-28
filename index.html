@@ -752,12 +752,18 @@
             Verilerinizi yedekleyin, gerektiğinde geri yükleyin veya masaüstüne indirin.
           </p>
           <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1e40af">
-            ℹ️ Otomatik yedek her gün <strong>18:00 sonrası</strong> ilk girişte alınır &nbsp;·&nbsp; Son <strong>30 yedek</strong> saklanır
+            ℹ️ Otomatik yedek her gün <strong>08:30 sonrası</strong> ilk girişte alınır &nbsp;·&nbsp; Son <strong>30 yedek</strong> saklanır
           </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
             <button class="btn btn-primary" onclick="yedekAl('Manuel')" style="padding:10px 22px;font-size:13px">
               💾 Şimdi Yedek Al
             </button>
+            <button class="btn btn-green" onclick="yedekJsonSecDosya()" style="padding:10px 22px;font-size:13px">
+              📂 JSON'dan Geri Yükle
+            </button>
+          </div>
+          <div style="background:#fefce8;border:1px solid #fef08a;border-radius:8px;padding:10px 14px;margin-bottom:20px;font-size:12px;color:#854d0e">
+            ⚠️ <strong>JSON'dan Geri Yükle:</strong> İndirdiğiniz bir yedek dosyasını sisteme geri yükler. Mevcut tüm veriler silinir, geri alınamaz.
           </div>
           <div id="yedek-liste"></div>
         </div>
