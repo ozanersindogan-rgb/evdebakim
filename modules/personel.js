@@ -195,6 +195,143 @@ function kbPersonelModalKapat() {
 }
 window.kbPersonelModalKapat = kbPersonelModalKapat;
 
+// ─── TEMİZLİK personel istatistikleri ───
+function tpPersonelStats() {
+  const personeller = personelListesi('TEMİZLİK');
+  const aktifKayitlar = (window.TP_DATA || []).filter(r => r.durum === 'AKTİF');
+
+  const sayar = {};
+  personeller.forEach(p => { sayar[p.ad] = 0; });
+  sayar['Atanmamış'] = 0;
+
+  aktifKayitlar.forEach(r => {
+    const ekip = (r.ekip || '').trim();
+    if (!ekip) {
+      sayar['Atanmamış'] = (sayar['Atanmamış'] || 0) + 1;
+    } else {
+      sayar[ekip] = (sayar[ekip] || 0) + 1;
+    }
+  });
+
+  return sayar;
+}
+
+function tpRenderPersonelStats(filtre) {
+  const statsEl = document.getElementById('tp-personel-stats-bar');
+  if (!statsEl) return;
+
+  const sayar = tpPersonelStats();
+  const EKIP_RENK = { 'Gülin': '#C2185B', 'Hava': '#1565C0', 'Nihal': '#2E7D32', 'Tüm Ekip': '#7c3aed' };
+
+  statsEl.innerHTML = Object.entries(sayar)
+    .filter(([, s]) => s > 0 || !window._tpPersonelFiltre)
+    .map(([ad, sayi]) => {
+      const renk = ad === 'Atanmamış' ? '#94a3b8' : (EKIP_RENK[ad] || '#64748b');
+      const aktif = filtre === ad;
+      return `<div onclick="tpPersonelFiltrele('${ad.replace(/'/g, "\\'")}')"
+        style="display:flex;align-items:center;gap:10px;background:${aktif ? renk + '22' : '#fff'};
+               border:2px solid ${aktif ? renk : renk + '44'};border-radius:12px;padding:10px 16px;
+               min-width:110px;cursor:pointer;transition:all .15s">
+        <div style="width:34px;height:34px;border-radius:50%;background:${renk};display:flex;align-items:center;
+                    justify-content:center;color:#fff;font-weight:900;font-size:13px;flex-shrink:0">
+          ${ad === 'Atanmamış' ? '?' : ad.charAt(0)}
+        </div>
+        <div>
+          <div style="font-weight:800;font-size:12px;color:#1e293b;white-space:nowrap">${ad}</div>
+          <div style="font-size:20px;font-weight:900;color:${renk};line-height:1.1">
+            ${sayi} <span style="font-size:11px;font-weight:600;color:#64748b">ev</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+window._tpPersonelFiltre = '';
+function tpPersonelFiltrele(ad) {
+  window._tpPersonelFiltre = (window._tpPersonelFiltre === ad) ? '' : ad;
+  tpRenderPersonelStats(window._tpPersonelFiltre);
+  if (typeof tpRender === 'function') tpRender();
+}
+window.tpPersonelFiltrele = tpPersonelFiltrele;
+
+// ─── Temizlik personel atama modal ───
+function tpPersonelAta(idx) {
+  const r = window.TP_DATA[idx];
+  if (!r) return;
+
+  const mevcut = (r.ekip || '').trim();
+  const personeller = personelListesi('TEMİZLİK');
+
+  const modal = document.getElementById('tp-personel-modal');
+  const body  = document.getElementById('tp-personel-modal-body');
+  if (!modal || !body) return;
+
+  document.getElementById('tp-personel-modal-isim').textContent = r.isim;
+
+  body.innerHTML = personeller.map(p => {
+    const secili = mevcut === p.ad;
+    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+                          border:1.5px solid ${secili ? '#E65100' : '#e2e8f0'};
+                          background:${secili ? '#fff7ed' : '#fff'};cursor:pointer;margin-bottom:8px">
+      <input type="radio" name="tp-personel-radio" value="${p.ad}" ${secili ? 'checked' : ''}
+             style="width:16px;height:16px;accent-color:#E65100"
+             onchange="tpPersonelSecimGuncelle()">
+      <span style="font-weight:700;font-size:13px">${p.ad}</span>
+    </label>`;
+  }).join('') + `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+      border:1.5px solid ${!mevcut ? '#E65100' : '#e2e8f0'};
+      background:${!mevcut ? '#fff7ed' : '#fff'};cursor:pointer;margin-bottom:8px">
+    <input type="radio" name="tp-personel-radio" value="" ${!mevcut ? 'checked' : ''}
+           style="width:16px;height:16px;accent-color:#E65100"
+           onchange="tpPersonelSecimGuncelle()">
+    <span style="font-weight:700;font-size:13px;color:#94a3b8">— Atanmamış</span>
+  </label>`;
+
+  modal.dataset.idx = idx;
+  modal.style.display = 'flex';
+  tpPersonelSecimGuncelle();
+}
+window.tpPersonelAta = tpPersonelAta;
+
+function tpPersonelSecimGuncelle() {
+  const secili = document.querySelector('#tp-personel-modal-body input[name="tp-personel-radio"]:checked');
+  const chips = document.getElementById('tp-personel-modal-chips');
+  if (chips) {
+    const val = secili ? secili.value : '';
+    chips.innerHTML = val
+      ? `<span style="background:#fff7ed;border:1px solid #E65100;color:#E65100;
+                      border-radius:20px;padding:3px 10px;font-size:12px;font-weight:700">${val}</span>`
+      : '<span style="color:#94a3b8;font-size:12px">Henüz seçilmedi</span>';
+  }
+}
+window.tpPersonelSecimGuncelle = tpPersonelSecimGuncelle;
+
+async function tpPersonelKaydet() {
+  const modal = document.getElementById('tp-personel-modal');
+  const idx   = parseInt(modal.dataset.idx);
+  const r     = window.TP_DATA[idx];
+  if (!r) return;
+
+  const secili = document.querySelector('#tp-personel-modal-body input[name="tp-personel-radio"]:checked');
+  r.ekip = secili ? secili.value : '';
+
+  if (r._fbId) {
+    await firebase.firestore().collection('temizlik_plan').doc(r._fbId).update({ ekip: r.ekip });
+  }
+
+  modal.style.display = 'none';
+  tpRenderPersonelStats(window._tpPersonelFiltre);
+  if (typeof tpRender === 'function') tpRender();
+  showToast(`✅ ${r.isim} — ekip güncellendi`);
+}
+window.tpPersonelKaydet = tpPersonelKaydet;
+
+function tpPersonelModalKapat() {
+  const modal = document.getElementById('tp-personel-modal');
+  if (modal) modal.style.display = 'none';
+}
+window.tpPersonelModalKapat = tpPersonelModalKapat;
+
 // ─── AYARLAR: Personel CRUD ───
 async function ayarlarPersonelRender() {
   const el = document.getElementById('ayarlar-personel-liste');

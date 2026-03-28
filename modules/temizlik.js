@@ -33,6 +33,15 @@ function tpRender() {
     });
   }
 
+  // Personel filtresi
+  if(window._tpPersonelFiltre) {
+    if(window._tpPersonelFiltre === 'Atanmamış') {
+      rows = rows.filter(r=>!(r.ekip||'').trim());
+    } else {
+      rows = rows.filter(r=>(r.ekip||'').trim()===window._tpPersonelFiltre);
+    }
+  }
+
   // Sırala
   rows.sort((a,b) => {
     const ga = a.gun ?? 99999;
@@ -42,26 +51,28 @@ function tpRender() {
 
   document.getElementById('tp-count').textContent = rows.length + ' kayıt';
 
-  // Ekip istatistikleri
-  const ekipSayar = {};
-  rows.forEach(r => {
-    const e = r.ekip || '—';
-    ekipSayar[e] = (ekipSayar[e]||0) + 1;
-  });
-  const EKIP_RENK = {'Gülin':'#C2185B','Hava':'#1565C0','Nihal':'#2E7D32','Tüm Ekip':'#7c3aed'};
-  const statsEl = document.getElementById('tp-ekip-stats');
-  if(statsEl) {
-    statsEl.innerHTML = Object.entries(ekipSayar)
-      .sort((a,b)=>b[1]-a[1])
-      .map(([ekip, sayi]) => {
-        const renk = EKIP_RENK[ekip] || '#64748b';
-        return `<div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid ${renk}33;border-radius:12px;padding:10px 16px;min-width:120px">
-          <div style="width:36px;height:36px;border-radius:50%;background:${renk};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;flex-shrink:0">${ekip.charAt(0)}</div>
-          <div><div style="font-weight:800;font-size:13px;color:#1e293b">${ekip}</div><div style="font-size:20px;font-weight:900;color:${renk}">${sayi} <span style="font-size:11px;font-weight:600;color:#64748b">ev</span></div></div>
-        </div>`;
-      }).join('');
+  // Personel stats bar (tıklanabilir, Kadın Banyo gibi)
+  const statsBar = document.getElementById('tp-personel-stats-bar');
+  if(statsBar && typeof tpRenderPersonelStats === 'function') {
+    tpRenderPersonelStats(window._tpPersonelFiltre || '');
+  } else if(statsBar) {
+    // Fallback: klasik ekip sayıları
+    const ekipSayar = {};
+    TP_DATA.filter(r=>r.durum==='AKTİF').forEach(r => {
+      const e = r.ekip || '—';
+      ekipSayar[e] = (ekipSayar[e]||0) + 1;
+    });
+    const EKIP_RENK = {'Gülin':'#C2185B','Hava':'#1565C0','Nihal':'#2E7D32','Tüm Ekip':'#7c3aed'};
+    statsBar.innerHTML = Object.entries(ekipSayar).sort((a,b)=>b[1]-a[1]).map(([ekip, sayi]) => {
+      const renk = EKIP_RENK[ekip] || '#64748b';
+      return `<div style="display:flex;align-items:center;gap:10px;background:#fff;border:1.5px solid ${renk}33;border-radius:12px;padding:10px 16px;min-width:120px">
+        <div style="width:36px;height:36px;border-radius:50%;background:${renk};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:14px;flex-shrink:0">${ekip.charAt(0)}</div>
+        <div><div style="font-weight:800;font-size:13px;color:#1e293b">${ekip}</div><div style="font-size:20px;font-weight:900;color:${renk}">${sayi} <span style="font-size:11px;font-weight:600;color:#64748b">ev</span></div></div>
+      </div>`;
+    }).join('');
   }
 
+  const EKIP_RENK = {'Gülin':'#C2185B','Hava':'#1565C0','Nihal':'#2E7D32','Tüm Ekip':'#7c3aed'};
   const tbody = document.getElementById('tp-tbody');
   tbody.innerHTML = rows.map(r => {
     let bg = '', dot = '';
@@ -74,17 +85,28 @@ function tpRender() {
     const tarihStr = r.sonGidilme ? r.sonGidilme.split('-').reverse().join('.') : '—';
     const gunStr   = r.gun !== null ? `${r.gun} gün` : '—';
     const durumColor = r.durum==='AKTİF'?'#16a34a':r.durum==='PASİF'?'#64748b':'#ef4444';
+    const ekipRenk = EKIP_RENK[r.ekip] || '#94a3b8';
+    const ekipBadge = r.ekip
+      ? `<span style="background:${ekipRenk}18;color:${ekipRenk};border:1px solid ${ekipRenk}55;border-radius:8px;padding:2px 8px;font-size:11px;font-weight:800">${r.ekip}</span>`
+      : `<span style="color:#94a3b8;font-size:11px">—</span>`;
 
     const origIdx = r._origIdx;
     return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
       <td style="padding:8px 8px;font-weight:700"><span style="cursor:pointer;color:#1A237E;text-decoration:underline dotted" onclick="openVatandasCard('${r.isim.replace(/'/g,"\\'")}')">${dot} ${r.isim}</span></td>
       <td style="padding:8px 8px;color:var(--text-soft)">${r.mahalle}</td>
-      <td style="padding:8px 8px;font-weight:600">${r.ekip||'—'}</td>
+      <td style="padding:8px 8px">${ekipBadge}</td>
       <td style="padding:8px 8px;white-space:nowrap">${tarihStr}</td>
       <td style="padding:8px 8px;text-align:center;font-weight:800;font-size:14px">${gunStr}</td>
       <td style="padding:8px 8px;font-size:12px;color:var(--text-soft);max-width:220px">${r.not_||'—'}</td>
       <td style="padding:8px 8px;text-align:center;font-size:11px;font-weight:800;color:${durumColor}">${r.durum}</td>
-      <td style="padding:8px 8px;text-align:center"><button onclick="tpEdit(${origIdx})" style="background:var(--primary);color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer">✏️</button></td>
+      <td style="padding:8px 8px;text-align:center">
+        <div style="display:flex;gap:4px;justify-content:center">
+          <button onclick="tpPersonelAta(${origIdx})" title="Ekip Ata"
+            style="background:#E65100;color:#fff;border:none;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer">👤</button>
+          <button onclick="tpEdit(${origIdx})"
+            style="background:var(--primary);color:#fff;border:none;border-radius:7px;padding:4px 10px;font-size:12px;cursor:pointer">✏️</button>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
