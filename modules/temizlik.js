@@ -165,7 +165,7 @@ async function tpSaveEdit() {
   }
 }
 
-const PAGE_TITLES = {dashboard:'Ana Sayfa',gunluk:'Günlük Liste',vatandaslar:'Vatandaşlar',mahalle:'Mahalle Raporu','gunluk-kayit':'Günlük Hizmet Kaydı','yeni-vatandas':'Yeni Vatandaş Kaydı',durum:'Durum Güncelle',export:'Veri Al','kisi-bilgi':'Vatandaş Adres - Telefon',takvim:'📆 Ziyaret Takvimi',plan:'🤖 Akıllı Planlama',yedekler:'💾 Yedekleme'  'ayarlar':'⚙️ Ayarlar',
+const PAGE_TITLES = {dashboard:'Ana Sayfa',gunluk:'Günlük Liste',vatandaslar:'Vatandaşlar',mahalle:'Mahalle Raporu','gunluk-kayit':'Günlük Hizmet Kaydı','yeni-vatandas':'Yeni Vatandaş Kaydı',durum:'Durum Güncelle',export:'Veri Al','kisi-bilgi':'Vatandaş Adres - Telefon',takvim:'📆 Ziyaret Takvimi',plan:'🤖 Akıllı Planlama',yedekler:'💾 Yedekleme', 'ayarlar':'⚙️ Ayarlar',
 };
 function navTo(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
