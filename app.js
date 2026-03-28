@@ -1,20 +1,3 @@
-
-// 🔥 reload sonrası sayfa yönlendirme
-document.addEventListener("DOMContentLoaded", () => {
-  const page = localStorage.getItem("postReloadPage");
-  if (page) {
-    localStorage.removeItem("postReloadPage");
-
-    // günlük hizmet sayfasına geç
-    if (typeof showPage === "function") {
-      showPage(page);
-    } else {
-      // fallback: hash ile
-      location.hash = page;
-    }
-  }
-});
-
 console.log("APP JS ÇALIŞTI");
 const USERS_MAP = {"SBIyovehB5RAkSkhc05bIm88PJs2": {"ad": "Ozan Ersin DOĞAN", "rol": "Birim Sorumlusu"}, "Fpk3BcokNFU4NM1XL0JQsMP9ygM2": {"ad": "Şafak SAYAR", "rol": "Temizlik - Banyo"}, "wksJ9Tf3djhgp4of4DxC29rEdiL2": {"ad": "Sezgin TAŞ", "rol": "Kuaför"}, "LBntADGnP2MHVecmn4jAnFRPW222": {"ad": "Ayşegül TULĞAN", "rol": "Hemşire"}};
 let currentUser = null;
