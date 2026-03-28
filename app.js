@@ -1,3 +1,20 @@
+
+// 🔥 reload sonrası sayfa yönlendirme
+document.addEventListener("DOMContentLoaded", () => {
+  const page = localStorage.getItem("postReloadPage");
+  if (page) {
+    localStorage.removeItem("postReloadPage");
+
+    // günlük hizmet sayfasına geç
+    if (typeof showPage === "function") {
+      showPage(page);
+    } else {
+      // fallback: hash ile
+      location.hash = page;
+    }
+  }
+});
+
 console.log("APP JS ÇALIŞTI");
 const USERS_MAP = {"SBIyovehB5RAkSkhc05bIm88PJs2": {"ad": "Ozan Ersin DOĞAN", "rol": "Birim Sorumlusu"}, "Fpk3BcokNFU4NM1XL0JQsMP9ygM2": {"ad": "Şafak SAYAR", "rol": "Temizlik - Banyo"}, "wksJ9Tf3djhgp4of4DxC29rEdiL2": {"ad": "Sezgin TAŞ", "rol": "Kuaför"}, "LBntADGnP2MHVecmn4jAnFRPW222": {"ad": "Ayşegül TULĞAN", "rol": "Hemşire"}};
 let currentUser = null;
@@ -182,22 +199,9 @@ async function loadInitialData() {
 // Hangi aylar yüklendi takibi
 window._yuklenenAylar = new Set();
 
-// Eski ayların ziyaret tarihlerini bellekten temizler (hafıza optimizasyonu)
-// Sadece son 2 ayın detayları tutulur, eskilerden sadece temel bilgiler kalır
+// allDataOptimize: Tüm ay verileri bellekte korunur, hiçbir ziyaret tarihi silinmez.
 function allDataOptimize() {
-  const sirali = getMevcutAylar(); // AY_LISTESI sırası
-  if(sirali.length <= 2) return; // 2 veya daha az ay varsa işlem gerekmez
-  const aktifAylar = new Set(sirali.slice(-2)); // son 2 ay
-  let temizlenen = 0;
-  allData.forEach(r => {
-    if(r.AY && !aktifAylar.has(r.AY)) {
-      // Eski ay: ziyaret tarihlerini temizle (raporlama için temel bilgi kalır)
-      r.BANYO1=r.BANYO2=r.BANYO3=r.BANYO4=r.BANYO5='';
-      r.SAC1=r.SAC2=r.TIRNAK1=r.TIRNAK2=r.SAKAL1=r.SAKAL2='';
-      temizlenen++;
-    }
-  });
-  if(temizlenen > 0) console.log(`[Optimize] ${temizlenen} eski kayıt hafızadan temizlendi`);
+  // Devre dışı — eski ayların ziyaret tarihleri bellekten ve Firebase'den asla silinmez.
 }
 
 async function fbLoadData() {
