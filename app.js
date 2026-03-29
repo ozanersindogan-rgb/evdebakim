@@ -239,6 +239,8 @@ async function fbLoadData() {
       if (!r.ADRES && bilgi.adres) r.ADRES = bilgi.adres;
       if (!r.DOGUM_TARIHI && bilgi.dogum) r.DOGUM_TARIHI = bilgi.dogum;
     });
+    // Personel atama verilerini yükle ve allData'ya uygula
+    if (typeof atamaYukle === 'function') await atamaYukle();
     allDataOptimize();
     refreshAll();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
