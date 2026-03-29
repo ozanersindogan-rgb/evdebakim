@@ -6,6 +6,7 @@ window._tpPersonelFiltre = window._tpPersonelFiltre || '';
 
 function tpPersonelFiltrele(ad) {
   window._tpPersonelFiltre = (window._tpPersonelFiltre === ad) ? '' : ad;
+  if (typeof tpRenderPersonelStats === 'function') tpRenderPersonelStats(window._tpPersonelFiltre || '');
   tpRender();
 }
 window.tpPersonelFiltrele = tpPersonelFiltrele;
