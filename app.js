@@ -1,17 +1,21 @@
 
 // 🔥 reload sonrası sayfa yönlendirme
 document.addEventListener("DOMContentLoaded", () => {
-  const page = localStorage.getItem("postReloadPage");
-  if (page) {
-    localStorage.removeItem("postReloadPage");
+  // Önce postReloadPage (eski mekanizma), yoksa sonSayfa (kalıcı)
+  const page = localStorage.getItem("postReloadPage") || localStorage.getItem("evdebakim_sonSayfa");
+  if (localStorage.getItem("postReloadPage")) localStorage.removeItem("postReloadPage");
 
-    // günlük hizmet sayfasına geç
-    if (typeof showPage === "function") {
-      showPage(page);
-    } else {
-      // fallback: hash ile
-      location.hash = page;
-    }
+  if (page) {
+    // initApp tamamlanana kadar bekle, sonra navTo çağır
+    const _bekleVeGit = () => {
+      const navEl = document.getElementById('nav-' + page);
+      if (typeof navTo === 'function' && document.getElementById('page-' + page)) {
+        navTo(page, navEl || null);
+      } else {
+        setTimeout(_bekleVeGit, 150);
+      }
+    };
+    setTimeout(_bekleVeGit, 500); // veriler yüklendikten sonra
   }
 });
 
