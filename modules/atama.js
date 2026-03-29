@@ -387,6 +387,9 @@ function atamaVatandasSec(isim) {
   } else {
     window._atamaSecili.add(isim);
   }
+  // Bar'ı hemen güncelle (async render'ı bekleme)
+  _atamaSeciliGuncelle();
+  // Listeyi async yenile (checkbox renklerini günceller)
   atamaRenderSayfa();
 }
 window.atamaVatandasSec = atamaVatandasSec;
@@ -394,10 +397,11 @@ window.atamaVatandasSec = atamaVatandasSec;
 function _atamaSeciliGuncelle() {
   const sayi = window._atamaSecili ? window._atamaSecili.size : 0;
   const bar = document.getElementById('atama-secili-bar');
+  const saziEl = document.getElementById('atama-secili-sayi');
   if (!bar) return;
   if (sayi > 0) {
     bar.style.display = 'flex';
-    document.getElementById('atama-secili-sayi').textContent = sayi + ' vatandaş seçildi';
+    if (saziEl) saziEl.textContent = sayi + ' vatandaş seçildi';
   } else {
     bar.style.display = 'none';
   }
