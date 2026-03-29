@@ -219,6 +219,7 @@ window.atamaMigrasyonYap = atamaMigrasyonYap;
 
 let _atamaHizmet = 'KADIN BANYO';
 let _atamaAra = '';
+window._atamaSecili = new Set(); // seçili vatandaş isimleri
 
 async function atamaRenderSayfa() {
   const container = document.getElementById('atama-liste');
@@ -352,22 +353,71 @@ async function atamaRenderSayfa() {
           border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700">${p.split(' ')[0]}</span>`).join(' ')
       : `<span style="color:#94a3b8;font-size:11px">Atanmamış</span>`;
 
-    return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
-                         border-bottom:1px solid #f1f5f9;background:#fff">
+    const secili = window._atamaSecili.has(v.isim);
+    const isimEsc = v.isim.replace(/'/g, "\\'");
+    return `<div onclick="atamaVatandasSec('${isimEsc}')"
+                 style="display:flex;align-items:center;gap:10px;padding:12px 14px;
+                        border-bottom:1px solid #f1f5f9;cursor:pointer;
+                        background:${secili ? hm.renk+'11' : '#fff'};
+                        border-left:4px solid ${secili ? hm.renk : 'transparent'}">
+      <div style="width:24px;height:24px;border-radius:6px;
+                  border:2px solid ${secili ? hm.renk : '#cbd5e1'};
+                  background:${secili ? hm.renk : '#fff'};
+                  display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        ${secili ? '<svg width="13" height="13" viewBox="0 0 13 13"><polyline points="2,7 5,10 11,3" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>' : ''}
+      </div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v.isim}</div>
         <div style="font-size:11px;color:#94a3b8">${v.mahalle}</div>
         <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${badgeler}</div>
       </div>
-      <button onclick="atamaModalAc('${v.isim.replace(/'/g,"\\'")}','${_atamaHizmet}')"
-        style="background:${hm.renk};color:#fff;border:none;border-radius:8px;
-               padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">
-        👤 Ata
-      </button>
     </div>`;
   }).join('') || `<div style="text-align:center;padding:40px;color:#94a3b8">Kayıt bulunamadı</div>`;
 }
 window.atamaRenderSayfa = atamaRenderSayfa;
+
+function atamaVatandasSec(isim) {
+  if (window._atamaSecili.has(isim)) {
+    window._atamaSecili.delete(isim);
+  } else {
+    window._atamaSecili.add(isim);
+  }
+  _atamaSeciliGuncelle();
+  atamaRenderSayfa();
+}
+window.atamaVatandasSec = atamaVatandasSec;
+
+function _atamaSeciliGuncelle() {
+  const sayi = window._atamaSecili ? window._atamaSecili.size : 0;
+  const bar = document.getElementById('atama-secili-bar');
+  if (!bar) return;
+  if (sayi > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('atama-secili-sayi').textContent = sayi + ' vatandaş seçildi';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function atamaTumunuSec() {
+  // Mevcut hizmet için aktif vatandaşları seç
+  if (_atamaHizmet === 'TEMİZLİK') {
+    (window.TP_DATA || []).filter(t => t.durum === 'AKTİF').forEach(t => window._atamaSecili.add(t.isim));
+  } else {
+    (typeof allData !== 'undefined' ? allData : [])
+      .filter(r => r['HİZMET'] === _atamaHizmet && r.DURUM === 'AKTİF')
+      .forEach(r => window._atamaSecili.add(r.ISIM_SOYISIM));
+  }
+  atamaRenderSayfa();
+}
+window.atamaTumunuSec = atamaTumunuSec;
+
+function atamaSecimTemizle() {
+  window._atamaSecili.clear();
+  _atamaSeciliGuncelle();
+  atamaRenderSayfa();
+}
+window.atamaSecimTemizle = atamaSecimTemizle;
 
 function atamaHizmetSec(hizmet, el) {
   _atamaHizmet = hizmet;
@@ -386,8 +436,15 @@ function atamaModalAc(isim, hizmet) {
   const modal = document.getElementById('atama-modal');
   if (!modal) return;
   const personeller = personelListesi(hizmet);
+
+  // Çoklu seçim modunda mevcut atamaları gösterme
+  const coklu = isim === '__COKLU__' || (window._atamaSecili && window._atamaSecili.size > 1);
+  const gosterIsim = coklu
+    ? `${window._atamaSecili.size} vatandaş seçildi`
+    : isim;
+
   const key = atamaIsimKey(isim);
-  const a = window.ATAMA_DATA[key] || {};
+  const a = (!coklu && window.ATAMA_DATA[key]) ? window.ATAMA_DATA[key] : {};
 
   const hizmetMap = {
     'KADIN BANYO':  ['KADIN_BANYO_1','KADIN_BANYO_2','KADIN_BANYO_3'],
@@ -400,7 +457,7 @@ function atamaModalAc(isim, hizmet) {
   const mevcut = alanlar.map(al => a[al] || '').filter(Boolean);
   const renk = renkMap[hizmet] || '#1A237E';
 
-  document.getElementById('atama-modal-isim').textContent = isim;
+  document.getElementById('atama-modal-isim').textContent = gosterIsim;
   document.getElementById('atama-modal-hizmet').textContent = hizmet;
   document.getElementById('atama-modal-baslik').style.background = `linear-gradient(135deg,${renk},${renk}cc)`;
 
@@ -417,7 +474,7 @@ function atamaModalAc(isim, hizmet) {
     </label>`;
   }).join('');
 
-  modal.dataset.isim = isim;
+  modal.dataset.isim = isim === '__COKLU__' ? '' : isim;
   modal.dataset.hizmet = hizmet;
   modal.dataset.renk = renk;
   modal.style.display = 'flex';
@@ -442,7 +499,6 @@ window.atamaModalChipGuncelle = atamaModalChipGuncelle;
 
 async function atamaModalKaydet() {
   const modal = document.getElementById('atama-modal');
-  const isim = modal.dataset.isim;
   const hizmet = modal.dataset.hizmet;
   const secili = [...document.querySelectorAll('#atama-modal-body input:checked')].map(c => c.value);
   if (secili.length > 3) { showToast('⚠️ Maksimum 3 personel seçilebilir'); return; }
@@ -451,15 +507,22 @@ async function atamaModalKaydet() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
 
   try {
-    await atamaKaydet(isim, hizmet, secili);
+    // Seçili vatandaşlar varsa hepsine ata, yoksa sadece modal'daki tek kişiye
+    const hedefler = window._atamaSecili && window._atamaSecili.size > 0
+      ? [...window._atamaSecili]
+      : [modal.dataset.isim];
+
+    for (const isim of hedefler) {
+      await atamaKaydet(isim, hizmet, secili);
+    }
+
     modal.style.display = 'none';
+    window._atamaSecili.clear();
     atamaRenderSayfa();
-    // Vatandaşlar sayfası açıksa yenile
     if (typeof filterVat === 'function') filterVat();
-    // Temizlik planı açıksa yenile
     if (typeof tpRender === 'function') tpRender();
     if (typeof kbRenderPersonelStats === 'function') kbRenderPersonelStats(window._kbPersonelFiltre||'');
-    showToast(`✅ ${isim} — ${hizmet} personeli güncellendi`);
+    showToast(`✅ ${hedefler.length} vatandaş güncellendi`);
   } catch(e) {
     showToast('⚠️ Hata: ' + e.message);
   } finally {
