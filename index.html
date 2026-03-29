@@ -46,7 +46,7 @@
     <div class="nav-item" onclick="quickFilter('ERKEK BANYO',this)"><span class="icon">🚿</span>Erkek Banyo<span class="hizmet-tag tag-erkek">EB</span></div>
     <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
     <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
-    <div class="nav-item" onclick="navTo('personel-atama',this)"><span class="icon">👤</span>Personel Atama</div>
+    <div class="nav-item" id="nav-personel-atama" onclick="navTo('personel-atama',this)"><span class="icon">👤</span>Personel Atama</div>
     <div class="nav-section">Veri & Raporlama</div>
     <div class="nav-item" onclick="navTo('mahalle',this)"><span class="icon">📍</span>Mahalle Raporu</div>
     <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
@@ -920,11 +920,43 @@
           <div id="atama-stats" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px"></div>
 
           <!-- Arama + Sayı -->
-          <div style="display:flex;gap:8px;padding:0 16px 12px;align-items:center">
+          <div style="display:flex;gap:8px;padding:0 16px 8px;align-items:center">
             <input id="atama-ara" class="search-box" placeholder="İsim ara..."
               oninput="_atamaAra=this.value;atamaRenderSayfa()"
               style="flex:1;margin:0">
             <span id="atama-count" style="font-size:12px;font-weight:700;color:#64748b;white-space:nowrap"></span>
+          </div>
+
+          <!-- Seçim araçları -->
+          <div style="display:flex;gap:8px;padding:0 16px 10px;align-items:center">
+            <button onclick="atamaTumunuSec()"
+              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
+                     padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">
+              ☑️ Tümünü Seç
+            </button>
+            <button onclick="atamaSecimTemizle()"
+              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
+                     padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">
+              ✖️ Seçimi Temizle
+            </button>
+          </div>
+
+          <!-- Seçili vatandaşlar bar — ekranın altına sabit -->
+          <div id="atama-secili-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;
+               align-items:center;gap:10px;padding:12px 16px;
+               background:#1A237E;z-index:9000;
+               box-shadow:0 -4px 20px rgba(0,0,0,0.25)">
+            <span id="atama-secili-sayi" style="flex:1;color:#fff;font-weight:800;font-size:14px"></span>
+            <button onclick="atamaSecimTemizle()"
+              style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);
+                     border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer">
+              ✖ Temizle
+            </button>
+            <button onclick="atamaModalAc('__COKLU__',_atamaHizmet)"
+              style="background:#fff;color:#1A237E;border:none;border-radius:8px;
+                     padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer">
+              👤 Personel Ata
+            </button>
           </div>
 
           <!-- Migrasyon butonu -->
@@ -953,11 +985,13 @@
                  id="atama-modal-hizmet"></div>
             <div id="atama-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
           </div>
-          <div style="padding:16px 20px">
-            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">Seçili (maks. 3):</div>
+          <div style="padding:16px 20px;max-height:70vh;overflow-y:auto">
+            <!-- Gün seçimi (JS tarafından doldurulur) -->
+            <div id="atama-modal-gun-section"></div>
+            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">👤 PERSONEL (maks. 3):</div>
             <div id="atama-modal-chips" style="min-height:28px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px"></div>
             <div id="atama-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px;color:#b45309"></div>
-            <div id="atama-modal-body" style="max-height:280px;overflow-y:auto"></div>
+            <div id="atama-modal-body" style="max-height:220px;overflow-y:auto"></div>
           </div>
           <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
             <button onclick="atamaModalKapat()"
