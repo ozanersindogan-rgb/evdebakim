@@ -33,8 +33,8 @@ window.atamaYukle = atamaYukle;
 
 // ─── allData kayıtlarına atama verilerini uygula (yeni ay gelince de) ───
 function atamaAllDataUygula() {
-  if (!window.allData) return;
-  window.allData.forEach(r => {
+  if (!allData) return;
+  allData.forEach(r => {
     const key = atamaIsimKey(r.ISIM_SOYISIM);
     const a = window.ATAMA_DATA[key];
     if (!a) return;
@@ -93,7 +93,7 @@ async function atamaKaydet(isimSoyisim, hizmet, personeller) {
   Object.assign(window.ATAMA_DATA[key], atamaObj);
 
   // 2. allData'daki tüm ay kayıtlarını güncelle (batch)
-  const eslesler = (window.allData || []).filter(r =>
+  const eslesler = (allData || []).filter(r =>
     r['HİZMET'] === hizmet && r.ISIM_SOYISIM &&
     r.ISIM_SOYISIM.toUpperCase() === isimSoyisim.toUpperCase()
   );
@@ -150,7 +150,7 @@ async function atamaMigrasyonYap() {
     const kayitlar = {};
 
     // allData'dan KB, EB, KF atamaları
-    (window.allData || []).forEach(r => {
+    (allData || []).forEach(r => {
       const key = atamaIsimKey(r.ISIM_SOYISIM);
       if (!kayitlar[key]) kayitlar[key] = { isim: r.ISIM_SOYISIM };
 
@@ -220,9 +220,20 @@ window.atamaMigrasyonYap = atamaMigrasyonYap;
 let _atamaHizmet = 'KADIN BANYO';
 let _atamaAra = '';
 
-function atamaRenderSayfa() {
+async function atamaRenderSayfa() {
   const container = document.getElementById('atama-liste');
   if (!container) return;
+
+  // Personel listesi boşsa yükle
+  if (!window.PERSONEL_DATA || window.PERSONEL_DATA.length === 0) {
+    if (typeof personelYukle === 'function') await personelYukle();
+  }
+  // Atama verisi boşsa yükle
+  if (!window.ATAMA_DATA || Object.keys(window.ATAMA_DATA).length === 0) {
+    if (typeof atamaYukle === 'function') await atamaYukle();
+  }
+
+  container.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8">⏳ Yükleniyor...</div>';
 
   const hizmetMap = {
     'KADIN BANYO':  { alan1: 'KADIN_BANYO_1', alan2: 'KADIN_BANYO_2', alan3: 'KADIN_BANYO_3', renk: '#C2185B', bg: '#fdf2f8' },
@@ -256,7 +267,7 @@ function atamaRenderSayfa() {
     .map(a => a.isim ? a.isim.toUpperCase() : ''));
 
   const gorulduAtanmamis = new Set();
-  (window.allData || []).filter(r => r['HİZMET'] === _atamaHizmet && r.DURUM === 'AKTİF').forEach(r => {
+  (allData || []).filter(r => r['HİZMET'] === _atamaHizmet && r.DURUM === 'AKTİF').forEach(r => {
     if (gorulduAtanmamis.has(r.ISIM_SOYISIM)) return;
     gorulduAtanmamis.add(r.ISIM_SOYISIM);
     if (!gorulduIsimler.has((r.ISIM_SOYISIM || '').toUpperCase())) sayar['Atanmamış']++;
@@ -292,18 +303,31 @@ function atamaRenderSayfa() {
   let vatList = [];
   if (_atamaHizmet === 'TEMİZLİK') {
     const gorulduTp2 = new Set();
-    (window.TP_DATA || []).filter(t => t.durum === 'AKTİF').forEach(t => {
+    (window.TP_DATA || TP_DATA || []).filter(t => t.durum === 'AKTİF').forEach(t => {
       if (gorulduTp2.has(t.isim)) return;
       gorulduTp2.add(t.isim);
       vatList.push({ isim: t.isim, mahalle: t.mahalle || '' });
     });
   } else {
     const gorulduVat = new Set();
-    (window.allData || []).filter(r => r['HİZMET'] === _atamaHizmet && r.DURUM === 'AKTİF').forEach(r => {
+    const kayitlar = (typeof allData !== 'undefined' ? allData : []);
+    kayitlar.filter(r => r['HİZMET'] === _atamaHizmet && r.DURUM === 'AKTİF').forEach(r => {
       if (gorulduVat.has(r.ISIM_SOYISIM)) return;
       gorulduVat.add(r.ISIM_SOYISIM);
       vatList.push({ isim: r.ISIM_SOYISIM, mahalle: r.MAHALLE || '' });
     });
+
+    // allData boşsa Firestore'dan çek
+    if (vatList.length === 0 && kayitlar.length === 0) {
+      container.innerHTML = `<div style="text-align:center;padding:30px">
+        <div style="color:#94a3b8;margin-bottom:12px">Veriler yükleniyor, lütfen bekleyin...</div>
+        <button onclick="atamaRenderSayfa()" style="background:#1A237E;color:#fff;border:none;
+          border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer">
+          🔄 Yenile
+        </button>
+      </div>`;
+      return;
+    }
   }
 
   // Arama filtresi
