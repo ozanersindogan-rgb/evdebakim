@@ -423,6 +423,12 @@
                         text-transform:uppercase;margin-bottom:8px">✂️ Personel Dağılımı (Aktif Evler)</div>
             <div id="kf-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
           </div>
+          <!-- TP Personel İstatistikleri — sadece Temizlik'te görünür -->
+          <div id="tp-vat-personel-stats-wrap" style="display:none;margin-bottom:12px">
+            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
+                        text-transform:uppercase;margin-bottom:8px">🧹 Personel Dağılımı (Aktif Evler)</div>
+            <div id="tp-personel-stats-bar" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </div>
           <input class="search-box" id="vat-search" placeholder="İsim ara..." oninput="filterVat()">
           <select class="filter" id="vat-mah" onchange="filterVat()"><option value="">Tüm Mahalleler</option></select>
           <select class="filter" id="vat-durum" onchange="filterVat()">
