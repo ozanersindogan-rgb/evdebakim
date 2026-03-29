@@ -194,6 +194,8 @@ async function tpFirestoreYukle() {
   } catch(e) {
     console.error('Temizlik yüklenemedi:', e);
   }
+  // Personel atama verilerini temizlik planına uygula
+  if (typeof atamaAllDataUygula === 'function') atamaAllDataUygula();
   tpRender();
                            }
 
@@ -239,6 +241,7 @@ function navTo(id, el) {
   if(id==='plan') renderPlan();
   if(id==='yedekler') yedekSayfaYukle();
   if(id==='ayarlar') { if(typeof ayarlarPersonelRender==='function') ayarlarPersonelRender(); }
+  if(id==='personel-atama') { if(typeof atamaRenderSayfa==='function') atamaRenderSayfa(); }
   // Mobil: menüyü kapat
   mobMenuKapat();
   // Alt nav aktif öğeyi güncelle
