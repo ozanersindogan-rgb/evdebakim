@@ -224,7 +224,237 @@ window.atamaMigrasyonYap = atamaMigrasyonYap;
 
 let _atamaHizmet = 'KADIN BANYO';
 let _atamaAra = '';
+let _atamaGoruntu = 'liste'; // 'liste' | 'personel' | 'periyot'
 window._atamaSecili = new Set(); // seçili vatandaş isimleri
+
+// ─── Periyot sıralaması ───
+const PERIYOT_SIRASI = [
+  '1)PAZARTESİ SABAH','2)PAZARTESİ ÖĞLEDEN SONRA',
+  '3)SALI SABAH','4)SALI ÖĞLEDEN SONRA',
+  '5)ÇARŞAMBA SABAH','6)ÇARŞAMBA ÖĞLEDEN SONRA',
+  '7)PERŞEMBE SABAH','8)PERŞEMBE ÖĞLEDEN SONRA',
+  '9)CUMA SABAH','91)CUMA ÖĞLEDEN SONRA',
+];
+function _periyotLabel(p) {
+  return (p || '').replace(/^\d+\)/, '').trim()
+    .replace('PAZARTESİ SABAH','Pazartesi Sabah').replace('PAZARTESİ ÖĞLEDEN SONRA','Pazartesi Öğleden Sonra')
+    .replace('SALI SABAH','Salı Sabah').replace('SALI ÖĞLEDEN SONRA','Salı Öğleden Sonra')
+    .replace('ÇARŞAMBA SABAH','Çarşamba Sabah').replace('ÇARŞAMBA ÖĞLEDEN SONRA','Çarşamba Öğleden Sonra')
+    .replace('PERŞEMBE SABAH','Perşembe Sabah').replace('PERŞEMBE ÖĞLEDEN SONRA','Perşembe Öğleden Sonra')
+    .replace('CUMA SABAH','Cuma Sabah').replace('CUMA ÖĞLEDEN SONRA','Cuma Öğleden Sonra');
+}
+function _periyotGunEtiketi(p) {
+  const l = _periyotLabel(p);
+  if (l.includes('Pazartesi')) return 'Pzt';
+  if (l.includes('Salı'))      return 'Sal';
+  if (l.includes('Çarşamba'))  return 'Çrş';
+  if (l.includes('Perşembe'))  return 'Prş';
+  if (l.includes('Cuma'))      return 'Cum';
+  return '?';
+}
+
+// ─── Gruplama veri toplama ───
+function _atamaGrupVeri(hizmet) {
+  const hmMap = {
+    'KADIN BANYO':  { p1:'KADIN_BANYO_1', p2:'KADIN_BANYO_2', p3:'KADIN_BANYO_3', gun:'KADIN_BANYO_GUN' },
+    'ERKEK BANYO':  { p1:'ERKEK_BANYO_1', p2:'ERKEK_BANYO_2', p3:'ERKEK_BANYO_3', gun:'ERKEK_BANYO_GUN' },
+    'KUAFÖR':       { p1:'KUAFOR_1',       p2:'KUAFOR_2',       p3:'KUAFOR_3',       gun:'KUAFOR_GUN' },
+    'TEMİZLİK':     { p1:'TEMIZLIK_1',     p2:'TEMIZLIK_2',     p3:'TEMIZLIK_3',     gun:'TEMIZLIK_GUN' },
+  };
+  const hm = hmMap[hizmet];
+  const sonuc = [];
+  Object.values(window.ATAMA_DATA || {}).forEach(a => {
+    const p1 = a[hm.p1] || '', p2 = a[hm.p2] || '', p3 = a[hm.p3] || '';
+    const personeller = [p1, p2, p3].filter(Boolean);
+    if (!personeller.length && !a[hm.gun]) return;
+    sonuc.push({ isim: a.isim || '', personeller, gun: a[hm.gun] || '' });
+  });
+  return sonuc;
+}
+
+// ─── Render: Personele Göre ───
+function atamaRenderPersonel() {
+  const container = document.getElementById('atama-liste');
+  const hizmet = _atamaHizmet;
+  const renkMap = { 'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100' };
+  const renk = renkMap[hizmet];
+  const personelListP = (typeof personelListesi === 'function') ? personelListesi(hizmet) : [];
+  const veri = _atamaGrupVeri(hizmet);
+  const araFiltre = _atamaAra.toUpperCase();
+
+  const personelEvler = {};
+  personelListP.forEach(p => { personelEvler[p.ad] = []; });
+  personelEvler['Atanmamış'] = [];
+
+  veri.forEach(v => {
+    if (!v.personeller.length) {
+      personelEvler['Atanmamış'].push({ isim: v.isim, gun: v.gun });
+    } else {
+      v.personeller.forEach(pad => {
+        if (!(pad in personelEvler)) personelEvler[pad] = [];
+        personelEvler[pad].push({ isim: v.isim, gun: v.gun });
+      });
+    }
+  });
+
+  const kartlar = Object.entries(personelEvler).map(([pad, evler]) => {
+    let gorunenEvler = evler;
+    if (araFiltre) gorunenEvler = evler.filter(e => e.isim.toUpperCase().includes(araFiltre) || pad.toUpperCase().includes(araFiltre));
+    if (!gorunenEvler.length) return '';
+
+    const periyotGruplari = {};
+    gorunenEvler.forEach(e => {
+      const g = e.gun || 'Periyot Atanmamış';
+      if (!periyotGruplari[g]) periyotGruplari[g] = [];
+      periyotGruplari[g].push(e.isim);
+    });
+
+    const siralanmisPeriyotlar = [...PERIYOT_SIRASI.filter(p => periyotGruplari[p]),
+      ...(periyotGruplari['Periyot Atanmamış'] ? ['Periyot Atanmamış'] : [])];
+
+    const periyotSatirlari = siralanmisPeriyotlar.map(p => {
+      const isimler = periyotGruplari[p];
+      const label = p === 'Periyot Atanmamış' ? '⬜ Periyot Atanmamış' : _periyotGunEtiketi(p) + ' ' + _periyotLabel(p);
+      const pRenk = p === 'Periyot Atanmamış' ? '#94a3b8' : renk;
+      return `<div style="margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:800;color:${pRenk};background:${pRenk}18;
+            border-radius:6px;padding:2px 8px">${label}</span>
+          <span style="font-size:11px;font-weight:700;color:#64748b">${isimler.length} ev</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">
+          ${isimler.map(n => `<span style="background:#f8fafc;border:1px solid #e2e8f0;
+            border-radius:6px;padding:2px 8px;font-size:11px;color:#334155">${n}</span>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+
+    const baslikRenk = pad === 'Atanmamış' ? '#94a3b8' : renk;
+    return `<div style="margin:0;padding:14px 16px;border-bottom:2px solid ${baslikRenk}22">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:36px;height:36px;border-radius:50%;background:${baslikRenk};
+          display:flex;align-items:center;justify-content:center;
+          color:#fff;font-weight:900;font-size:15px;flex-shrink:0">${pad.charAt(0)}</div>
+        <div>
+          <div style="font-weight:900;font-size:15px;color:#1e293b">${pad}</div>
+          <div style="font-size:12px;color:#64748b">${gorunenEvler.length} ev toplam</div>
+        </div>
+      </div>
+      ${periyotSatirlari}
+    </div>`;
+  }).filter(Boolean).join('');
+
+  const toplamAtama = Object.entries(personelEvler)
+    .filter(([k]) => k !== 'Atanmamış').reduce((s,[,a]) => s+a.length, 0);
+  document.getElementById('atama-count').textContent = toplamAtama + ' atama';
+  container.innerHTML = kartlar || `<div style="text-align:center;padding:40px;color:#94a3b8">Henüz atama yok</div>`;
+}
+
+// ─── Render: Periyoda Göre ───
+function atamaRenderPeriyot() {
+  const container = document.getElementById('atama-liste');
+  const hizmet = _atamaHizmet;
+  const renkMap = { 'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100' };
+  const renk = renkMap[hizmet];
+  const veri = _atamaGrupVeri(hizmet);
+  const araFiltre = _atamaAra.toUpperCase();
+
+  const gunRenkler = {
+    'Pazartesi':'#1565C0','Salı':'#2E7D32','Çarşamba':'#B45309',
+    'Perşembe':'#7c3aed','Cuma':'#C2185B'
+  };
+  function gunRenk(label) {
+    for (const [gun, r] of Object.entries(gunRenkler)) { if (label.includes(gun)) return r; }
+    return '#64748b';
+  }
+
+  const periyotEvler = {};
+  PERIYOT_SIRASI.forEach(p => { periyotEvler[p] = []; });
+  periyotEvler['Periyot Atanmamış'] = [];
+
+  veri.forEach(v => {
+    const key = PERIYOT_SIRASI.includes(v.gun) ? v.gun : 'Periyot Atanmamış';
+    if (!araFiltre || v.isim.toUpperCase().includes(araFiltre) || v.personeller.join(' ').toUpperCase().includes(araFiltre)) {
+      periyotEvler[key].push({ isim: v.isim, personeller: v.personeller });
+    }
+  });
+
+  let toplamAtama = 0;
+  const kartlar = [...PERIYOT_SIRASI, 'Periyot Atanmamış'].map(p => {
+    const evler = periyotEvler[p];
+    if (!evler.length) return '';
+    toplamAtama += evler.length;
+
+    const label = p === 'Periyot Atanmamış' ? 'Periyot Atanmamış' : _periyotLabel(p);
+    const kRenk = p === 'Periyot Atanmamış' ? '#94a3b8' : gunRenk(label);
+    const sabahMi = label.includes('Sabah');
+    const gunEtiketi = p === 'Periyot Atanmamış' ? '?' : _periyotGunEtiketi(p);
+
+    const kisiPerPersonel = {};
+    evler.forEach(e => {
+      const pKey = e.personeller.length ? e.personeller.join(' & ') : 'Atanmamış';
+      if (!kisiPerPersonel[pKey]) kisiPerPersonel[pKey] = [];
+      kisiPerPersonel[pKey].push(e.isim);
+    });
+
+    const personelGruplari = Object.entries(kisiPerPersonel).map(([pAd, isimler]) =>
+      `<div style="margin-bottom:8px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+          <div style="width:22px;height:22px;border-radius:50%;background:${kRenk};
+            display:flex;align-items:center;justify-content:center;color:#fff;
+            font-weight:900;font-size:10px;flex-shrink:0">${pAd.charAt(0)}</div>
+          <span style="font-size:12px;font-weight:800;color:#1e293b">${pAd}</span>
+          <span style="font-size:11px;color:#64748b;margin-left:auto">${isimler.length} ev</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;padding-left:28px">
+          ${isimler.map(n => `<span style="background:#f8fafc;border:1px solid #e2e8f0;
+            border-radius:6px;padding:2px 8px;font-size:11px;color:#334155">${n}</span>`).join('')}
+        </div>
+      </div>`
+    ).join('');
+
+    return `<div style="margin:0;padding:14px 16px;border-bottom:2px solid ${kRenk}22">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+        <div style="width:44px;height:44px;border-radius:12px;background:${kRenk};
+          display:flex;flex-direction:column;align-items:center;justify-content:center;
+          color:#fff;flex-shrink:0;gap:1px">
+          <span style="font-size:13px">${sabahMi ? '🌅' : '🌇'}</span>
+          <span style="font-size:9px;font-weight:900;letter-spacing:-.2px">${gunEtiketi}</span>
+        </div>
+        <div style="flex:1">
+          <div style="font-weight:900;font-size:14px;color:#1e293b">${label}</div>
+          <div style="font-size:12px;color:#64748b">${evler.length} ev · ${Object.keys(kisiPerPersonel).length} personel</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:24px;font-weight:900;color:${kRenk};line-height:1">${evler.length}</div>
+          <div style="font-size:10px;color:#94a3b8">ev</div>
+        </div>
+      </div>
+      ${personelGruplari}
+    </div>`;
+  }).filter(Boolean).join('');
+
+  document.getElementById('atama-count').textContent = toplamAtama + ' atama';
+  container.innerHTML = kartlar || `<div style="text-align:center;padding:40px;color:#94a3b8">Henüz atama yok</div>`;
+}
+
+// ─── Görünüm seçici ───
+function atamaGorunumSec(mod) {
+  _atamaGoruntu = mod;
+  ['liste','personel','periyot'].forEach(m => {
+    const btn = document.getElementById('atama-goruntu-' + m);
+    if (!btn) return;
+    if (m === mod) {
+      btn.style.background = '#1A237E'; btn.style.color = '#fff';
+    } else {
+      btn.style.background = '#f1f5f9'; btn.style.color = '#475569';
+    }
+  });
+  const secimBar = document.getElementById('atama-secim-araclari');
+  if (secimBar) secimBar.style.display = mod === 'liste' ? 'flex' : 'none';
+  atamaRenderSayfa();
+}
+window.atamaGorunumSec = atamaGorunumSec;
 
 async function atamaRenderSayfa() {
   const container = document.getElementById('atama-liste');
@@ -242,6 +472,10 @@ async function atamaRenderSayfa() {
       if (typeof atamaYukle === 'function') await atamaYukle();
     }
   }
+
+  // Görünüm moduna göre dal
+  if (_atamaGoruntu === 'personel') { atamaRenderPersonel(); return; }
+  if (_atamaGoruntu === 'periyot')  { atamaRenderPeriyot();  return; }
 
   const hizmetMap = {
     'KADIN BANYO':  { alan1: 'KADIN_BANYO_1', alan2: 'KADIN_BANYO_2', alan3: 'KADIN_BANYO_3', gunAlan: 'KADIN_BANYO_GUN', renk: '#C2185B', bg: '#fdf2f8' },
