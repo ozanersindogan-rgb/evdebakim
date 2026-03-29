@@ -66,11 +66,12 @@ function atamaAllDataUygula() {
 window.atamaAllDataUygula = atamaAllDataUygula;
 
 // ─── Tek vatandaş için atama kaydet (tüm aylar + personel_atama koleksiyonu) ───
-async function atamaKaydet(isimSoyisim, hizmet, personeller) {
+async function atamaKaydet(isimSoyisim, hizmet, personeller, gun) {
   const key = atamaIsimKey(isimSoyisim);
   const p1 = personeller[0] || '';
   const p2 = personeller[1] || '';
   const p3 = personeller[2] || '';
+  const gunDeger = gun || '';
 
   // 1. personel_atama koleksiyonunu güncelle
   const atamaRef = firebase.firestore().collection('personel_atama').doc(key);
@@ -78,12 +79,16 @@ async function atamaKaydet(isimSoyisim, hizmet, personeller) {
 
   if (hizmet === 'KADIN BANYO') {
     atamaObj.KADIN_BANYO_1 = p1; atamaObj.KADIN_BANYO_2 = p2; atamaObj.KADIN_BANYO_3 = p3;
+    atamaObj.KADIN_BANYO_GUN = gunDeger;
   } else if (hizmet === 'ERKEK BANYO') {
     atamaObj.ERKEK_BANYO_1 = p1; atamaObj.ERKEK_BANYO_2 = p2; atamaObj.ERKEK_BANYO_3 = p3;
+    atamaObj.ERKEK_BANYO_GUN = gunDeger;
   } else if (hizmet === 'KUAFÖR') {
     atamaObj.KUAFOR_1 = p1; atamaObj.KUAFOR_2 = p2; atamaObj.KUAFOR_3 = p3;
+    atamaObj.KUAFOR_GUN = gunDeger;
   } else if (hizmet === 'TEMİZLİK') {
     atamaObj.TEMIZLIK_1 = p1; atamaObj.TEMIZLIK_2 = p2; atamaObj.TEMIZLIK_3 = p3;
+    atamaObj.TEMIZLIK_GUN = gunDeger;
   }
 
   await atamaRef.set(atamaObj, { merge: true });
@@ -239,10 +244,10 @@ async function atamaRenderSayfa() {
   }
 
   const hizmetMap = {
-    'KADIN BANYO':  { alan1: 'KADIN_BANYO_1', alan2: 'KADIN_BANYO_2', alan3: 'KADIN_BANYO_3', renk: '#C2185B', bg: '#fdf2f8' },
-    'ERKEK BANYO':  { alan1: 'ERKEK_BANYO_1', alan2: 'ERKEK_BANYO_2', alan3: 'ERKEK_BANYO_3', renk: '#1565C0', bg: '#eff6ff' },
-    'KUAFÖR':       { alan1: 'KUAFOR_1',       alan2: 'KUAFOR_2',       alan3: 'KUAFOR_3',       renk: '#2E7D32', bg: '#f0fdf4' },
-    'TEMİZLİK':     { alan1: 'TEMIZLIK_1',     alan2: 'TEMIZLIK_2',     alan3: 'TEMIZLIK_3',     renk: '#E65100', bg: '#fff7ed' },
+    'KADIN BANYO':  { alan1: 'KADIN_BANYO_1', alan2: 'KADIN_BANYO_2', alan3: 'KADIN_BANYO_3', gunAlan: 'KADIN_BANYO_GUN', renk: '#C2185B', bg: '#fdf2f8' },
+    'ERKEK BANYO':  { alan1: 'ERKEK_BANYO_1', alan2: 'ERKEK_BANYO_2', alan3: 'ERKEK_BANYO_3', gunAlan: 'ERKEK_BANYO_GUN', renk: '#1565C0', bg: '#eff6ff' },
+    'KUAFÖR':       { alan1: 'KUAFOR_1',       alan2: 'KUAFOR_2',       alan3: 'KUAFOR_3',       gunAlan: 'KUAFOR_GUN',      renk: '#2E7D32', bg: '#f0fdf4' },
+    'TEMİZLİK':     { alan1: 'TEMIZLIK_1',     alan2: 'TEMIZLIK_2',     alan3: 'TEMIZLIK_3',     gunAlan: 'TEMIZLIK_GUN',    renk: '#E65100', bg: '#fff7ed' },
   };
   const hm = hizmetMap[_atamaHizmet];
   const personeller = personelListesi(_atamaHizmet);
@@ -349,11 +354,25 @@ async function atamaRenderSayfa() {
     const p2 = a[hm.alan2] || '';
     const p3 = a[hm.alan3] || '';
     const atananlar = [p1, p2, p3].filter(Boolean);
+    const gun = a[hm.gunAlan] || '';
+    // Gün adını kısalt: "1)PAZARTESİ SABAH" → "Pzt Sabah"
+    const gunKisa = gun ? gun.replace(/^\d+\)/, '').trim()
+      .replace('PAZARTESİ SABAH','Pzt Sabah').replace('PAZARTESİ ÖĞLEDEN SONRA','Pzt Öğleden S.')
+      .replace('SALI SABAH','Salı Sabah').replace('SALI ÖĞLEDEN SONRA','Salı Öğleden S.')
+      .replace('ÇARŞAMBA SABAH','Çrş Sabah').replace('ÇARŞAMBA ÖĞLEDEN SONRA','Çrş Öğleden S.')
+      .replace('PERŞEMBE SABAH','Prş Sabah').replace('PERŞEMBE ÖĞLEDEN SONRA','Prş Öğleden S.')
+      .replace('CUMA SABAH','Cuma Sabah').replace('CUMA ÖĞLEDEN SONRA','Cuma Öğleden S.')
+      : '';
 
     const badgeler = atananlar.length
       ? atananlar.map(p => `<span style="background:${hm.bg};color:${hm.renk};border:1px solid ${hm.renk}44;
           border-radius:20px;padding:2px 10px;font-size:11px;font-weight:700">${p.split(' ')[0]}</span>`).join(' ')
       : `<span style="color:#94a3b8;font-size:11px">Atanmamış</span>`;
+
+    const gunBadge = gunKisa
+      ? `<span style="background:#f8fafc;color:#475569;border:1px solid #cbd5e1;
+          border-radius:20px;padding:2px 8px;font-size:10px;font-weight:700">🗓 ${gunKisa}</span>`
+      : '';
 
     const secili = window._atamaSecili.has(v.isim);
     const isimEsc = v.isim.replace(/'/g, "\\'");
@@ -371,7 +390,7 @@ async function atamaRenderSayfa() {
       <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:13px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${v.isim}</div>
         <div style="font-size:11px;color:#94a3b8">${v.mahalle}</div>
-        <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${badgeler}</div>
+        <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${gunBadge}${badgeler}</div>
       </div>
     </div>`;
   }).join('') || `<div style="text-align:center;padding:40px;color:#94a3b8">Kayıt bulunamadı</div>`;
@@ -460,27 +479,60 @@ function atamaModalAc(isim, hizmet) {
     'KUAFÖR':       ['KUAFOR_1','KUAFOR_2','KUAFOR_3'],
     'TEMİZLİK':     ['TEMIZLIK_1','TEMIZLIK_2','TEMIZLIK_3'],
   };
+  const gunAlanMap = {
+    'KADIN BANYO': 'KADIN_BANYO_GUN', 'ERKEK BANYO': 'ERKEK_BANYO_GUN',
+    'KUAFÖR': 'KUAFOR_GUN', 'TEMİZLİK': 'TEMIZLIK_GUN',
+  };
   const renkMap = { 'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100' };
   const alanlar = hizmetMap[hizmet];
   const mevcut = alanlar.map(al => a[al] || '').filter(Boolean);
+  const mevcutGun = (!coklu && a[gunAlanMap[hizmet]]) ? a[gunAlanMap[hizmet]] : '';
   const renk = renkMap[hizmet] || '#1A237E';
+
+  const periyotlar = [
+    '1)PAZARTESİ SABAH','2)PAZARTESİ ÖĞLEDEN SONRA',
+    '3)SALI SABAH','4)SALI ÖĞLEDEN SONRA',
+    '5)ÇARŞAMBA SABAH','6)ÇARŞAMBA ÖĞLEDEN SONRA',
+    '7)PERŞEMBE SABAH','8)PERŞEMBE ÖĞLEDEN SONRA',
+    '9)CUMA SABAH','91)CUMA ÖĞLEDEN SONRA',
+  ];
 
   document.getElementById('atama-modal-isim').textContent = gosterIsim;
   document.getElementById('atama-modal-hizmet').textContent = hizmet;
   document.getElementById('atama-modal-baslik').style.background = `linear-gradient(135deg,${renk},${renk}cc)`;
 
   const body = document.getElementById('atama-modal-body');
-  body.innerHTML = personeller.map(p => {
-    const secili = mevcut.includes(p.ad);
-    return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
-                          border:1.5px solid ${secili ? renk : '#e2e8f0'};
-                          background:${secili ? renk+'11' : '#fff'};cursor:pointer;margin-bottom:8px">
-      <input type="checkbox" value="${p.ad}" ${secili ? 'checked' : ''}
-             style="width:16px;height:16px;accent-color:${renk}"
-             onchange="atamaModalChipGuncelle()">
-      <span style="font-weight:700;font-size:13px">${p.ad}</span>
-    </label>`;
-  }).join('');
+  body.innerHTML = `
+    <div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">📅 Ziyaret Periyodu</div>
+      <select id="atama-gun-select"
+        style="width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid ${renk}44;
+               font-size:13px;font-weight:700;color:#1e293b;background:#fff;appearance:none;
+               -webkit-appearance:none;cursor:pointer;outline:none">
+        <option value="">— Periyot seçiniz —</option>
+        ${periyotlar.map(p => {
+          const label = p.replace(/^\d+\)/, '').trim()
+            .replace('PAZARTESİ SABAH','Pazartesi Sabah').replace('PAZARTESİ ÖĞLEDEN SONRA','Pazartesi Öğleden Sonra')
+            .replace('SALI SABAH','Salı Sabah').replace('SALI ÖĞLEDEN SONRA','Salı Öğleden Sonra')
+            .replace('ÇARŞAMBA SABAH','Çarşamba Sabah').replace('ÇARŞAMBA ÖĞLEDEN SONRA','Çarşamba Öğleden Sonra')
+            .replace('PERŞEMBE SABAH','Perşembe Sabah').replace('PERŞEMBE ÖĞLEDEN SONRA','Perşembe Öğleden Sonra')
+            .replace('CUMA SABAH','Cuma Sabah').replace('CUMA ÖĞLEDEN SONRA','Cuma Öğleden Sonra');
+          return `<option value="${p}" ${mevcutGun === p ? 'selected' : ''}>${label}</option>`;
+        }).join('')}
+      </select>
+    </div>
+    <div style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">👤 Personel</div>
+    ${personeller.map(p => {
+      const secili = mevcut.includes(p.ad);
+      return `<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+                            border:1.5px solid ${secili ? renk : '#e2e8f0'};
+                            background:${secili ? renk+'11' : '#fff'};cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" value="${p.ad}" ${secili ? 'checked' : ''}
+               style="width:16px;height:16px;accent-color:${renk}"
+               onchange="atamaModalChipGuncelle()">
+        <span style="font-weight:700;font-size:13px">${p.ad}</span>
+      </label>`;
+    }).join('')}`;
 
   modal.dataset.isim = isim === '__COKLU__' ? '' : isim;
   modal.dataset.hizmet = hizmet;
@@ -509,6 +561,8 @@ async function atamaModalKaydet() {
   const modal = document.getElementById('atama-modal');
   const hizmet = modal.dataset.hizmet;
   const secili = [...document.querySelectorAll('#atama-modal-body input:checked')].map(c => c.value);
+  const gunEl = document.getElementById('atama-gun-select');
+  const gun = gunEl ? gunEl.value : '';
   if (secili.length > 3) { showToast('⚠️ Maksimum 3 personel seçilebilir'); return; }
 
   const btn = document.getElementById('atama-modal-kaydet-btn');
@@ -521,7 +575,7 @@ async function atamaModalKaydet() {
       : [modal.dataset.isim];
 
     for (const isim of hedefler) {
-      await atamaKaydet(isim, hizmet, secili);
+      await atamaKaydet(isim, hizmet, secili, gun);
     }
 
     modal.style.display = 'none';
