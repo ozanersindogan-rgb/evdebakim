@@ -919,6 +919,25 @@
           <!-- Stats -->
           <div id="atama-stats" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px"></div>
 
+          <!-- Görünüm seçici -->
+          <div style="display:flex;gap:6px;padding:0 16px 10px">
+            <button id="atama-goruntu-liste" onclick="atamaGorunumSec('liste')"
+              style="background:#1A237E;color:#fff;border:none;border-radius:8px;
+                     padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;flex:1">
+              📋 Liste
+            </button>
+            <button id="atama-goruntu-personel" onclick="atamaGorunumSec('personel')"
+              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
+                     padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;flex:1">
+              👤 Personele Göre
+            </button>
+            <button id="atama-goruntu-periyot" onclick="atamaGorunumSec('periyot')"
+              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
+                     padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;flex:1">
+              🗓 Periyoda Göre
+            </button>
+          </div>
+
           <!-- Arama + Sayı -->
           <div style="display:flex;gap:8px;padding:0 16px 8px;align-items:center">
             <input id="atama-ara" class="search-box" placeholder="İsim ara..."
@@ -927,8 +946,8 @@
             <span id="atama-count" style="font-size:12px;font-weight:700;color:#64748b;white-space:nowrap"></span>
           </div>
 
-          <!-- Seçim araçları -->
-          <div style="display:flex;gap:8px;padding:0 16px 10px;align-items:center">
+          <!-- Seçim araçları (sadece liste modunda) -->
+          <div id="atama-secim-araclari" style="display:flex;gap:8px;padding:0 16px 10px;align-items:center">
             <button onclick="atamaTumunuSec()"
               style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
                      padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">
