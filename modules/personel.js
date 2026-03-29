@@ -103,6 +103,20 @@ function kbRenderPersonelStats(filtre) {
         </div>
       </div>`;
     }).join('');
+  // Filtre aktifse "Tümünü Göster" butonu ekle
+  if (window._kbPersonelFiltre) {
+    statsEl.innerHTML += `<div onclick="kbPersonelFiltrele('')"
+      style="display:flex;align-items:center;gap:8px;background:#fff;
+             border:2px solid #e2e8f0;border-radius:12px;padding:10px 16px;
+             min-width:80px;cursor:pointer;transition:all .15s">
+      <div style="width:34px;height:34px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;
+                  justify-content:center;color:#64748b;font-weight:900;font-size:16px;flex-shrink:0">✕</div>
+      <div>
+        <div style="font-weight:800;font-size:12px;color:#64748b;white-space:nowrap">Tümü</div>
+        <div style="font-size:11px;color:#94a3b8">filtreyi kaldır</div>
+      </div>
+    </div>`;
+  }
 }
 
 window._kbPersonelFiltre = '';
@@ -244,6 +258,20 @@ function tpRenderPersonelStats(filtre) {
         </div>
       </div>`;
     }).join('');
+  // Filtre aktifse "Tümünü Göster" butonu ekle
+  if (window._tpPersonelFiltre) {
+    statsEl.innerHTML += `<div onclick="tpPersonelFiltrele('')"
+      style="display:flex;align-items:center;gap:8px;background:#fff;
+             border:2px solid #e2e8f0;border-radius:12px;padding:10px 16px;
+             min-width:80px;cursor:pointer;transition:all .15s">
+      <div style="width:34px;height:34px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;
+                  justify-content:center;color:#64748b;font-weight:900;font-size:16px;flex-shrink:0">✕</div>
+      <div>
+        <div style="font-weight:800;font-size:12px;color:#64748b;white-space:nowrap">Tümü</div>
+        <div style="font-size:11px;color:#94a3b8">filtreyi kaldır</div>
+      </div>
+    </div>`;
+  }
 }
 
 window._tpPersonelFiltre = '';
@@ -379,6 +407,20 @@ function ebRenderPersonelStats(filtre) {
         </div>
       </div>`;
     }).join('');
+  // Filtre aktifse "Tümünü Göster" butonu ekle
+  if (window._ebPersonelFiltre) {
+    statsEl.innerHTML += `<div onclick="ebPersonelFiltrele('')"
+      style="display:flex;align-items:center;gap:8px;background:#fff;
+             border:2px solid #e2e8f0;border-radius:12px;padding:10px 16px;
+             min-width:80px;cursor:pointer;transition:all .15s">
+      <div style="width:34px;height:34px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;
+                  justify-content:center;color:#64748b;font-weight:900;font-size:16px;flex-shrink:0">✕</div>
+      <div>
+        <div style="font-weight:800;font-size:12px;color:#64748b;white-space:nowrap">Tümü</div>
+        <div style="font-size:11px;color:#94a3b8">filtreyi kaldır</div>
+      </div>
+    </div>`;
+  }
 }
 
 window._ebPersonelFiltre = '';
@@ -516,6 +558,20 @@ function kfRenderPersonelStats(filtre) {
         </div>
       </div>`;
     }).join('');
+  // Filtre aktifse "Tümünü Göster" butonu ekle
+  if (window._kfPersonelFiltre) {
+    statsEl.innerHTML += `<div onclick="kfPersonelFiltrele('')"
+      style="display:flex;align-items:center;gap:8px;background:#fff;
+             border:2px solid #e2e8f0;border-radius:12px;padding:10px 16px;
+             min-width:80px;cursor:pointer;transition:all .15s">
+      <div style="width:34px;height:34px;border-radius:50%;background:#f1f5f9;display:flex;align-items:center;
+                  justify-content:center;color:#64748b;font-weight:900;font-size:16px;flex-shrink:0">✕</div>
+      <div>
+        <div style="font-weight:800;font-size:12px;color:#64748b;white-space:nowrap">Tümü</div>
+        <div style="font-size:11px;color:#94a3b8">filtreyi kaldır</div>
+      </div>
+    </div>`;
+  }
 }
 
 window._kfPersonelFiltre = '';

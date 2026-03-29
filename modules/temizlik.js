@@ -229,6 +229,8 @@ function navTo(id, el) {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   if(el) el.classList.add('active');
   document.getElementById('page-title').textContent = PAGE_TITLES[id]||id;
+  // Yenileme sonrası aynı sayfaya dön
+  try { localStorage.setItem('evdebakim_sonSayfa', id); } catch(e) {}
   if(id==='mahalle') renderMahalle();
   if(id==='export') { renderExpStats(); expPreview(); }
   if(id==='araclar') { arInitMahalleler(); taInit(); }
