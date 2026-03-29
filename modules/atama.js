@@ -225,16 +225,18 @@ async function atamaRenderSayfa() {
   const container = document.getElementById('atama-liste');
   if (!container) return;
 
-  // Personel listesi boşsa yükle
-  if (!window.PERSONEL_DATA || window.PERSONEL_DATA.length === 0) {
-    if (typeof personelYukle === 'function') await personelYukle();
+  // Sadece ilk yüklemede bekle
+  const ilkYukleme = !window.PERSONEL_DATA || window.PERSONEL_DATA.length === 0 ||
+                     !window.ATAMA_DATA || Object.keys(window.ATAMA_DATA).length === 0;
+  if (ilkYukleme) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8">⏳ Yükleniyor...</div>';
+    if (!window.PERSONEL_DATA || window.PERSONEL_DATA.length === 0) {
+      if (typeof personelYukle === 'function') await personelYukle();
+    }
+    if (!window.ATAMA_DATA || Object.keys(window.ATAMA_DATA).length === 0) {
+      if (typeof atamaYukle === 'function') await atamaYukle();
+    }
   }
-  // Atama verisi boşsa yükle
-  if (!window.ATAMA_DATA || Object.keys(window.ATAMA_DATA).length === 0) {
-    if (typeof atamaYukle === 'function') await atamaYukle();
-  }
-
-  container.innerHTML = '<div style="text-align:center;padding:20px;color:#94a3b8">⏳ Yükleniyor...</div>';
 
   const hizmetMap = {
     'KADIN BANYO':  { alan1: 'KADIN_BANYO_1', alan2: 'KADIN_BANYO_2', alan3: 'KADIN_BANYO_3', renk: '#C2185B', bg: '#fdf2f8' },
@@ -373,6 +375,9 @@ async function atamaRenderSayfa() {
       </div>
     </div>`;
   }).join('') || `<div style="text-align:center;padding:40px;color:#94a3b8">Kayıt bulunamadı</div>`;
+
+  // Bar'ı her render sonunda güncelle
+  _atamaSeciliGuncelle();
 }
 window.atamaRenderSayfa = atamaRenderSayfa;
 
@@ -382,7 +387,6 @@ function atamaVatandasSec(isim) {
   } else {
     window._atamaSecili.add(isim);
   }
-  _atamaSeciliGuncelle();
   atamaRenderSayfa();
 }
 window.atamaVatandasSec = atamaVatandasSec;
