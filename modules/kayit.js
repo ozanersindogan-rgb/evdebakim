@@ -61,9 +61,9 @@ async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
       tpRender();
     }
     if (rec._fbId) {
-      await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(
-        Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_')))
-      );
+      // Sadece değişen alanları gönder — tam payload ile yarış koşulundan kaçın
+      const degisen = { [hedefAlan]: '', NOT1: rec.NOT1, NOT2: rec.NOT2, NOT3: rec.NOT3 };
+      await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(degisen);
       // Silme işlemini logla
       if (typeof currentUser !== 'undefined' && currentUser) {
         firebase.firestore().collection('islem_log').add({
@@ -176,10 +176,12 @@ function gunlukDuzenleKapat() {
   window._gunDuzenle = null;
 }
 
-function gunlukDuzenleKaydet() {
+async function gunlukDuzenleKaydet() {
   if (!window._gunDuzenle) return;
+  if (window._gunDuzenleDevam) { showToast('⏳ Kaydediliyor...'); return; }
+  window._gunDuzenleDevam = true;
   const { aI, al, dI } = window._gunDuzenle;
-  const r = allData[aI]; if (!r) return;
+  const r = allData[aI]; if (!r) { window._gunDuzenleDevam = false; return; }
 
   const yeniTarih = document.getElementById('gd-tarih').value;
   const yeniNot1  = document.getElementById('gd-not1').value.trim();
@@ -207,22 +209,30 @@ function gunlukDuzenleKaydet() {
   r.NOT1 = not1;
   r.NOT2 = yeniNot2;
 
-  // Her zaman vatandaslar'a yaz
-  if (r._fbId) {
-    fbUpdateDoc(aI, Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
+  // Sadece değişen alanları Firestore'a yaz — yarış koşulundan kaçın
+  try {
+    if (r._fbId) {
+      const degisen = { NOT1: r.NOT1, NOT2: r.NOT2 };
+      if (al && r[al] !== undefined) degisen[al] = r[al];
+      await firebase.firestore().collection('vatandaslar').doc(r._fbId).update(degisen);
+    }
+    // Temizlik planını da güncelle
+    if (r._tpRef && r._tpFbId) {
+      const tp = TP_DATA.find(t=>t._fbId===r._tpFbId);
+      if (tp) { tp.sonGidilme = yeniTarih; tp.not_ = not1; }
+      await firebase.firestore().collection('temizlik_plan').doc(r._tpFbId)
+        .update({ sonGidilme: yeniTarih, not_: not1 });
+      tpRender();
+    }
+    gunlukDuzenleKapat();
+    refreshAll();
+    showToast('✅ Kayıt güncellendi');
+  } catch(e) {
+    console.error('Düzenleme kayıt hatası:', e);
+    showToast('⚠️ Kaydedilemedi: ' + (e.message || e));
+  } finally {
+    window._gunDuzenleDevam = false;
   }
-  // Temizlik planını da güncelle
-  if (r._tpRef && r._tpFbId) {
-    const tp = TP_DATA.find(t=>t._fbId===r._tpFbId);
-    if (tp) { tp.sonGidilme = yeniTarih; tp.not_ = not1; }
-    firebase.firestore().collection('temizlik_plan').doc(r._tpFbId)
-      .update({ sonGidilme: yeniTarih, not_: not1 }).catch(e=>console.warn(e));
-    tpRender();
-  }
-
-  gunlukDuzenleKapat();
-  refreshAll();
-  showToast('Kayit guncellendi');
 }
 async function exportGunluk(){
   const date=document.getElementById('gun-date').value;
@@ -520,7 +530,7 @@ async function gkKaydet() {
 
   try {
     if (hizmet==='KUAFÖR') {
-      if (seciliTipler.length === 0) { showToast('Lutfen en az bir hizmet tipi secin'); return; }
+      if (seciliTipler.length === 0) { _gkIslemDevam = false; _gkSetBusy(false); showToast('Lutfen en az bir hizmet tipi secin'); return; }
       seciliTipler.forEach(t => {
         const fields = t==='SAC'?['SAC1','SAC2']:t==='TIRNAK'?['TIRNAK1','TIRNAK2']:['SAKAL1','SAKAL2'];
         if (!rec[fields[0]]) rec[fields[0]]=tarihDB; else rec[fields[1]]=tarihDB;
@@ -528,7 +538,18 @@ async function gkKaydet() {
     } else {
       const fields=['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
       const empty=fields.find(f=>!rec[f]);
-      if (empty) rec[empty]=tarihDB; else rec[fields[4]]=tarihDB;
+      if (empty) {
+        rec[empty]=tarihDB;
+      } else {
+        // Tüm alanlar dolu — en eski tarihi bulup üzerine yaz, kullanıcıya bildir
+        const enEski = fields.reduce((prev, f) => {
+          const parseT = t => t && t.includes('-') ? new Date(t) : t ? new Date(t.split('.').reverse().join('-')) : new Date(0);
+          return parseT(rec[f]) < parseT(rec[prev]) ? f : prev;
+        }, fields[0]);
+        console.warn('[gkKaydet] Tüm BANYO alanları dolu, en eski tarih eziliyor:', rec[enEski], '→', tarihDB);
+        showToast('⚠️ 5 ziyaret alanı dolu — en eski kayıt güncellendi');
+        rec[enEski]=tarihDB;
+      }
     }
 
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
@@ -618,42 +639,70 @@ function gkVerilemediLabelGuncelle() {
 }
 
 function gkVerilemediKaydet() {
+  // Çift tık koruması
+  if (window._gkVerilemediDevam) { showToast('⏳ İşlem devam ediyor...'); return; }
+  window._gkVerilemediDevam = true;
+
   const isim = (document.getElementById('gk-isim')?.value || document.getElementById('gk-isim-search')?.value || '').trim().toUpperCase();
   const tarih = document.getElementById('gk-verilemedi-tarih')?.value;
   const aciklama = document.getElementById('gk-verilemedi-aciklama')?.value.trim();
   const hizmet = document.getElementById('gk-hizmet')?.value || '';
 
-  if (!isim) { showToast('Lutfen once vatandas secin'); return; }
-  if (!tarih) { showToast('Tarih zorunlu'); return; }
-  if (!aciklama) { showToast('Aciklama zorunlu'); return; }
+  if (!isim) { window._gkVerilemediDevam = false; showToast('Lutfen once vatandas secin'); return; }
+  if (!tarih) { window._gkVerilemediDevam = false; showToast('Tarih zorunlu'); return; }
+  if (!aciklama) { window._gkVerilemediDevam = false; showToast('Aciklama zorunlu'); return; }
 
   const tarihTR = (d=>{const[y,m,g]=d.split('-');return g+'.'+m+'.'+y;})(tarih);
+  const tarihDB = tarihTR; // DD.MM.YYYY — allData ile tutarlı format
   const hizmetEtiket = hizmet === 'TEMİZLİK' ? 'TEMİZLİK' : hizmet === 'KUAFÖR' ? 'KUAFOR' : 'BANYO';
   const notMetin = tarihTR + ' ' + hizmetEtiket + ' VERİLEMEDİ: ' + aciklama.toUpperCase();
 
-  const rec = allData.find(r=>r['HİZMET']===hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase()===isim);
-  if (rec) {
-    rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
-    // Tarihi de tarih alanına yaz — günlük listede ve takvimde görünsün
-    if (hizmet === 'KUAFÖR') {
-      if (!rec.SAC1) rec.SAC1 = tarih; else rec.SAC2 = tarih;
-    } else {
-      const fields = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-      const empty = fields.find(f=>!rec[f]);
-      if (empty) rec[empty] = tarih; else rec[fields[4]] = tarih;
+  // #6 düzeltme: find() yerine _gkKayitAdaylari — aktif ay + en güncel kaydı seç
+  const adaylar = _gkKayitAdaylari(hizmet, isim);
+  const rec = adaylar[0];
+
+  try {
+    if (rec) {
+      rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
+      // Tarihi tarih alanına yaz — günlük listede ve takvimde görünsün (DD.MM.YYYY olarak)
+      if (hizmet === 'KUAFÖR') {
+        if (!rec.SAC1) rec.SAC1 = tarihDB; else rec.SAC2 = tarihDB;
+      } else {
+        const fields = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+        const empty = fields.find(f=>!rec[f]);
+        if (empty) {
+          rec[empty] = tarihDB;
+        } else {
+          // En eski alanı bul
+          const enEski = fields.reduce((prev, f) => {
+            const parseT = t => t && t.includes('-') ? new Date(t) : t ? new Date(t.split('.').reverse().join('-')) : new Date(0);
+            return parseT(rec[f]) < parseT(rec[prev]) ? f : prev;
+          }, fields[0]);
+          rec[enEski] = tarihDB;
+        }
+      }
+      // Temizlik planını güncelle
+      if (rec._tpRef && rec._tpFbId) {
+        const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
+        if (tp) { tp.not_ = rec.NOT1; tp.sonGidilme = tarihDB; }
+        firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId)
+          .update({ not_: rec.NOT1, sonGidilme: tarihDB }).catch(e=>console.warn(e));
+        tpRender();
+      }
+      // Sadece değişen alanları Firestore'a yaz
+      if (rec._fbId) {
+        const degisen = { NOT1: rec.NOT1 };
+        if (hizmet === 'KUAFÖR') {
+          if (rec.SAC1 === tarihDB) degisen.SAC1 = tarihDB;
+          if (rec.SAC2 === tarihDB) degisen.SAC2 = tarihDB;
+        } else {
+          ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'].forEach(f => { if (rec[f] === tarihDB) degisen[f] = tarihDB; });
+        }
+        fbUpdateDoc(allData.indexOf(rec), degisen);
+      }
     }
-    // Temizlik planını güncelle
-    if (rec._tpRef && rec._tpFbId) {
-      const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
-      if (tp) { tp.not_ = rec.NOT1; tp.sonGidilme = tarih; }
-      firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId)
-        .update({ not_: rec.NOT1, sonGidilme: tarih }).catch(e=>console.warn(e));
-      tpRender();
-    }
-    // Her zaman vatandaslar koleksiyonuna da yaz
-    if (rec._fbId) {
-      fbUpdateDoc(allData.indexOf(rec), Object.fromEntries(Object.entries(rec).filter(([k])=>!k.startsWith('_'))));
-    }
+  } finally {
+    window._gkVerilemediDevam = false;
   }
 
   // Formu sıfırla
