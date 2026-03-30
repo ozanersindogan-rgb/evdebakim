@@ -359,71 +359,57 @@ async function _flushSaveQueue() {
 
   if (pending.length > 0) _saveGostergesi('kaydediliyor');
 
-  for (const item of pending) {
-    try {
-      if (item.type === 'update') {
-        await firebase.firestore().collection('vatandaslar').doc(item.fbId).update(item.changes);
-        if (currentUser) {
-          firebase.firestore().collection('islem_log').add({
-            yapan: currentUser.ad,
-            uid: currentUser.uid,
-            zaman: firebase.firestore.FieldValue.serverTimestamp(),
-            isim: item.isim,
-            degisiklik: JSON.stringify(item.changes)
-          }).catch(()=>{});
+  try {
+    for (const item of pending) {
+      try {
+        if (item.type === 'update') {
+          await firebase.firestore().collection('vatandaslar').doc(item.fbId).update(item.changes);
+          if (currentUser) {
+            firebase.firestore().collection('islem_log').add({
+              yapan: currentUser.ad,
+              uid: currentUser.uid,
+              zaman: firebase.firestore.FieldValue.serverTimestamp(),
+              isim: item.isim,
+              degisiklik: JSON.stringify(item.changes)
+            }).catch(()=>{});
+          }
         }
+      } catch(e) {
+        console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
+        item._lastError = (e.code || '') + ' ' + e.message;
+        failed.push(item);
       }
-    } catch(e) {
-      console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
-      item._lastError = (e.code || '') + ' ' + e.message;
-      failed.push(item);
     }
-  }
 
-  if (failed.length > 0) {
-    window._saveQueue = [...failed, ...window._saveQueue];
-    _saveQueueToStorage(window._saveQueue); // kuyruğu güncelle
-    // Hatayı ekranda göster
-    const ilkHata = failed[0];
-    _saveGostergesi('hata', failed.length);
-    // Toast ile hata detayı göster
-    if (failed.length > 0 && failed[0]._lastError) {
-      showToast('Kayit hatasi: ' + failed[0]._lastError);
+    if (failed.length > 0) {
+      window._saveQueue = [...failed, ...window._saveQueue];
+      _saveQueueToStorage(window._saveQueue);
+      _saveGostergesi('hata', failed.length);
+      if (failed[0]._lastError) showToast('Kayit hatasi: ' + failed[0]._lastError);
+      clearTimeout(window._saveRetryTimer);
+      window._saveRetryTimer = setTimeout(() => {
+        window._flushRunning = false;
+        _flushSaveQueue();
+      }, 10000);
+    } else {
+      _saveQueueToStorage([]);
+      if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
+      clearTimeout(window._saveRetryTimer);
+      window._saveRetryTimer = setTimeout(() => {
+        window._flushRunning = false;
+        if (window._saveQueue.length > 0) _flushSaveQueue();
+      }, 30000);
     }
-    clearTimeout(window._saveRetryTimer);
-    window._saveRetryTimer = setTimeout(() => {
-      window._flushRunning = false;
-      _flushSaveQueue();
-    }, 10000);
-  } else {
-    _saveQueueToStorage([]); // başarılı — localStorage temizle
-    if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
-    clearTimeout(window._saveRetryTimer);
-    window._saveRetryTimer = setTimeout(() => {
-      window._flushRunning = false;
-      if (window._saveQueue.length > 0) _flushSaveQueue();
-    }, 30000);
-  }
-  window._flushRunning = false;
-}
-
-// Sayfa kapanmadan önce uyar
-window.addEventListener('beforeunload', function(e) {
-  if (window._saveQueue && window._saveQueue.length > 0) {
-    e.preventDefault();
-    e.returnValue = 'Kaydedilmemiş değişiklikler var!';
-    return e.returnValue;
-  }
-});
-
-// Online olunca kuyruğu boşalt
-window.addEventListener('online', function() {
-  if (window._saveQueue && window._saveQueue.length > 0) {
-    showToast('🌐 Bağlantı geldi, kayıtlar gönderiliyor...');
+  } catch(e) {
+    // Beklenmedik JS hatası — kuyruğu geri koy, bayrağı sıfırla
+    console.error('[flushSaveQueue] Beklenmedik hata:', e);
+    window._saveQueue = [...pending, ...window._saveQueue];
+    _saveQueueToStorage(window._saveQueue);
+    _saveGostergesi('hata', window._saveQueue.length);
+  } finally {
     window._flushRunning = false;
-    _flushSaveQueue();
   }
-});
+}
 
 async function fbAddDoc(rec) {
   const logEntry = {
@@ -457,7 +443,6 @@ function refreshAll() {
   safe(renderMahalle, 'renderMahalle');
   safe(renderExpStats, 'renderExpStats');
   if (typeof vatHizmet !== 'undefined' && vatHizmet === 'KADIN BANYO' && typeof kbRenderPersonelStats === 'function') kbRenderPersonelStats(window._kbPersonelFiltre||'');
-  if (vatHizmet === 'KADIN BANYO' && typeof kbRenderPersonelStats === 'function') kbRenderPersonelStats(window._kbPersonelFiltre||'');
 
   const expMahSel = document.getElementById('exp-mah-sel');
   if(expMahSel) {
@@ -603,11 +588,13 @@ function closeEditModal() {
   editIdx = null;
 }
 
-function saveEdit() {
+async function saveEdit() {
   if (editIdx === null) return;
   const r = allData[editIdx];
   if (!r) return;
   if (!r._fbId) { showToast('⚠️ Firebase ID eksik, kayıt yapılamadı'); closeEditModal(); return; }
+  // _fbId ile çapraz doğrula — index kayma koruması
+  const hedefFbId = r._fbId;
 
   const isKuafor = r['HİZMET'] === 'KUAFÖR';
   const getV = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
@@ -646,10 +633,18 @@ function saveEdit() {
     r.BANYO5 = getV('ed-b5');
   }
 
+  // Sadece değişen alanları gönder — tam payload race condition yaratır
+  // ve editIdx kayma ihtimaline karşı _fbId ile teyit et
+  const guncelIdx = allData.findIndex(x => x._fbId === hedefFbId);
+  if (guncelIdx === -1) { showToast('⚠️ Kayıt bulunamadı, sayfa yenileniyor'); refreshAll(); closeEditModal(); return; }
   const changes = Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('_')));
-  fbUpdateDoc(editIdx, changes);
-  closeEditModal();
-  showToast('✅ Kaydedildi');
+  try {
+    await fbUpdateDoc(guncelIdx, changes);
+    closeEditModal();
+    showToast('✅ Kaydedildi');
+  } catch(e) {
+    showToast('⚠️ Kaydedilemedi: ' + (e.message || e));
+  }
 }
 if (typeof buildHizmetTabs !== 'function') {
   function buildHizmetTabs() {
