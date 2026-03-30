@@ -422,12 +422,20 @@ document.addEventListener('click',function(e){
 async function silVatandas(globalIdx) {
   const r = allData[globalIdx];
   if(!r) return;
-  if(!confirm(`"${r.ISIM_SOYISIM}" adlı kaydı silmek istediğinizden emin misiniz?\nBu işlem geri alınamaz.`)) return;
+  // _fbId ile çapraz doğrula — render/filtre arasında index kayabilir
+  const hedefFbId = r._fbId;
+  const hedefIsim = r.ISIM_SOYISIM;
+  if(!confirm(`"${hedefIsim}" adlı kaydı silmek istediğinizden emin misiniz?\nBu işlem geri alınamaz.`)) return;
   try {
-    if(r._fbId) {
-      await firebase.firestore().collection('vatandaslar').doc(r._fbId).delete();
+    // Onay alındıktan sonra tekrar bul — index değişmiş olabilir
+    const guncelIdx = hedefFbId
+      ? allData.findIndex(x => x._fbId === hedefFbId)
+      : globalIdx;
+    if (guncelIdx === -1) { showToast('⚠️ Kayıt bulunamadı, zaten silinmiş olabilir'); refreshAll(); return; }
+    if(hedefFbId) {
+      await firebase.firestore().collection('vatandaslar').doc(hedefFbId).delete();
     }
-    allData.splice(globalIdx, 1);
+    allData.splice(guncelIdx, 1);
     filterVat();
     buildSidebar();
     renderDashboard();

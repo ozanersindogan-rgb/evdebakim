@@ -382,7 +382,11 @@ function setAy(a,el){vatAy=a;vatPage=1;document.querySelectorAll('#ay-tab-vat .a
 function buildMahFilter() {
   const mahs=[...new Set(allData.map(r=>r.MAHALLE).filter(Boolean))].sort();
   const sel=document.getElementById('vat-mah');
+  if (!sel) return;
+  const mevcut = sel.value; // seçili değeri koru
+  sel.innerHTML = '<option value="">Tümü</option>';
   mahs.forEach(m=>{const o=document.createElement('option');o.value=o.textContent=m;sel.appendChild(o);});
+  if (mevcut) sel.value = mevcut; // filtre aktifse koru
 }
 function updateFormForHizmet() {} // legacy stub — not used
 function gkUpdateIsimler() {
@@ -660,6 +664,8 @@ function gkVerilemediKaydet() {
   // #6 düzeltme: find() yerine _gkKayitAdaylari — aktif ay + en güncel kaydı seç
   const adaylar = _gkKayitAdaylari(hizmet, isim);
   const rec = adaylar[0];
+
+  if (!rec) { window._gkVerilemediDevam = false; showToast('⚠️ Vatandaş kaydı bulunamadı: ' + isim); return; }
 
   try {
     if (rec) {
