@@ -1151,6 +1151,7 @@ function filterVat() {
   const kfWrap = document.getElementById('kf-personel-stats-wrap');
   if (kfWrap) kfWrap.style.display = vatHizmet==='KUAFÖR' ? '' : 'none';
   // Render stats
+  if (vatHizmet==='KADIN BANYO' && typeof kbRenderPersonelStats === 'function') kbRenderPersonelStats(window._kbPersonelFiltre||'');
   if (vatHizmet==='ERKEK BANYO' && typeof ebRenderPersonelStats === 'function') ebRenderPersonelStats(window._ebPersonelFiltre||'');
   if (vatHizmet==='KUAFÖR' && typeof kfRenderPersonelStats === 'function') kfRenderPersonelStats(window._kfPersonelFiltre||'');
   // TP stats panelini göster/gizle (vatandaşlar sayfasındaki temizlik)
