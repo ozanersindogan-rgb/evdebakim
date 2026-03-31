@@ -134,7 +134,7 @@ async function yedekAl(aciklama) {
     if(document.getElementById('page-yedekler')?.classList.contains('active')) yedekSayfaYukle();
   } catch(e) {
     console.error('[Yedek] Hata:', e);
-    showToast('❌ Yedek alınamadı: ' + e.message);
+    alert('❌ Yedek alınamadı!\n\nHata: ' + e.message + '\n\nKod: ' + (e.code || 'bilinmiyor'));
   }
 }
 
@@ -361,5 +361,3 @@ window.yedekJsonDosyaSecildi = yedekJsonDosyaSecildi;
 // Artık kullanılmıyor ama eski çağrılar için boş bırakıldı
 function yedekleriGoster() { navTo('yedekler', document.getElementById('nav-yedekler')); }
 function yedekModalKapat() {}
-
-
