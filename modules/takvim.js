@@ -431,133 +431,248 @@ function renderUzunSure() {
     </table>`;
 }
 
-// ── EKİP KANBAN PANOSУ ──
-let _kanbanNotlar = [];
+// ── EKİP MESAJLAŞMA ──
+let _chatMesajlar = [];
+let _chatReplyId = null;
+let _chatReplyMetin = null;
+let _chatUnsubscribe = null;
 
-async function kanbanYukle() {
-  try {
-    const snap = await firebase.firestore().collection('ekip_notlari').limit(50).get();
-    _kanbanNotlar = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    // Client tarafında tarihe göre sırala (yeniden eskiye)
-    _kanbanNotlar.sort((a, b) => {
-      const ta = a.olusturma?.toDate ? a.olusturma.toDate() : new Date(a.olusturma || 0);
-      const tb = b.olusturma?.toDate ? b.olusturma.toDate() : new Date(b.olusturma || 0);
-      return tb - ta;
-    });
-    renderKanban();
-  } catch(e) {
-    console.error('Kanban yükleme hatası:', e);
-    _kanbanNotlar = [];
-    renderKanban();
-  }
+// Kullanıcı renk paleti (uid'ye göre sabit renk)
+const CHAT_RENKLER = ['#1A237E','#C2185B','#2E7D32','#E65100','#7c3aed','#0891b2','#b45309'];
+function chatRenk(yazan) {
+  let hash = 0;
+  for (let i = 0; i < (yazan||'').length; i++) hash = yazan.charCodeAt(i) + ((hash << 5) - hash);
+  return CHAT_RENKLER[Math.abs(hash) % CHAT_RENKLER.length];
 }
 
-function renderKanban() {
-  const bekEl = document.getElementById('kanban-bekliyor');
-  const yapEl = document.getElementById('kanban-yapildi');
-  const bekCnt = document.getElementById('kanban-bekliyor-count');
-  const yapCnt = document.getElementById('kanban-yapildi-count');
-  if (!bekEl || !yapEl) return;
+// 1 ay öncesinin timestamp'i
+function birAyOnce() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return d;
+}
 
-  const bekliyor = _kanbanNotlar.filter(n => n.durum !== 'yapildi');
-  const yapildi  = _kanbanNotlar.filter(n => n.durum === 'yapildi');
+function kanbanYukle() { chatYukle(); } // geriye dönük uyumluluk
+function renderKanban() { chatRender(); }
 
-  if (bekCnt) bekCnt.textContent = bekliyor.length;
-  if (yapCnt) yapCnt.textContent = yapildi.length;
+async function chatYukle() {
+  const el = document.getElementById('chat-mesajlar');
+  if (!el) return;
 
+  // Realtime listener — 1 aylık pencere
+  if (_chatUnsubscribe) _chatUnsubscribe();
+
+  _chatUnsubscribe = firebase.firestore()
+    .collection('ekip_notlari')
+    .where('olusturma', '>=', firebase.firestore.Timestamp.fromDate(birAyOnce()))
+    .orderBy('olusturma', 'asc')
+    .onSnapshot(snap => {
+      _chatMesajlar = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      chatRender();
+    }, err => {
+      // index henüz oluşmamışsa fallback: get() ile çek
+      firebase.firestore().collection('ekip_notlari').limit(200).get().then(snap2 => {
+        const sinir = birAyOnce();
+        _chatMesajlar = snap2.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(m => {
+            const t = m.olusturma?.toDate ? m.olusturma.toDate() : new Date(m.olusturma || 0);
+            return t >= sinir;
+          })
+          .sort((a,b) => {
+            const ta = a.olusturma?.toDate ? a.olusturma.toDate() : new Date(a.olusturma||0);
+            const tb = b.olusturma?.toDate ? b.olusturma.toDate() : new Date(b.olusturma||0);
+            return ta - tb;
+          });
+        chatRender();
+      });
+    });
+}
+
+function chatRender() {
+  const el = document.getElementById('chat-mesajlar');
+  const cnt = document.getElementById('chat-mesaj-count');
+  if (!el) return;
+
+  if (cnt) cnt.textContent = `Son 1 ay · ${_chatMesajlar.length} mesaj`;
+
+  if (!_chatMesajlar.length) {
+    el.innerHTML = `<div style="text-align:center;color:#94a3b8;font-size:13px;padding:60px 0">
+      Henüz mesaj yok. İlk mesajı sen gönder! 👋</div>`;
+    return;
+  }
+
+  const benUid = currentUser?.uid;
   const fmtZaman = ts => {
     if (!ts) return '';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
-    return d.toLocaleDateString('tr-TR') + ' ' + d.toLocaleTimeString('tr-TR', {hour:'2-digit',minute:'2-digit'});
+    const bugun = new Date();
+    const dun = new Date(); dun.setDate(dun.getDate()-1);
+    const gunStr = d.toDateString() === bugun.toDateString() ? 'Bugün'
+                 : d.toDateString() === dun.toDateString()   ? 'Dün'
+                 : d.toLocaleDateString('tr-TR', {day:'2-digit',month:'2-digit'});
+    return gunStr + ' ' + d.toLocaleTimeString('tr-TR', {hour:'2-digit',minute:'2-digit'});
   };
 
-  const kartHTML = (n) => {
-    const acil = n.oncelik === 'acil';
-    const yapildi_ = n.durum === 'yapildi';
-    const bg = yapildi_ ? '#f0fdf4' : acil ? '#fff5f5' : '#fffbeb';
-    const borderRenk = yapildi_ ? '#bbf7d0' : acil ? '#fecaca' : '#fde68a';
-    const rozet = acil
-      ? `<span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px">🔴 ACİL</span>`
-      : `<span style="background:#fef9c3;color:#ca8a04;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px">🟡 Normal</span>`;
-    return `<div style="background:${bg};border:1.5px solid ${borderRenk};border-radius:12px;padding:12px 14px;position:relative">
-      <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px">
-        ${rozet}
-        <span style="font-size:11px;color:#94a3b8;margin-left:auto">${fmtZaman(n.olusturma)}</span>
-      </div>
-      <div style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:8px;line-height:1.4">${n.metin || ''}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-        <span style="font-size:11px;color:#64748b;font-weight:600">👤 ${n.yazan || '—'}</span>
-        <div style="display:flex;gap:6px">
-          ${!yapildi_ ? `<button onclick="kanbanYapildi('${n.id}')"
-            style="background:#dcfce7;color:#16a34a;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer">✓ Yapıldı</button>` : ''}
-          ${yapildi_ ? `<button onclick="kanbanGeriAl('${n.id}')"
-            style="background:#fef3c7;color:#d97706;border:none;border-radius:7px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer">↩ Geri Al</button>` : ''}
-          <button onclick="kanbanSil('${n.id}')"
-            style="background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:4px 8px;font-size:11px;cursor:pointer">🗑</button>
+  // Tarih ayraçları için
+  const fmtGun = ts => {
+    if (!ts) return '';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    const bugun = new Date();
+    const dun = new Date(); dun.setDate(dun.getDate()-1);
+    if (d.toDateString() === bugun.toDateString()) return 'Bugün';
+    if (d.toDateString() === dun.toDateString())   return 'Dün';
+    return d.toLocaleDateString('tr-TR', {weekday:'long', day:'numeric', month:'long'});
+  };
+
+  const oncelikIkon = { normal:'', acil:'🔴 ', bilgi:'📌 ' };
+
+  let html = '';
+  let sonGun = '';
+
+  _chatMesajlar.forEach(m => {
+    const ts = m.olusturma;
+    const gunLabel = fmtGun(ts);
+    if (gunLabel !== sonGun) {
+      html += `<div style="text-align:center;margin:12px 0 8px">
+        <span style="background:#f1f5f9;color:#94a3b8;font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px">${gunLabel}</span>
+      </div>`;
+      sonGun = gunLabel;
+    }
+
+    const benim = m.uid === benUid;
+    const renk  = chatRenk(m.yazan);
+    const isacil = m.oncelik === 'acil';
+    const isbilgi = m.oncelik === 'bilgi';
+
+    // Yanıtlanan mesajı bul
+    let replyHTML = '';
+    if (m.replyId) {
+      const ref = _chatMesajlar.find(x => x.id === m.replyId);
+      const replyMetin = ref ? ref.metin : (m.replyMetin || '…');
+      const replyYazan = ref ? ref.yazan : '';
+      replyHTML = `<div style="background:rgba(0,0,0,0.06);border-left:3px solid ${renk};border-radius:6px;
+                               padding:4px 8px;margin-bottom:6px;font-size:11px;color:#475569;cursor:pointer"
+                       onclick="chatScrollTo('${m.replyId}')">
+        <span style="font-weight:800;color:${renk}">${replyYazan || ''}</span>
+        <span style="margin-left:4px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical">${replyMetin}</span>
+      </div>`;
+    }
+
+    const baloncukBg = benim
+      ? (isacil ? '#fee2e2' : isbilgi ? '#eff6ff' : '#EEF2FF')
+      : (isacil ? '#fff5f5' : isbilgi ? '#f0f9ff' : '#f8fafc');
+    const baloncukBorder = benim
+      ? (isacil ? '#fca5a5' : isbilgi ? '#bfdbfe' : '#c7d2fe')
+      : (isacil ? '#fecaca' : isbilgi ? '#bae6fd' : '#e2e8f0');
+
+    const idSafe = m.id.replace(/[^a-zA-Z0-9_-]/g,'');
+
+    html += `<div id="cmsg-${idSafe}" style="display:flex;flex-direction:column;align-items:${benim?'flex-end':'flex-start'};margin-bottom:6px">
+      ${!benim ? `<div style="font-size:11px;font-weight:800;color:${renk};margin-bottom:3px;padding-left:4px">${m.yazan||'?'}</div>` : ''}
+      <div style="max-width:78%;background:${baloncukBg};border:1.5px solid ${baloncukBorder};
+                  border-radius:${benim?'14px 4px 14px 14px':'4px 14px 14px 14px'};
+                  padding:8px 12px;position:relative">
+        ${replyHTML}
+        <div style="font-size:13px;color:#0f172a;line-height:1.5;white-space:pre-wrap;word-break:break-word">
+          ${oncelikIkon[m.oncelik]||''}${m.metin||''}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:${benim?'flex-end':'space-between'};gap:8px;margin-top:5px">
+          <span style="font-size:10px;color:#94a3b8">${fmtZaman(ts)}</span>
+          <div style="display:flex;gap:4px">
+            <button onclick="chatReplyBaslat('${m.id}','${(m.yazan||'').replace(/'/g,"\\'")}')"
+              style="background:none;border:none;color:#94a3b8;font-size:11px;cursor:pointer;padding:1px 5px;border-radius:5px"
+              title="Yanıtla">↩</button>
+            ${benim || currentUser?.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2' ? `<button onclick="chatSil('${m.id}')"
+              style="background:none;border:none;color:#fca5a5;font-size:11px;cursor:pointer;padding:1px 5px;border-radius:5px"
+              title="Sil">🗑</button>` : ''}
+          </div>
         </div>
       </div>
     </div>`;
-  };
+  });
 
-  bekEl.innerHTML = bekliyor.length
-    ? bekliyor.map(kartHTML).join('')
-    : `<div style="text-align:center;color:#94a3b8;padding:24px 0;font-size:12px;border:2px dashed #e2e8f0;border-radius:10px">Bekleyen görev yok ✓</div>`;
-
-  yapEl.innerHTML = yapildi.length
-    ? yapildi.slice(0,5).map(kartHTML).join('') +
-      (yapildi.length > 5 ? `<div style="text-align:center;font-size:11px;color:#94a3b8;margin-top:4px">+${yapildi.length-5} tamamlanan daha var</div>` : '')
-    : `<div style="text-align:center;color:#94a3b8;padding:24px 0;font-size:12px;border:2px dashed #e2e8f0;border-radius:10px">Henüz tamamlanan yok</div>`;
+  const scrollBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 80;
+  el.innerHTML = html;
+  if (scrollBottom) el.scrollTop = el.scrollHeight;
 }
 
-async function kanbanEkle() {
-  const inp = document.getElementById('kanban-input');
-  const oncelikEl = document.getElementById('kanban-oncelik');
+function chatScrollTo(msgId) {
+  const idSafe = msgId.replace(/[^a-zA-Z0-9_-]/g,'');
+  const el = document.getElementById('cmsg-' + idSafe);
+  if (el) {
+    el.scrollIntoView({ behavior:'smooth', block:'center' });
+    el.style.transition = 'background .3s';
+    el.style.background = '#fef9c3';
+    setTimeout(() => { el.style.background = ''; }, 1200);
+  }
+}
+
+function chatReplyBaslat(id, yazan) {
+  _chatReplyId = id;
+  const m = _chatMesajlar.find(x => x.id === id);
+  _chatReplyMetin = m ? m.metin : '…';
+  const bar = document.getElementById('chat-reply-bar');
+  const txt = document.getElementById('chat-reply-text');
+  if (bar) { bar.style.display = 'flex'; }
+  if (txt) txt.textContent = (yazan ? yazan + ': ' : '') + (_chatReplyMetin||'').slice(0,80);
+  document.getElementById('chat-input')?.focus();
+}
+window.chatReplyBaslat = chatReplyBaslat;
+window.chatScrollTo = chatScrollTo;
+
+function chatReplyIptal() {
+  _chatReplyId = null; _chatReplyMetin = null;
+  const bar = document.getElementById('chat-reply-bar');
+  if (bar) bar.style.display = 'none';
+}
+window.chatReplyIptal = chatReplyIptal;
+
+function chatInputAutoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+window.chatInputAutoResize = chatInputAutoResize;
+
+async function chatGonder() {
+  const inp = document.getElementById('chat-input');
+  const oncelikEl = document.getElementById('chat-oncelik');
   if (!inp) return;
   const metin = inp.value.trim();
-  if (!metin) { showToast('⚠️ Görev metni boş olamaz'); return; }
+  if (!metin) return;
   const oncelik = oncelikEl?.value || 'normal';
   const yazan = currentUser?.ad || 'Bilinmiyor';
+  const uid   = currentUser?.uid || '';
+
+  const veri = {
+    metin, oncelik, yazan, uid,
+    olusturma: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if (_chatReplyId) {
+    veri.replyId = _chatReplyId;
+    veri.replyMetin = (_chatReplyMetin||'').slice(0,120);
+  }
+
   try {
-    const doc = await firebase.firestore().collection('ekip_notlari').add({
-      metin, oncelik, yazan, durum: 'bekliyor',
-      olusturma: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    _kanbanNotlar.unshift({ id: doc.id, metin, oncelik, yazan, durum: 'bekliyor', olusturma: new Date() });
+    await firebase.firestore().collection('ekip_notlari').add(veri);
     inp.value = '';
-    renderKanban();
-    showToast('✅ Görev eklendi');
-  } catch(e) { showToast('❌ Hata: ' + e.message); }
+    inp.style.height = 'auto';
+    chatReplyIptal();
+    // Scroll to bottom
+    const el = document.getElementById('chat-mesajlar');
+    if (el) setTimeout(() => { el.scrollTop = el.scrollHeight; }, 200);
+  } catch(e) { showToast('❌ Gönderilemedi: ' + e.message); }
 }
+window.chatGonder = chatGonder;
 
-async function kanbanYapildi(id) {
-  try {
-    await firebase.firestore().collection('ekip_notlari').doc(id).update({ durum: 'yapildi' });
-    const n = _kanbanNotlar.find(x => x.id === id);
-    if (n) n.durum = 'yapildi';
-    renderKanban();
-    showToast('✅ Yapıldı olarak işaretlendi');
-  } catch(e) { showToast('❌ Hata: ' + e.message); }
-}
-
-async function kanbanGeriAl(id) {
-  try {
-    await firebase.firestore().collection('ekip_notlari').doc(id).update({ durum: 'bekliyor' });
-    const n = _kanbanNotlar.find(x => x.id === id);
-    if (n) n.durum = 'bekliyor';
-    renderKanban();
-    showToast('↩ Geri alındı');
-  } catch(e) { showToast('❌ Hata: ' + e.message); }
-}
-
-async function kanbanSil(id) {
-  if (!confirm('Bu görevi silmek istediğinize emin misiniz?')) return;
+async function chatSil(id) {
+  if (!confirm('Bu mesajı silmek istediğinize emin misiniz?')) return;
   try {
     await firebase.firestore().collection('ekip_notlari').doc(id).delete();
-    _kanbanNotlar = _kanbanNotlar.filter(x => x.id !== id);
-    renderKanban();
-    showToast('🗑️ Silindi');
+    showToast('🗑️ Mesaj silindi');
   } catch(e) { showToast('❌ Hata: ' + e.message); }
 }
+window.chatSil = chatSil;
 
 
 // ── MOBİL MENÜ ──
