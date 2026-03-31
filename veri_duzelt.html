@@ -38,14 +38,19 @@ o tarihi <strong>doğru ayın kaydına (örn. MART)</strong> taşır ve yanlış
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 
 <script>
-// ── BURAYA KENDİ FIREBASE CONFIG'İNİ YAPISTIR ──
-// evdebakim projesindeki firebase-config.js'den kopyala
-const firebaseConfig = {
-  // apiKey: "...",
-  // authDomain: "...",
-  // projectId: "...",
-  // ...
-};
+// ============ FIREBASE ============
+
+const _fbApp  = firebase.initializeApp({
+  apiKey: "AIzaSyCc0AhkPaIzmUewk_szFLmxqfMMmMctnHw",
+  authDomain: "evdebakim-ca02e.firebaseapp.com",
+  projectId: "evdebakim-ca02e",
+  storageBucket: "evdebakim-ca02e.firebasestorage.app",
+  messagingSenderId: "708187732533",
+  appId: "1:708187732533:web:34d1fea5bb82bfad2b0f7c"
+});
+const _auth   = firebase.auth();
+const _db     = firebase.firestore();
+
 
 // ── AY LİSTESİ ──
 const AY_LISTESI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
