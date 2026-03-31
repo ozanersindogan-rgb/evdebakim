@@ -374,7 +374,7 @@ function setVatHizmet(h,el) {
 function buildAyTabs() {
   const aylar = ['', ...getMevcutAylar()];
   document.getElementById('ay-tab-vat').innerHTML = aylar.map(a=>
-    `<button class="ay-btn${a===vatAy?' active':''}" onclick="setAy('${a}',this)">${a?AY_LABELS[a]:'Tümü'}</button>`
+    `<button class="ay-btn${a===vatAy?' active':''}" data-ay="${a}" onclick="setAy('${a}',this)">${a?AY_LABELS[a]:'Tümü'}</button>`
   ).join('');
 }
 function setAy(a,el){vatAy=a;vatPage=1;document.querySelectorAll('#ay-tab-vat .ay-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');filterVat();}
@@ -415,23 +415,39 @@ function _gkAySkoru(ay) {
 }
 function _gkKayitAdaylari(hizmet, isim) {
   const hedef = (isim || '').trim().toUpperCase();
-  const aktifAy = (typeof selectedAy !== 'undefined' && selectedAy)
+
+  // Aktif ayı güvenilir şekilde tespit et:
+  // 1. Önce DOM'daki aktif ay butonunu oku (en güvenilir)
+  // 2. Sonra vatAy global değişkeni
+  // 3. Son çare: getSonAy()
+  const domAktifBtn = document.querySelector('#ay-tab-vat .ay-btn.active');
+  const domAy = domAktifBtn ? (domAktifBtn.dataset?.ay || '') : '';
+  const aktifAy = domAy
+    || (typeof selectedAy !== 'undefined' && selectedAy)
     || (typeof vatAy !== 'undefined' && vatAy)
     || (typeof getSonAy === 'function' ? getSonAy() : '');
 
-  return allData
-    .filter(r => r['HİZMET'] === hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === hedef)
-    .sort((a, b) => {
-      const aAktif = a.AY === aktifAy ? 1 : 0;
-      const bAktif = b.AY === aktifAy ? 1 : 0;
-      if (aAktif !== bAktif) return bAktif - aAktif;
+  const adaylar = allData
+    .filter(r => r['HİZMET'] === hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === hedef);
 
-      const aDurum = (a.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
-      const bDurum = (b.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
-      if (aDurum !== bDurum) return bDurum - aDurum;
+  // Eğer aktif ay seçili ve bu vatandaşın o aydaki kaydı varsa SADECE onu döndür
+  if (aktifAy) {
+    const aktifAyKaydi = adaylar.filter(r => r.AY === aktifAy && (r.DURUM || '').toUpperCase() === 'AKTİF');
+    if (aktifAyKaydi.length > 0) return aktifAyKaydi;
+  }
 
-      return _gkAySkoru(b.AY) - _gkAySkoru(a.AY);
-    });
+  // Aktif ay kaydı yoksa genel sıralama
+  return adaylar.sort((a, b) => {
+    const aAktif = a.AY === aktifAy ? 1 : 0;
+    const bAktif = b.AY === aktifAy ? 1 : 0;
+    if (aAktif !== bAktif) return bAktif - aAktif;
+
+    const aDurum = (a.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
+    const bDurum = (b.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
+    if (aDurum !== bDurum) return bDurum - aDurum;
+
+    return _gkAySkoru(b.AY) - _gkAySkoru(a.AY);
+  });
 }
 function _gkKayitBul(hizmet, isim) {
   return _gkKayitAdaylari(hizmet, isim)[0] || null;
@@ -528,6 +544,19 @@ async function gkKaydet() {
   const rec = adaylar[0];
 
   if (!rec) { _gkIslemDevam = false; showToast('Vatandas bulunamadi'); return; }
+
+  // Seçilen tarih ile kaydın ayı uyuşuyor mu kontrol et
+  if (rec.AY && window.AY_LISTESI) {
+    const [gun, ay, yil] = tarihDB.split('.');
+    const tarihAyIdx = parseInt(ay, 10) - 1; // 0 tabanlı
+    const kayitAyIdx = window.AY_LISTESI.indexOf(rec.AY);
+    if (tarihAyIdx >= 0 && kayitAyIdx >= 0 && tarihAyIdx !== kayitAyIdx) {
+      const tarihAyAdi = window.AY_LABELS ? Object.values(window.AY_LABELS)[tarihAyIdx] : (tarihAyIdx+1)+'. Ay';
+      const kayitAyAdi = window.AY_LABELS ? window.AY_LABELS[rec.AY] : rec.AY;
+      const devamEt = confirm(`⚠️ DİKKAT: Seçilen tarih (${tarihAyAdi}) ile kaydın ayı (${kayitAyAdi}) uyuşmuyor!\n\nYine de kaydetmek istiyor musunuz?`);
+      if (!devamEt) { _gkIslemDevam = false; return; }
+    }
+  }
 
   const snapshot = JSON.parse(JSON.stringify(rec));
   _gkSetBusy(true, 'Kaydediliyor...');
@@ -1208,4 +1237,3 @@ function renderVat() {
     <button class="page-btn" onclick="goPage(${vatPage+1})" ${vatPage===tp?'disabled':''}>›</button>`;
 }
 function goPage(p){const tp=Math.ceil(vatFiltered.length/PER);if(p<1||p>tp)return;vatPage=p;renderVat();}
-
