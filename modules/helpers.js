@@ -61,23 +61,21 @@ function concat(...arrays){
 
 // ═══════════════════════════════════════════════════════════
 // YEDEKLEME SİSTEMİ
-// ─ Her gün ilk girişte otomatik yedek alır (TR saati ~08:30 sonrası)
-// ─ Yedekler Firestore'da "yedekler" koleksiyonunda saklanır
-// ─ Son 30 yedek tutulur, eskiler silinir
+// ─ Yedekler bilgisayara JSON dosyası olarak indirilir (Firestore limiti yok)
+// ─ Her gün ilk girişte (08:30 sonrası) otomatik yedek indirmesi tetiklenir
+// ─ Geri yükleme: JSON dosyası seç → Firestore'a aktar
 // ═══════════════════════════════════════════════════════════
 
-const YEDEK_KOLEKSIYON = 'yedekler';
-const YEDEK_MAKS = 30; // kaç yedek tutulsun
+const YEDEK_KOLEKSIYON = 'yedekler'; // geriye dönük uyumluluk için
+const YEDEK_MAKS = 30;
 
-// TR saat diliminde bugünün tarihini döndürür: "2026-03-22"
 function trBugunTarih() {
   return new Date().toLocaleDateString('tr-TR', {
     timeZone: 'Europe/Istanbul',
     year: 'numeric', month: '2-digit', day: '2-digit'
-  }).split('.').reverse().join('-'); // GG.AA.YYYY → YYYY-MM-DD
+  }).split('.').reverse().join('-');
 }
 
-// TR saatinde şu anki saati döndürür (0-23)
 function trSaat() {
   return parseInt(new Date().toLocaleTimeString('tr-TR', {
     timeZone: 'Europe/Istanbul', hour: '2-digit', hour12: false
@@ -88,18 +86,14 @@ async function yedekGunlukKontrol() {
   try {
     const bugun = trBugunTarih();
     const saat  = trSaat();
-    // Sabah 08:30 sonrası ilk girişte yedek al
     const trDakika = parseInt(new Date().toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', minute: '2-digit' }));
     const trToplamDakika = saat * 60 + trDakika;
     if (trToplamDakika < 8 * 60 + 30) {
-      console.log(`[Yedek] Saat ${saat}:${String(trDakika).padStart(2,'0')} — yedek saati henüz gelmedi (08:30 bekleniyor)`);
+      console.log(`[Yedek] Saat ${saat}:${String(trDakika).padStart(2,'0')} — yedek saati henüz gelmedi`);
       return;
     }
-    const mevcutSnap = await firebase.firestore()
-      .collection(YEDEK_KOLEKSIYON)
-      .where('tarih', '==', bugun)
-      .limit(1).get();
-    if (!mevcutSnap.empty) {
+    const sonYedek = localStorage.getItem('evdebakim_son_yedek');
+    if (sonYedek === bugun) {
       console.log(`[Yedek] Bugün (${bugun}) zaten yedek alınmış.`);
       return;
     }
@@ -112,7 +106,7 @@ async function yedekGunlukKontrol() {
 async function yedekAl(aciklama) {
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   if (!allData.length) { showToast('⚠️ Yedeklenecek veri yok'); return; }
-  showToast('💾 Yedek alınıyor...');
+  showToast('💾 Yedek hazırlanıyor...');
   try {
     const bugun = trBugunTarih();
     const zaman = new Date().toISOString();
@@ -122,98 +116,68 @@ async function yedekAl(aciklama) {
       aylar: [...new Set(allData.map(r=>r.AY).filter(Boolean))],
     };
     const temizVeri = allData.map(r => { const {_fbId,...rest}=r; return rest; });
-    await firebase.firestore().collection(YEDEK_KOLEKSIYON).add({
-      tarih: bugun, zaman,
-      aciklama: aciklama || `Manuel — ${bugun}`,
-      ozet, veri: JSON.stringify(temizVeri),
-      olusturan: currentUser?.ad || 'Sistem',
-    });
-    showToast(`✅ Yedek alındı — ${ozet.toplamKayit} kayıt`);
-    yedekEskilerSil();
-    // Sayfa açıksa listeyi yenile
+    const icerik = JSON.stringify({
+      meta: { tarih: bugun, zaman, aciklama: aciklama || `Manuel — ${bugun}`, ozet, olusturan: currentUser?.ad || 'Sistem' },
+      veri: temizVeri
+    }, null, 2);
+
+    const blob = new Blob([icerik], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `evdebakim_yedek_${bugun}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    localStorage.setItem('evdebakim_son_yedek', bugun);
+    showToast(`✅ Yedek indirildi — ${ozet.toplamKayit} kayıt`);
     if(document.getElementById('page-yedekler')?.classList.contains('active')) yedekSayfaYukle();
   } catch(e) {
     console.error('[Yedek] Hata:', e);
-    alert('❌ Yedek alınamadı!\n\nHata: ' + e.message + '\n\nKod: ' + (e.code || 'bilinmiyor'));
+    alert('❌ Yedek alınamadı!\n\nHata: ' + e.message);
   }
 }
 
-async function yedekEskilerSil() {
-  try {
-    const snap = await firebase.firestore().collection(YEDEK_KOLEKSIYON).orderBy('zaman','desc').get();
-    if (snap.size <= YEDEK_MAKS) return;
-    const silinecekler = snap.docs.slice(YEDEK_MAKS);
-    await Promise.all(silinecekler.map(d=>d.ref.delete()));
-    console.log(`[Yedek] ${silinecekler.length} eski yedek silindi.`);
-  } catch(e) { console.warn('[Yedek] Temizleme hatası:', e.message); }
+function yedekEskilerSil() {
+  console.log('[Yedek] Yerel indirme sistemi aktif.');
 }
 
 async function yedekSayfaYukle() {
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   const liste = document.getElementById('yedek-liste');
   if(!liste) return;
-  liste.innerHTML = `<div style="text-align:center;padding:32px;color:#94a3b8">
-    <div style="font-size:24px;margin-bottom:8px">⏳</div>Yedekler yükleniyor...
-  </div>`;
-  try {
-    const snap = await firebase.firestore()
-      .collection(YEDEK_KOLEKSIYON)
-      .orderBy('zaman','desc')
-      .limit(YEDEK_MAKS).get();
-    if(snap.empty) {
-      liste.innerHTML = `<div style="text-align:center;padding:40px;color:#94a3b8">
-        <div style="font-size:32px;margin-bottom:12px">💾</div>
-        <div style="font-weight:700">Henüz yedek alınmamış</div>
-        <div style="font-size:12px;margin-top:4px">Yukarıdaki "Şimdi Yedek Al" butonuna basın</div>
-      </div>`;
-      return;
-    }
-    liste.innerHTML = snap.docs.map(d => {
-      const v = d.data();
-      const tarihStr = new Date(v.zaman).toLocaleString('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
-      const otomatikMi = (v.aciklama||'').startsWith('Otomatik');
-      const etiket = otomatikMi
-        ? `<span style="background:#dbeafe;color:#1d4ed8;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">OTO</span>`
-        : `<span style="background:#dcfce7;color:#15803d;padding:1px 8px;border-radius:8px;font-size:10px;font-weight:700">MANUEL</span>`;
-      return `
-        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.05)">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-            <div style="flex:1;min-width:0">
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-                <span style="font-weight:800;font-size:14px;color:#1A237E">${v.tarih}</span>
-                ${etiket}
-              </div>
-              <div style="font-size:12px;color:#64748b;margin-bottom:4px">🕐 ${tarihStr}</div>
-              <div style="font-size:12px;color:#475569">
-                📦 <strong>${v.ozet?.toplamKayit||0}</strong> kayıt &nbsp;·&nbsp;
-                ✅ <strong>${v.ozet?.aktif||0}</strong> aktif &nbsp;·&nbsp;
-                👤 ${v.olusturan||''}
-              </div>
-              ${v.ozet?.aylar?.length ? `<div style="font-size:11px;color:#94a3b8;margin-top:3px">📅 ${v.ozet.aylar.join(', ')}</div>` : ''}
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-            <button onclick="yedekIndir('${d.id}')"
-              style="flex:1;min-width:80px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;color:#15803d;cursor:pointer">
-              ⬇️ İndir
-            </button>
-            <button onclick="yedekGeriYukle('${d.id}','${v.tarih}',${v.ozet?.toplamKayit||0})"
-              style="flex:1;min-width:80px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;color:#c2410c;cursor:pointer">
-              🔄 Geri Yükle
-            </button>
-            <button onclick="yedekSil('${d.id}','${v.tarih}')"
-              style="flex:1;min-width:80px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:700;color:#dc2626;cursor:pointer">
-              🗑️ Sil
-            </button>
-          </div>
-        </div>`;
-    }).join('');
-  } catch(e) {
-    liste.innerHTML = `<div style="padding:20px;color:#B71C1C;text-align:center">❌ Hata: ${e.message}</div>`;
-  }
+  const bugun = trBugunTarih();
+  const sonYedek = localStorage.getItem('evdebakim_son_yedek') || '—';
+  const allDataOzet = allData.length
+    ? `${allData.length} kayıt · ${allData.filter(r=>r.DURUM==='AKTİF').length} aktif`
+    : 'Veri yüklenmedi';
+  liste.innerHTML = `
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px;margin-bottom:16px">
+      <div style="font-weight:800;color:#15803d;margin-bottom:6px">💾 Yerel Yedekleme Sistemi</div>
+      <div style="font-size:13px;color:#166534">
+        Yedekler bilgisayarınıza JSON dosyası olarak indirilir.<br>
+        Son yedek: <strong>${sonYedek}</strong> &nbsp;·&nbsp; Mevcut veri: <strong>${allDataOzet}</strong>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:10px">📥 Şimdi Yedek Al</div>
+      <button onclick="yedekAl()" style="background:#1A237E;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;width:100%">
+        ⬇️ JSON Dosyası Olarak İndir (${allData.length} kayıt)
+      </button>
+    </div>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px">
+      <div style="font-weight:700;margin-bottom:10px">🔄 Yedeği Geri Yükle</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:10px">Daha önce indirdiğiniz JSON yedek dosyasını seçin.</div>
+      <input type="file" id="yedek-dosya-input" accept=".json" onchange="yedekDosyaSecildi(this)" style="display:none">
+      <button onclick="document.getElementById('yedek-dosya-input').click()"
+        style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;color:#c2410c;cursor:pointer;width:100%">
+        📂 JSON Dosyası Seç ve Geri Yükle
+      </button>
+    </div>`;
 }
 
 async function yedekIndir(yedekId) {
+  // Eski Firestore yedeklerini indirmek için (geriye dönük uyumluluk)
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
   try {
     showToast('⏳ Yedek hazırlanıyor...');
@@ -224,9 +188,7 @@ async function yedekIndir(yedekId) {
     const blob = new Blob([icerik], {type:'application/json'});
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `evdebaki_yedek_${v.tarih}.json`;
-    a.click();
+    a.href = url; a.download = `evdebakim_yedek_${v.tarih}.json`; a.click();
     URL.revokeObjectURL(url);
     showToast(`✅ ${v.tarih} yedeği indirildi`);
   } catch(e) { showToast('❌ İndirme hatası: '+e.message); }
@@ -234,44 +196,58 @@ async function yedekIndir(yedekId) {
 
 async function yedekSil(yedekId, tarih) {
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
-  if(!confirm(`"${tarih}" tarihli yedeği silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz.`)) return;
+  if(!confirm(`"${tarih}" tarihli yedeği silmek istediğinize emin misiniz?`)) return;
   try {
     await firebase.firestore().collection(YEDEK_KOLEKSIYON).doc(yedekId).delete();
-    showToast('🗑️ Yedek silindi');
-    yedekSayfaYukle();
+    showToast('🗑️ Yedek silindi'); yedekSayfaYukle();
   } catch(e) { showToast('❌ Silme hatası: '+e.message); }
 }
 
+async function yedekDosyaSecildi(input) {
+  const dosya = input.files[0];
+  if (!dosya) return;
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const json = JSON.parse(e.target.result);
+      const yedekVeri = json.veri || json;
+      const tarih = json.meta?.tarih || dosya.name;
+      const kayitSayisi = Array.isArray(yedekVeri) ? yedekVeri.length : '?';
+      if (!confirm(
+        `⚠️ DİKKAT — GERİ YÜKLEME\n\n"${tarih}" tarihli yedek geri yüklenecek.\n` +
+        `Bu yedekte ${kayitSayisi} kayıt var.\n\nMevcut TÜM veriler silinip yedekteki veriler yüklenecek.\n` +
+        `Bu işlem GERİ ALINAMAZ!\n\nDevam etmek istiyor musunuz?`
+      )) return;
+      const girdi = prompt(`Son onay için "EVET" yazın:`);
+      if ((girdi||'').trim().toUpperCase() !== 'EVET') { showToast('İptal edildi'); return; }
+      await _yedekGeriYukleVeri(yedekVeri, tarih);
+    } catch(e) {
+      alert('❌ Dosya okunamadı: ' + e.message);
+    }
+  };
+  reader.readAsText(dosya);
+}
+
 async function yedekGeriYukle(yedekId, tarih, kayitSayisi) {
+  // Eski Firestore yedeklerinden geri yükleme
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
-  // 1. Uyarı
-  if(!confirm(
-    `⚠️ DİKKAT — GERİ YÜKLEME\n\n` +
-    `"${tarih}" tarihli yedek geri yüklenecek.\n` +
-    `Bu yedekte ${kayitSayisi} kayıt var.\n\n` +
-    `Mevcut TÜM veriler silinip yedekteki veriler yüklenecek.\n` +
-    `Bu işlem GERİ ALINAMAZ!\n\n` +
-    `Devam etmek istiyor musunuz?`
-  )) return;
-  // 2. Son onay
-  const girdi = prompt(
-    `Son onay için aşağıya "EVET" yazın:\n(Mevcut veriler silinecek, ${tarih} yedeği yüklenecek)`
-  );
-  if((girdi||'').trim().toUpperCase() !== 'EVET') {
-    showToast('İptal edildi');
-    return;
-  }
+  if(!confirm(`⚠️ "${tarih}" tarihli yedek geri yüklenecek (${kayitSayisi} kayıt).\nMevcut TÜM veriler silinecek. GERİ ALINAMAZ!\nDevam?`)) return;
+  const girdi = prompt(`Son onay için "EVET" yazın:`);
+  if((girdi||'').trim().toUpperCase() !== 'EVET') { showToast('İptal edildi'); return; }
   try {
-    showToast('⏳ Geri yükleniyor... Lütfen bekleyin');
     const doc = await firebase.firestore().collection(YEDEK_KOLEKSIYON).doc(yedekId).get();
     if(!doc.exists) { showToast('❌ Yedek bulunamadı'); return; }
-    const yedekVeri = JSON.parse(doc.data().veri);
-    // Mevcut vatandaslar koleksiyonunu temizle
+    await _yedekGeriYukleVeri(JSON.parse(doc.data().veri), tarih);
+  } catch(e) { alert('❌ Geri yükleme hatası: ' + e.message); }
+}
+
+async function _yedekGeriYukleVeri(yedekVeri, tarih) {
+  try {
+    showToast('⏳ Geri yükleniyor... Lütfen bekleyin');
     const mevcutSnap = await firebase.firestore().collection('vatandaslar').get();
     for(let i=0;i<mevcutSnap.docs.length;i+=400) {
       await Promise.all(mevcutSnap.docs.slice(i,i+400).map(d=>d.ref.delete()));
     }
-    // Yedeği yükle
     for(let i=0;i<yedekVeri.length;i+=400) {
       await Promise.all(yedekVeri.slice(i,i+400).map(r=>
         firebase.firestore().collection('vatandaslar').add(normalizeRecord({...r}))
@@ -282,10 +258,9 @@ async function yedekGeriYukle(yedekId, tarih, kayitSayisi) {
     setTimeout(()=>location.reload(), 1800);
   } catch(e) {
     console.error('[Yedek] Geri yükleme hatası:', e);
-    showToast('❌ Geri yükleme hatası: '+e.message);
+    alert('❌ Geri yükleme hatası: ' + e.message);
   }
 }
-
 
 // ── JSON DOSYASINDAN GERİ YÜKLEME ──
 function yedekJsonSecDosya() {
