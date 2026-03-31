@@ -54,7 +54,8 @@ function personelListesi(hizmet) {
 function kbPersonelStats() {
   const hizmet = 'KADIN BANYO';
   const personeller = personelListesi(hizmet);
-  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF');
+  const ay = (typeof vatAy !== 'undefined' && vatAy) ? vatAy : null;
+  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF' && (!ay || r.AY === ay));
 
   const sayar = {};
   personeller.forEach(p => { sayar[p.ad] = 0; });
@@ -364,7 +365,8 @@ window.tpPersonelModalKapat = tpPersonelModalKapat;
 function ebPersonelStats() {
   const hizmet = 'ERKEK BANYO';
   const personeller = personelListesi(hizmet);
-  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF');
+  const ay = (typeof vatAy !== 'undefined' && vatAy) ? vatAy : null;
+  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF' && (!ay || r.AY === ay));
 
   const sayar = {};
   personeller.forEach(p => { sayar[p.ad] = 0; });
@@ -515,7 +517,8 @@ window.ebPersonelModalKapat = ebPersonelModalKapat;
 function kfPersonelStats() {
   const hizmet = 'KUAFÖR';
   const personeller = personelListesi(hizmet);
-  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF');
+  const ay = (typeof vatAy !== 'undefined' && vatAy) ? vatAy : null;
+  const aktifKayitlar = allData.filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF' && (!ay || r.AY === ay));
 
   const sayar = {};
   personeller.forEach(p => { sayar[p.ad] = 0; });
