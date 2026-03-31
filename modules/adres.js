@@ -209,7 +209,7 @@ function adresRender() {
         const bg=i%2===0?'#fff':'#f8fafc';
         const ev=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
         return `<tr style="background:${bg}" id="adres-row-${i}">
-          <td style="padding:8px 12px;font-weight:700;border-bottom:1px solid #e2e8f0;font-size:12px">${isim}</td>
+          <td style="padding:8px 12px;font-weight:700;border-bottom:1px solid #e2e8f0;font-size:12px;cursor:pointer;color:#1A237E;text-decoration:underline dotted" onclick="adresKisiKartiAc('${ev(isim)}')">${isim}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:11px">
             ${hizmetler.length?hizmetler.map(h=>`<span style="background:${HZ_RENK[h]||'#64748b'}18;color:${HZ_RENK[h]||'#64748b'};padding:1px 7px;border-radius:8px;font-weight:700;white-space:nowrap;display:inline-block;margin:1px">${h}</span>`).join(''):'<span style="color:#94a3b8">—</span>'}
           </td>
@@ -612,3 +612,156 @@ async function adresYukle(input) {
   }
 }
 
+
+
+// ══════════════════════════════════════════════
+// KİŞİ KARTI MODALI
+// ══════════════════════════════════════════════
+function adresKisiKartiAc(isim) {
+  const b = window._adresBilgi[isim] || {};
+  const kayitlar = allData.filter(r => r.ISIM_SOYISIM === isim);
+  const vd = kayitlar[0] || {};
+  const mahalle = vd.MAHALLE || b.mahalle || '';
+  const dogum = vd.DOGUM_TARIHI || b.dogum || '';
+  const yas = hesaplaYas(dogum);
+  const adres = vd.ADRES || b.adres || '';
+  const hizmetler = [...new Set(kayitlar.map(r => r['HİZMET']).filter(Boolean))];
+
+  const aktifTel = (b.telAktif === '2' && b.tel2) ? b.tel2 : (b.tel || '');
+  const digerTel = (b.telAktif === '2' && b.tel2) ? b.tel : (b.tel2 || '');
+
+  const HZ_RENK = {'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100'};
+  const HZ_BG   = {'KADIN BANYO':'#FCE4EC','ERKEK BANYO':'#E3F2FD','KUAFÖR':'#E8F5E9','TEMİZLİK':'#FFF3E0'};
+
+  // Son ziyaret tarihlerini bul
+  const sonZiyaretler = kayitlar.map(r => {
+    const hizmet = r['HİZMET'] || '';
+    const alanlar = hizmet === 'KUAFÖR'
+      ? [r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2]
+      : [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5];
+    const dolu = alanlar.filter(Boolean);
+    if (!dolu.length) return null;
+    const enSon = dolu.sort((a, b) => {
+      const parse = t => t.includes('-') ? new Date(t) : new Date(t.split('.').reverse().join('-'));
+      return parse(b) - parse(a);
+    })[0];
+    return { hizmet, tarih: enSon, ay: r.AY || '' };
+  }).filter(Boolean);
+
+  // Avatar rengi (isimden hash)
+  const renkler = ['#1A237E','#C2185B','#1565C0','#2E7D32','#E65100','#6A1B9A','#00695C'];
+  const avatarRenk = renkler[isim.charCodeAt(0) % renkler.length];
+  const initials = isim.split(' ').slice(0,2).map(w=>w[0]||'').join('');
+
+  // Modal HTML
+  const modal = document.createElement('div');
+  modal.id = 'kisi-karti-modal';
+  modal.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(15,23,42,0.55);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;padding:16px;
+  `;
+  modal.innerHTML = `
+    <div style="
+      background:#fff;border-radius:20px;width:100%;max-width:420px;
+      box-shadow:0 25px 60px rgba(0,0,0,0.25);
+      overflow:hidden;position:relative;
+      animation:kkSlideIn 0.22s ease;
+    ">
+      <style>
+        @keyframes kkSlideIn {
+          from { opacity:0; transform:translateY(20px) scale(0.97); }
+          to   { opacity:1; transform:translateY(0)    scale(1);    }
+        }
+      </style>
+
+      <!-- Üst bant -->
+      <div style="background:${avatarRenk};padding:28px 20px 20px;text-align:center;position:relative">
+        <button onclick="document.getElementById('kisi-karti-modal').remove()"
+          style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,0.2);border:none;
+          border-radius:50%;width:30px;height:30px;cursor:pointer;color:#fff;font-size:16px;
+          display:flex;align-items:center;justify-content:center">✕</button>
+        <div style="
+          width:70px;height:70px;border-radius:50%;
+          background:rgba(255,255,255,0.25);border:3px solid rgba(255,255,255,0.6);
+          margin:0 auto 12px;
+          display:flex;align-items:center;justify-content:center;
+          font-size:26px;font-weight:900;color:#fff;letter-spacing:-1px;
+        ">${initials}</div>
+        <div style="font-size:17px;font-weight:900;color:#fff;letter-spacing:0.3px">${isim}</div>
+        ${mahalle ? `<div style="font-size:12px;color:rgba(255,255,255,0.8);margin-top:4px">📍 ${mahalle}</div>` : ''}
+        <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+          ${hizmetler.map(h=>`
+            <span style="background:${HZ_BG[h]||'#f1f5f9'};color:${HZ_RENK[h]||'#475569'};
+              padding:2px 10px;border-radius:20px;font-size:11px;font-weight:800">
+              ${h}
+            </span>`).join('')}
+        </div>
+      </div>
+
+      <!-- İçerik -->
+      <div style="padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+
+        <!-- Yaş / Doğum -->
+        ${dogum ? `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#f8fafc;border-radius:12px">
+          <span style="font-size:22px">🎂</span>
+          <div>
+            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Doğum Tarihi</div>
+            <div style="font-size:15px;font-weight:700;color:#1e293b">
+              ${dogum}
+              ${yas !== null ? `<span style="background:${avatarRenk};color:#fff;border-radius:8px;padding:1px 8px;font-size:12px;font-weight:800;margin-left:8px">${yas} yaş</span>` : ''}
+            </div>
+          </div>
+        </div>` : ''}
+
+        <!-- Telefon -->
+        ${aktifTel ? `
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#f8fafc;border-radius:12px">
+          <span style="font-size:22px">📞</span>
+          <div style="flex:1">
+            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Telefon</div>
+            <a href="tel:${aktifTel.replace(/\s/g,'')}"
+              style="font-size:15px;font-weight:700;color:#0369a1;text-decoration:none">${aktifTel}</a>
+            ${digerTel ? `<div style="font-size:12px;color:#94a3b8;margin-top:2px">📞 ${digerTel}</div>` : ''}
+          </div>
+          <a href="tel:${aktifTel.replace(/\s/g,'')}"
+            style="background:#0369a1;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap">
+            Ara
+          </a>
+        </div>` : ''}
+
+        <!-- Adres -->
+        ${adres ? `
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 14px;background:#f8fafc;border-radius:12px">
+          <span style="font-size:22px">🏠</span>
+          <div>
+            <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px">Adres</div>
+            <div style="font-size:13px;font-weight:600;color:#374151;line-height:1.5">${adres}</div>
+          </div>
+        </div>` : ''}
+
+        <!-- Son Ziyaretler -->
+        ${sonZiyaretler.length ? `
+        <div style="padding:10px 14px;background:#f8fafc;border-radius:12px">
+          <div style="font-size:11px;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Son Ziyaretler</div>
+          ${sonZiyaretler.map(z=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #e2e8f0">
+              <span style="font-size:12px;font-weight:700;color:${HZ_RENK[z.hizmet]||'#475569'}">${z.hizmet}</span>
+              <span style="font-size:12px;color:#64748b">${z.tarih} <span style="color:#94a3b8">(${z.ay})</span></span>
+            </div>`).join('')}
+        </div>` : ''}
+
+        <!-- Düzenle butonu -->
+        <button onclick="document.getElementById('kisi-karti-modal').remove();adresEditAc('${isim.replace(/'/g,"\'")}')"
+          style="width:100%;background:${avatarRenk};color:#fff;border:none;border-radius:12px;
+          padding:12px;font-size:14px;font-weight:700;cursor:pointer;margin-top:4px">
+          ✏️ Bilgileri Düzenle
+        </button>
+      </div>
+    </div>`;
+
+  // Dışına tıklayınca kapat
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+}
