@@ -413,13 +413,28 @@ function _gkAySkoru(ay) {
   const i = Array.isArray(window.AY_LISTESI) ? window.AY_LISTESI.indexOf(ay) : -1;
   return i >= 0 ? i : -1;
 }
-function _gkKayitAdaylari(hizmet, isim) {
+function _gkKayitAdaylari(hizmet, isim, tarihISO) {
   const hedef = (isim || '').trim().toUpperCase();
 
-  // Aktif ayı güvenilir şekilde tespit et:
-  // 1. Önce DOM'daki aktif ay butonunu oku (en güvenilir)
-  // 2. Sonra vatAy global değişkeni
-  // 3. Son çare: getSonAy()
+  const adaylar = allData
+    .filter(r => r['HİZMET'] === hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === hedef);
+
+  // Girilen tarihin ayını hesapla (YYYY-MM-DD formatından)
+  // Örn: 2026-03-26 → ay indeksi 2 → AY_LISTESI[2] = 'MART'
+  if (tarihISO && window.AY_LISTESI) {
+    const ayNo = parseInt(tarihISO.split('-')[1], 10) - 1; // 0 tabanlı
+    const tarihAyi = window.AY_LISTESI[ayNo]; // örn: 'MART'
+    if (tarihAyi) {
+      // Tarihin ait olduğu ayda AKTİF kaydı varsa onu döndür
+      const tarihAyiKaydi = adaylar.filter(r => r.AY === tarihAyi && (r.DURUM || '').toUpperCase() === 'AKTİF');
+      if (tarihAyiKaydi.length > 0) return tarihAyiKaydi;
+      // AKTİF yoksa o aydaki herhangi bir kaydı döndür
+      const tarihAyiHerhangi = adaylar.filter(r => r.AY === tarihAyi);
+      if (tarihAyiHerhangi.length > 0) return tarihAyiHerhangi;
+    }
+  }
+
+  // Tarih bilinmiyorsa: aktif ay sekmesine bak, yoksa en son aya göre sırala
   const domAktifBtn = document.querySelector('#ay-tab-vat .ay-btn.active');
   const domAy = domAktifBtn ? (domAktifBtn.dataset?.ay || '') : '';
   const aktifAy = domAy
@@ -427,30 +442,18 @@ function _gkKayitAdaylari(hizmet, isim) {
     || (typeof vatAy !== 'undefined' && vatAy)
     || (typeof getSonAy === 'function' ? getSonAy() : '');
 
-  const adaylar = allData
-    .filter(r => r['HİZMET'] === hizmet && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === hedef);
-
-  // Eğer aktif ay seçili ve bu vatandaşın o aydaki kaydı varsa SADECE onu döndür
-  if (aktifAy) {
-    const aktifAyKaydi = adaylar.filter(r => r.AY === aktifAy && (r.DURUM || '').toUpperCase() === 'AKTİF');
-    if (aktifAyKaydi.length > 0) return aktifAyKaydi;
-  }
-
-  // Aktif ay kaydı yoksa genel sıralama
   return adaylar.sort((a, b) => {
     const aAktif = a.AY === aktifAy ? 1 : 0;
     const bAktif = b.AY === aktifAy ? 1 : 0;
     if (aAktif !== bAktif) return bAktif - aAktif;
-
     const aDurum = (a.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
     const bDurum = (b.DURUM || '').toUpperCase() === 'AKTİF' ? 1 : 0;
     if (aDurum !== bDurum) return bDurum - aDurum;
-
     return _gkAySkoru(b.AY) - _gkAySkoru(a.AY);
   });
 }
-function _gkKayitBul(hizmet, isim) {
-  return _gkKayitAdaylari(hizmet, isim)[0] || null;
+function _gkKayitBul(hizmet, isim, tarihISO) {
+  return _gkKayitAdaylari(hizmet, isim, tarihISO)[0] || null;
 }
 function gkIsimSecildi() {
   const hizmet = document.getElementById('gk-hizmet').value;
@@ -540,23 +543,11 @@ async function gkKaydet() {
   const hizmet = document.getElementById('gk-hizmet').value;
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
   const not = document.getElementById('gk-not').value;
-  const adaylar = _gkKayitAdaylari(hizmet, isim);
+  // tarihi geçirerek doğru ayın kaydını bul
+  const adaylar = _gkKayitAdaylari(hizmet, isim, tarih);
   const rec = adaylar[0];
 
   if (!rec) { _gkIslemDevam = false; showToast('Vatandas bulunamadi'); return; }
-
-  // Seçilen tarih ile kaydın ayı uyuşuyor mu kontrol et
-  if (rec.AY && window.AY_LISTESI) {
-    const [gun, ay, yil] = tarihDB.split('.');
-    const tarihAyIdx = parseInt(ay, 10) - 1; // 0 tabanlı
-    const kayitAyIdx = window.AY_LISTESI.indexOf(rec.AY);
-    if (tarihAyIdx >= 0 && kayitAyIdx >= 0 && tarihAyIdx !== kayitAyIdx) {
-      const tarihAyAdi = window.AY_LABELS ? Object.values(window.AY_LABELS)[tarihAyIdx] : (tarihAyIdx+1)+'. Ay';
-      const kayitAyAdi = window.AY_LABELS ? window.AY_LABELS[rec.AY] : rec.AY;
-      const devamEt = confirm(`⚠️ DİKKAT: Seçilen tarih (${tarihAyAdi}) ile kaydın ayı (${kayitAyAdi}) uyuşmuyor!\n\nYine de kaydetmek istiyor musunuz?`);
-      if (!devamEt) { _gkIslemDevam = false; return; }
-    }
-  }
 
   const snapshot = JSON.parse(JSON.stringify(rec));
   _gkSetBusy(true, 'Kaydediliyor...');
