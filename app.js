@@ -536,7 +536,7 @@ function openEditModal(idx) {
   `;
 
   document.getElementById('edit-body').innerHTML = `
-    <div class="form-group"><label>İsim Soyisim</label><input class="form-input" id="ed-isim" type="text" value="${esc(r.ISIM_SOYISIM)}"></div>
+    <div class="form-group"><label>İsim Soyisim</label><input class="form-input" id="ed-isim" type="text" value="${esc(r.ISIM_SOYISIM)}" oninput="this.value=this.value.toLocaleUpperCase('tr-TR')" style="text-transform:uppercase"></div>
     <div class="form-group"><label>Mahalle</label><select class="form-select" id="ed-mah">${mahOptions}</select></div>
     <div class="form-group"><label>Durum</label><select class="form-select" id="ed-durum">${durOptions}</select></div>
     <div class="form-group"><label>Onay Tarihi</label><input class="form-input" id="ed-onay" type="date" value="${toD(r.ONAY_TARIHI)}"></div>

@@ -647,7 +647,7 @@
               </select>
             </div>
             <div class="form-group"><label>İsim Soyisim *</label>
-              <input type="text" id="f-isim" placeholder="Vatandaşın adı soyadı..." autocomplete="off">
+              <input type="text" id="f-isim" placeholder="Vatandaşın adı soyadı..." autocomplete="off" oninput="this.value=this.value.toLocaleUpperCase('tr-TR')" style="text-transform:uppercase">
             </div>
             <div class="form-group"><label>Mahalle *</label><select class="form-select" id="f-mah"></select></div>
             <div class="form-group"><label>Cinsiyet</label>
