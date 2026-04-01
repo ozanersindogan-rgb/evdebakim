@@ -147,6 +147,152 @@ function renderDashboard() {
 
   // ── UZUN SÜREDİR ZİYARET EDİLMEYENLER ──
   renderUzunSure();
+  renderTarihPanels();
   renderKanban();
 }
 
+
+// ── TARİH PANELLERİ ──
+// Sol: Hiç tarih girilmemiş son 50 aktif kişi
+// Sağ: En son tarihi 30 günden önce olan aktif kişiler
+function renderTarihPanels() {
+  const elHic  = document.getElementById('tp-hic-liste');
+  const elUzun = document.getElementById('tp-uzun-liste');
+  if (!elHic && !elUzun) return;
+
+  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+
+  // En son ayı bul
+  const mevcutAylar = [...new Set(allData.map(r => r.AY).filter(Boolean))]
+    .sort((a, b) => AY_SIRA.indexOf(b) - AY_SIRA.indexOf(a));
+  const sonAy = mevcutAylar[0];
+  if (!sonAy) return;
+
+  // Son ayın aktif kayıtları
+  const aktifKayitlar = allData.filter(r =>
+    r.AY === sonAy && (r.DURUM || '').toUpperCase() === 'AKTİF'
+  );
+
+  // Hizmet türüne göre tarih alanları
+  const TARIH_ALANLARI = {
+    'KADIN BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
+    'ERKEK BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
+    'KUAFÖR':      ['SAC1','SAC2','TIRNAK1','TIRNAK2','TIRNAK3','SAKAL1','SAKAL2'],
+    'TEMİZLİK':    ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
+  };
+
+  const HIZMET_RENK = {
+    'KADIN BANYO': '#ec4899',
+    'ERKEK BANYO': '#3b82f6',
+    'KUAFÖR':      '#f59e0b',
+    'TEMİZLİK':    '#22c55e',
+  };
+
+  const bugun = new Date();
+  bugun.setHours(0, 0, 0, 0);
+
+  // Her aktif vatandaş için en son tarihi hesapla
+  // (tüm aylardan, en yeni olanı al)
+  function enSonTarih(isim, hizmet) {
+    const alanlar = TARIH_ALANLARI[hizmet] || ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+    let enSon = null;
+    allData
+      .filter(r => r.ISIM_SOYISIM === isim && r['HİZMET'] === hizmet)
+      .forEach(r => {
+        alanlar.forEach(f => {
+          if (!r[f]) return;
+          const d = parseDate(r[f]);
+          if (d && (!enSon || d > enSon)) enSon = d;
+        });
+      });
+    return enSon;
+  }
+
+  // Tekil (isim + hizmet) bazlı liste oluştur
+  const gorulenler = new Set();
+  const liste = [];
+  aktifKayitlar.forEach(r => {
+    const key = r.ISIM_SOYISIM + '|' + r['HİZMET'];
+    if (gorulenler.has(key)) return;
+    gorulenler.add(key);
+    const tarih = enSonTarih(r.ISIM_SOYISIM, r['HİZMET']);
+    const gun = tarih ? Math.floor((bugun - tarih) / 86400000) : null;
+    liste.push({ r, tarih, gun });
+  });
+
+  // Panel A: Hiç tarih girilmemiş (tüm aylar taranmış, hiç tarih yok)
+  const hicTarihYok = liste
+    .filter(x => x.tarih === null)
+    .slice(0, 50);
+
+  // Panel B: En son tarihi 30+ gün önce olanlar
+  const otuzGunFazla = liste
+    .filter(x => x.tarih !== null && x.gun >= 30)
+    .sort((a, b) => b.gun - a.gun);
+
+  // Ortak satır oluşturucu
+  function satir(x, i, showGun) {
+    const hRenk = HIZMET_RENK[x.r['HİZMET']] || '#64748b';
+    const isimEsc = (x.r.ISIM_SOYISIM || '').replace(/'/g, "\\'");
+    const hizEsc  = (x.r['HİZMET'] || '').replace(/'/g, "\\'");
+    const tarihStr = x.tarih
+      ? x.tarih.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit', year:'numeric' })
+      : '—';
+
+    let gunBadge = '';
+    if (showGun && x.gun !== null) {
+      const renk = x.gun >= 90 ? '#dc2626' : x.gun >= 60 ? '#d97706' : '#ca8a04';
+      const bg   = x.gun >= 90 ? '#fff5f5' : x.gun >= 60 ? '#fffbeb' : '#fefce8';
+      gunBadge = `<span style="background:${bg};color:${renk};font-weight:800;font-size:11px;padding:2px 8px;border-radius:7px;border:1px solid ${renk}30">${x.gun} gün</span>`;
+    } else if (showGun) {
+      gunBadge = `<span style="background:#f5f3ff;color:#7c3aed;font-weight:800;font-size:11px;padding:2px 8px;border-radius:7px;border:1px solid #c4b5fd">—</span>`;
+    }
+
+    return `<tr style="background:${i%2===0?'#fff':'#f8fafc'};cursor:pointer"
+      onclick="showDetail('${isimEsc}','${hizEsc}','${x.r.AY||''}')">
+      <td style="padding:8px 10px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9;font-size:12px">${x.r.ISIM_SOYISIM||''}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #f1f5f9">
+        <span style="background:${hRenk}18;color:${hRenk};font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px">${x.r['HİZMET']||''}</span>
+      </td>
+      <td style="padding:8px 10px;color:#64748b;font-size:11px;border-bottom:1px solid #f1f5f9">${tarihStr}</td>
+      ${showGun ? `<td style="padding:8px 10px;border-bottom:1px solid #f1f5f9">${gunBadge}</td>` : ''}
+    </tr>`;
+  }
+
+  const thead = (showGun) => `<thead><tr style="background:#f8fafc">
+    <th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">İSİM</th>
+    <th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">HİZMET</th>
+    <th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">SON TARİH</th>
+    ${showGun ? '<th style="padding:7px 10px;text-align:left;font-size:10px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">GEÇİLEN GÜN</th>' : ''}
+  </tr></thead>`;
+
+  const bosMsg = (msg) => `<div style="text-align:center;color:#94a3b8;padding:28px 0;font-size:13px">${msg}</div>`;
+
+  // Panel A render
+  if (elHic) {
+    if (!hicTarihYok.length) {
+      elHic.innerHTML = bosMsg('✅ Tüm kayıtlarda tarih mevcut');
+    } else {
+      elHic.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+        ${thead(false)}<tbody>
+        ${hicTarihYok.map((x,i) => satir(x, i, false)).join('')}
+        </tbody></table>`;
+    }
+    const sayEl = document.getElementById('tp-hic-sayi');
+    if (sayEl) sayEl.textContent = hicTarihYok.length + ' kişi';
+  }
+
+  // Panel B render
+  if (elUzun) {
+    if (!otuzGunFazla.length) {
+      elUzun.innerHTML = bosMsg('✅ 30 günden uzun hizmet edilmeyen yok');
+    } else {
+      elUzun.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+        ${thead(true)}<tbody>
+        ${otuzGunFazla.map((x,i) => satir(x, i, true)).join('')}
+        </tbody></table>`;
+    }
+    const sayEl2 = document.getElementById('tp-uzun-sayi');
+    if (sayEl2) sayEl2.textContent = otuzGunFazla.length + ' kişi';
+  }
+}
