@@ -460,35 +460,46 @@ function refreshAll() {
 async function renderIslemLog() {
   const el = document.getElementById('log-table');
   if(!el) return;
-  el.innerHTML = '<tr><td style="text-align:center;padding:20px">Yükleniyor...</td></tr>';
-  const snap = await firebase.firestore().collection('islem_log')
-    .orderBy('zaman','desc').limit(200).get();
-  const rows = [];
-  snap.forEach(d => rows.push(d.data()));
-  const renk = {
-    'GÜNLÜK HİZMET KAYDI': '#16a34a',
-    'HİZMET VERİLEMEDİ':   '#b45309',
-    'ZİYARET SİLİNDİ':     '#dc2626',
-    'YENİ KAYIT':           '#2563eb',
-    'JSON GERİ YÜKLEME':   '#7c3aed',
-  };
-  el.innerHTML = rows.length===0
-    ? '<tr><td class="no-data">Henüz işlem yok</td></tr>'
-    : `<thead><tr>
-        <th>Yapan</th><th>Vatandaş</th><th>Hizmet</th>
-        <th>Değişiklik</th><th>Detay</th><th>Tarih/Saat</th>
-       </tr></thead>
-       <tbody>${rows.map(r=>{
-         const renkKod = renk[r.degisiklik] || 'var(--text-soft)';
-         return `<tr>
-           <td style="font-weight:700;color:var(--primary)">${r.yapan||'—'}</td>
-           <td>${r.isim||'—'}</td>
-           <td style="font-size:11px;color:var(--text-soft)">${r.hizmet||'—'}</td>
-           <td style="font-size:11px;font-weight:700;color:${renkKod}">${r.degisiklik||'—'}</td>
-           <td style="font-size:11px;color:var(--text-soft);max-width:260px;word-break:break-all">${r.detay||'—'}</td>
-           <td style="font-size:11px;color:var(--text-soft);white-space:nowrap">${r.zaman?.toDate?.()?.toLocaleString('tr-TR')||'—'}</td>
-         </tr>`;
-       }).join('')}</tbody>`;
+  el.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px">Yükleniyor...</td></tr>';
+  try {
+    const snap = await firebase.firestore().collection('islem_log')
+      .orderBy('zaman','desc').limit(300).get();
+    const rows = [];
+    snap.forEach(d => { const v = d.data(); if(v && v.yapan) rows.push(v); });
+    const renk = {
+      'GÜNLÜK HİZMET KAYDI': '#16a34a',
+      'HİZMET VERİLEMEDİ':   '#b45309',
+      'ZİYARET SİLİNDİ':     '#dc2626',
+      'YENİ KAYIT':           '#2563eb',
+      'JSON GERİ YÜKLEME':   '#7c3aed',
+      'VATANDAŞ GÜNCELLENDİ':'#0891b2',
+    };
+    if(rows.length===0) {
+      el.innerHTML = '<tr><td colspan="6" class="no-data">Henüz işlem yok</td></tr>';
+      return;
+    }
+    const thead = `<thead><tr>
+      <th>Yapan</th><th>Vatandaş</th><th>Hizmet</th>
+      <th>Değişiklik</th><th>Detay</th><th>Tarih/Saat</th>
+    </tr></thead>`;
+    const tbody = '<tbody>' + rows.map(r => {
+      const renkKod = renk[r.degisiklik] || 'var(--text-soft)';
+      let zamanStr = '—';
+      try { zamanStr = r.zaman?.toDate?.()?.toLocaleString('tr-TR') || '—'; } catch(e){}
+      return `<tr>
+        <td style="font-weight:700;color:var(--primary)">${r.yapan||'—'}</td>
+        <td>${r.isim||'—'}</td>
+        <td style="font-size:11px;color:var(--text-soft)">${r.hizmet||'—'}</td>
+        <td style="font-size:11px;font-weight:700;color:${renkKod}">${r.degisiklik||'—'}</td>
+        <td style="font-size:11px;color:var(--text-soft);max-width:260px;word-break:break-all">${r.detay||'—'}</td>
+        <td style="font-size:11px;color:var(--text-soft);white-space:nowrap">${zamanStr}</td>
+      </tr>`;
+    }).join('') + '</tbody>';
+    el.innerHTML = thead + tbody;
+  } catch(e) {
+    el.innerHTML = '<tr><td colspan="6" style="color:red;padding:12px">Yüklenemedi: ' + e.message + '</td></tr>';
+    console.error('[renderIslemLog]', e);
+  }
 }
 
 
