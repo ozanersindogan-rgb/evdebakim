@@ -484,15 +484,49 @@ async function renderIslemLog() {
       <th>Değişiklik</th><th>Detay</th><th>Tarih/Saat</th>
     </tr></thead>`;
     const tbody = '<tbody>' + rows.map(r => {
-      const renkKod = renk[r.degisiklik] || 'var(--text-soft)';
+      // Eski format: degisiklik alanı yok, ham JSON string olarak kaydedilmiş
+      let degisiklik = r.degisiklik || '';
+      let detay = r.detay || '';
+      let isim = r.isim || '';
+      let hizmet = r.hizmet || '';
+
+      // Eski kayıt formatı: degisiklik alanı yok ama JSON string var
+      if (!degisiklik && !detay && !isim) {
+        // Ham JSON olan eski kayıtlar — degisiklik alanının kendisi JSON ise
+        try {
+          const parsed = JSON.parse(r.degisiklik || '{}');
+          isim = parsed.ISIM_SOYISIM || isim;
+          hizmet = parsed['HİZMET'] || hizmet;
+          degisiklik = 'VATANDAŞ GÜNCELLENDİ';
+          detay = Object.entries(parsed)
+            .filter(([k]) => !k.startsWith('_') && k !== 'ISIM_SOYISIM' && k !== 'HİZMET')
+            .map(([k,v]) => k+': '+v).join(' | ');
+        } catch(e) { degisiklik = degisiklik || '—'; }
+      }
+
+      // degisiklik alanı kendisi JSON string ise (eski _flushSaveQueue formatı)
+      if (degisiklik && degisiklik.startsWith('{')) {
+        try {
+          const parsed = JSON.parse(degisiklik);
+          detay = Object.entries(parsed)
+            .filter(([k]) => !k.startsWith('_'))
+            .map(([k,v]) => {
+              if (typeof v === 'string' && v.length > 60) return k + ': [uzun metin]';
+              return k + ': ' + v;
+            }).join(' | ');
+          degisiklik = 'VATANDAŞ GÜNCELLENDİ';
+        } catch(e) {}
+      }
+
+      const renkKod = renk[degisiklik] || 'var(--text-soft)';
       let zamanStr = '—';
       try { zamanStr = r.zaman?.toDate?.()?.toLocaleString('tr-TR') || '—'; } catch(e){}
       return `<tr>
         <td style="font-weight:700;color:var(--primary)">${r.yapan||'—'}</td>
-        <td>${r.isim||'—'}</td>
-        <td style="font-size:11px;color:var(--text-soft)">${r.hizmet||'—'}</td>
-        <td style="font-size:11px;font-weight:700;color:${renkKod}">${r.degisiklik||'—'}</td>
-        <td style="font-size:11px;color:var(--text-soft);max-width:260px;word-break:break-all">${r.detay||'—'}</td>
+        <td>${isim||'—'}</td>
+        <td style="font-size:11px;color:var(--text-soft)">${hizmet||'—'}</td>
+        <td style="font-size:11px;font-weight:700;color:${renkKod}">${degisiklik||'—'}</td>
+        <td style="font-size:11px;color:var(--text-soft);max-width:260px;word-break:break-all">${detay||'—'}</td>
         <td style="font-size:11px;color:var(--text-soft);white-space:nowrap">${zamanStr}</td>
       </tr>`;
     }).join('') + '</tbody>';
