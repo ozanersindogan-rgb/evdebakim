@@ -289,41 +289,41 @@
             </div>
           </div>
         </div>
-        <!-- Uzun Süredir Ziyaret Edilmeyenler - İKİ PANEL -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px" id="uzunsure-grid">
-          <!-- Panel 1: Hiç Gidilmeyenler -->
+        <!-- Gizli eski elementler (geriye uyumluluk) -->
+        <div id="ch-uzunsure" style="display:none"></div>
+        <div id="ch-hic-gidenler" style="display:none"></div>
+        <div id="ch-uzun-gidenler" style="display:none"></div>
+        <span id="ch-hic-sayi" style="display:none"></span>
+        <span id="ch-uzun-sayi" style="display:none"></span>
+        <div class="stat-grid" id="stats-grid"></div>
+        <!-- ─── TARİH PANELLERİ ─── -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px" id="tarih-paneller-grid">
+          <!-- Panel A: Hiç Tarih Girilmemiş -->
           <div class="table-card" style="margin-bottom:0">
             <div class="table-header" style="background:linear-gradient(135deg,#f5f3ff,#ede9fe)">
-              <span class="table-title" style="color:#6d28d9">
-                🚫 Hiç Gidilmeyenler
-              </span>
-              <span id="ch-hic-sayi" style="font-size:12px;font-weight:800;color:#7c3aed;background:#ede9fe;padding:3px 10px;border-radius:20px;border:1px solid #c4b5fd">0 kişi</span>
+              <span class="table-title" style="color:#6d28d9">🚫 Hiç Tarih Girilmemiş</span>
+              <span id="tp-hic-sayi" style="font-size:12px;font-weight:800;color:#7c3aed;background:#ede9fe;padding:3px 10px;border-radius:20px;border:1px solid #c4b5fd">0 kişi</span>
             </div>
-            <div class="scroll-table" style="max-height:420px;overflow-y:auto">
-              <div id="ch-hic-gidenler"></div>
+            <div class="scroll-table" style="max-height:440px;overflow-y:auto">
+              <div id="tp-hic-liste"></div>
             </div>
           </div>
-          <!-- Panel 2: 30+ Gün -->
+          <!-- Panel B: 30+ Gün Hizmet Verilemeyen -->
           <div class="table-card" style="margin-bottom:0">
             <div class="table-header" style="background:linear-gradient(135deg,#fff5f5,#fee2e2)">
-              <span class="table-title" style="color:#dc2626">
-                ⏱ 30+ Gün Ziyaret Yok
-              </span>
-              <span id="ch-uzun-sayi" style="font-size:12px;font-weight:800;color:#dc2626;background:#fee2e2;padding:3px 10px;border-radius:20px;border:1px solid #fca5a5">0 kişi</span>
+              <span class="table-title" style="color:#dc2626">⏱ 30+ Gün Hizmet Yok</span>
+              <span id="tp-uzun-sayi" style="font-size:12px;font-weight:800;color:#dc2626;background:#fee2e2;padding:3px 10px;border-radius:20px;border:1px solid #fca5a5">0 kişi</span>
             </div>
-            <div class="scroll-table" style="max-height:420px;overflow-y:auto">
-              <div id="ch-uzun-gidenler"></div>
+            <div class="scroll-table" style="max-height:440px;overflow-y:auto">
+              <div id="tp-uzun-liste"></div>
             </div>
           </div>
         </div>
-        <!-- Gizli eski element (geriye uyumluluk) -->
-        <div id="ch-uzunsure" style="display:none"></div>
         <style>
           @media (max-width: 768px) {
-            #uzunsure-grid { grid-template-columns: 1fr !important; }
+            #tarih-paneller-grid { grid-template-columns: 1fr !important; }
           }
         </style>
-        <div class="stat-grid" id="stats-grid"></div>
         <!-- Trend Grafiği -->
         <div class="chart-card" style="margin-bottom:18px">
           <h3>📈 Aylık Aktif Vatandaş Trendi (Son 6 Ay)</h3>
