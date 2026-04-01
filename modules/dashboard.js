@@ -245,7 +245,7 @@ function renderTarihPanels() {
       gunBadge = '<td style="padding:8px 10px;border-bottom:1px solid #f1f5f9"><span style="background:' + bg + ';color:' + renk + ';font-weight:800;font-size:11px;padding:2px 8px;border-radius:7px;border:1px solid ' + renk + '30">' + x.gun + ' gün</span></td>';
     }
     return '<tr style="background:' + (i%2===0?'#fff':'#f8fafc') + ';cursor:pointer"'
-      + ' onclick="showDetail('' + isimEsc + '','' + hizEsc + '','' + (x.r.AY||'') + '')">'
+      + ' onclick="showDetail(\'' + isimEsc + '\',\'' + hizEsc + '\',\'' + (x.r.AY||'') + '\')">'
       + '<td style="padding:8px 10px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9;font-size:12px">' + (x.r.ISIM_SOYISIM||'') + '</td>'
       + '<td style="padding:8px 10px;border-bottom:1px solid #f1f5f9"><span style="background:' + hRenk + '18;color:' + hRenk + ';font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px">' + (x.r['HİZMET']||'') + '</span></td>'
       + '<td style="padding:8px 10px;color:#64748b;font-size:11px;border-bottom:1px solid #f1f5f9">' + tarihStr + '</td>'
