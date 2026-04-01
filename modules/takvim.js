@@ -352,44 +352,63 @@ function renderUzunSure() {
   const bugun = new Date();
   bugun.setHours(0,0,0,0);
 
-  // En son ayı bul
+  // Ay siralaması
   const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
-  const sonAy = [...new Set(allData.map(r => r.AY).filter(Boolean))]
-    .sort((a, b) => AY_SIRA.indexOf(b) - AY_SIRA.indexOf(a))[0];
+  const mevcutAylar = [...new Set(allData.map(r => r.AY).filter(Boolean))]
+    .sort((a, b) => AY_SIRA.indexOf(b) - AY_SIRA.indexOf(a));
+  const sonAy = mevcutAylar[0];
 
   if (!sonAy) {
     if (el) el.innerHTML = '';
     return;
   }
 
-  // Son ayın AKTİF kayıtları — bunlar kimin aktif olduğunu belirler
+  // En son ayin AKTİF kayitlari — aktif kisi listesini belirler
   const aktifKayitlar = allData.filter(r =>
     r.AY === sonAy && (r.DURUM || '').toUpperCase() === 'AKTİF'
   );
 
   const sonZiyaret = {};
 
-  // Banyo ve Kuaför: SADECE aktif ay kaydından tarihleri al
+  // Yardimci: kisinin bu hizmetteki en son ziyaret tarihini bul
+  // En yeni aydan eskiye giderek tarih bulunan ilk kaydi dondurur
+  function enSonTarihBul(isim, hizmet) {
+    const alanlar = hizmet === 'KUAFÖR'
+      ? ['SAC1','SAC2','TIRNAK1','TIRNAK2','TIRNAK3','SAKAL1','SAKAL2']
+      : ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+    const kayitlar = allData
+      .filter(x =>
+        x['HİZMET'] === hizmet &&
+        x.ISIM_SOYISIM && isim &&
+        x.ISIM_SOYISIM.trim().toUpperCase() === isim.trim().toUpperCase() &&
+        x.AY
+      )
+      .sort((a, b) => AY_SIRA.indexOf(b.AY) - AY_SIRA.indexOf(a.AY));
+    for (const kayit of kayitlar) {
+      let enSon = null;
+      alanlar.filter(f => kayit[f]).forEach(f => {
+        const d = parseDate(kayit[f]);
+        if (d && (!enSon || d > enSon)) enSon = d;
+      });
+      if (enSon) return enSon;
+    }
+    return null;
+  }
+
+  // Banyo ve Kuafor
   aktifKayitlar.forEach(r => {
     if (r['HİZMET'] === 'TEMİZLİK') return;
     const isimKey = r.ISIM_SOYISIM + '|' + r['HİZMET'];
     if (sonZiyaret[isimKey]) return;
-
-    let enSon = null;
-    // Sadece aktif ay (sonAy) kaydına bak — eski ayların çürük tarihleri karışmasın
-    [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
-     r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.TIRNAK3,r.SAKAL1,r.SAKAL2].filter(Boolean).forEach(t => {
-      const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
-    });
+    const enSon = enSonTarihBul(r.ISIM_SOYISIM, r['HİZMET']);
     sonZiyaret[isimKey] = { tarih: enSon, r };
   });
 
-  // Temizlik: TP_DATA önce (sonGidilme en güvenilir), sonra tüm allData fallback
+  // Temizlik: TP_DATA once (sonGidilme en guvenilir), sonra allData fallback
   aktifKayitlar.filter(r => r['HİZMET'] === 'TEMİZLİK').forEach(r => {
     const isimKey = r.ISIM_SOYISIM + '|TEMİZLİK';
     if (sonZiyaret[isimKey]) return;
     let enSon = null;
-    // TP_DATA'dan al (en güncel)
     if (typeof TP_DATA !== 'undefined') {
       const tp = TP_DATA.find(t =>
         t.isim && r.ISIM_SOYISIM &&
@@ -397,14 +416,10 @@ function renderUzunSure() {
       );
       if (tp && tp.sonGidilme) enSon = parseDate(tp.sonGidilme);
     }
-    // Eğer TP_DATA'da yoksa sadece aktif ay kaydından bul
-    if (!enSon) {
-      [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5].filter(Boolean).forEach(t => {
-        const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
-      });
-    }
+    if (!enSon) enSon = enSonTarihBul(r.ISIM_SOYISIM, 'TEMİZLİK');
     sonZiyaret[isimKey] = { tarih: enSon, r };
   });
+
 
   const tumListe = Object.values(sonZiyaret).map(({ tarih, r }) => {
     const gun = tarih ? Math.floor((bugun - tarih) / (1000*60*60*24)) : 9999;
