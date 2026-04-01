@@ -350,39 +350,51 @@ function renderUzunSure() {
   const bugun = new Date();
   bugun.setHours(0,0,0,0);
 
-  const AY_SIRA = ['OCAK','\u015eUBAT','MART','N\u0130SAN','MAYIS','HAZ\u0130RAN','TEMMUZ','A\u011eUSTOS','EYL\u00dcL','EK\u0130M','KASIM','ARALIK'];
+  // En son ayı bul — allData'daki AY değerlerine göre
+  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
   const sonAy = [...new Set(allData.map(r => r.AY).filter(Boolean))]
     .sort((a, b) => AY_SIRA.indexOf(b) - AY_SIRA.indexOf(a))[0];
 
+  if (!sonAy) { el.innerHTML = ''; return; }
+
+  // Sadece son ayın AKTİF kayıtları
   const aktifKayitlar = allData.filter(r =>
-    r.AY === sonAy && (r.DURUM || '').toUpperCase() === 'AKT\u0130F'
+    r.AY === sonAy && (r.DURUM || '').toUpperCase() === 'AKTİF'
   );
 
   const sonZiyaret = {};
 
+  // Banyo ve Kuaför
   aktifKayitlar.forEach(r => {
-    if (r['H\u0130ZMET'] === 'TEM\u0130ZL\u0130K') return;
-    const isimKey = r.ISIM_SOYISIM + '|' + r['H\u0130ZMET'];
-    const tarihler = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].filter(Boolean);
+    if (r['HİZMET'] === 'TEMİZLİK') return;
+    const isimKey = r.ISIM_SOYISIM + '|' + r['HİZMET'];
+    const tarihler = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
+                      r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].filter(Boolean);
     let enSon = null;
     tarihler.forEach(t => { const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d; });
     sonZiyaret[isimKey] = { tarih: enSon, r };
   });
 
-  aktifKayitlar.filter(r => r['H\u0130ZMET'] === 'TEM\u0130ZL\u0130K').forEach(r => {
-    const isimKey = r.ISIM_SOYISIM + '|TEM\u0130ZL\u0130K';
+  // Temizlik: TP_DATA önce, sonra allData fallback
+  aktifKayitlar.filter(r => r['HİZMET'] === 'TEMİZLİK').forEach(r => {
+    const isimKey = r.ISIM_SOYISIM + '|TEMİZLİK';
     let enSon = null;
     if (typeof TP_DATA !== 'undefined') {
-      const tp = TP_DATA.find(t => t.isim && r.ISIM_SOYISIM && t.isim.trim().toUpperCase() === r.ISIM_SOYISIM.trim().toUpperCase());
+      const tp = TP_DATA.find(t =>
+        t.isim && r.ISIM_SOYISIM &&
+        t.isim.trim().toUpperCase() === r.ISIM_SOYISIM.trim().toUpperCase()
+      );
       if (tp && tp.sonGidilme) enSon = parseDate(tp.sonGidilme);
     }
     if (!enSon) {
-      allData.filter(x => x['H\u0130ZMET'] === 'TEM\u0130ZL\u0130K' && x.ISIM_SOYISIM && x.ISIM_SOYISIM.trim().toUpperCase() === r.ISIM_SOYISIM.trim().toUpperCase())
-        .forEach(x => {
-          [x.BANYO1,x.BANYO2,x.BANYO3,x.BANYO4,x.BANYO5].filter(Boolean).forEach(t => {
-            const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
-          });
+      allData.filter(x =>
+        x['HİZMET'] === 'TEMİZLİK' &&
+        x.ISIM_SOYISIM && x.ISIM_SOYISIM.trim().toUpperCase() === r.ISIM_SOYISIM.trim().toUpperCase()
+      ).forEach(x => {
+        [x.BANYO1,x.BANYO2,x.BANYO3,x.BANYO4,x.BANYO5].filter(Boolean).forEach(t => {
+          const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
         });
+      });
     }
     sonZiyaret[isimKey] = { tarih: enSon, r };
   });
@@ -393,52 +405,54 @@ function renderUzunSure() {
     return { r, gun, tarihStr };
   }).filter(x => x.gun >= 30).sort((a, b) => b.gun - a.gun);
 
-  const hicGidilmeyenler = tumListe.filter(x => x.gun >= 9999);
-  const uzunSuredir = tumListe.filter(x => x.gun < 9999);
+  const hicGidenler  = tumListe.filter(x => x.gun >= 9999);
+  const uzunSuredir  = tumListe.filter(x => x.gun < 9999);
 
   if (!tumListe.length) {
-    el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:24px 0;font-size:13px">\u2705 T\u00fcm vatanda\u015flar son 30 g\u00fcn i\u00e7inde ziyaret edildi</div>';
+    el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:24px 0;font-size:13px">✅ Tüm vatandaşlar son 30 gün içinde ziyaret edildi</div>';
     return;
   }
 
-  const HIZMET_RENK = {'KADIN BANYO':'#ec4899','ERKEK BANYO':'#3b82f6','KUA\u00d6R':'#f59e0b','TEM\u0130ZL\u0130K':'#22c55e'};
+  const HIZMET_RENK = {'KADIN BANYO':'#ec4899','ERKEK BANYO':'#3b82f6','KUAFÖR':'#f59e0b','TEMİZLİK':'#22c55e'};
 
   function satirOlustur(x, i) {
     const renk = x.gun>=9999?'#7c3aed':x.gun>=90?'#dc2626':x.gun>=60?'#d97706':'#ca8a04';
     const bg   = x.gun>=9999?'#f5f3ff':x.gun>=90?'#fff5f5':x.gun>=60?'#fffbeb':'#fefce8';
-    const gunLabel = x.gun>=9999 ? 'Hi\u00e7 gidilmedi' : x.gun + ' g\u00fcn';
-    const hRenk = HIZMET_RENK[x.r['H\u0130ZMET']] || '#64748b';
-    const isimEsc = (x.r.ISIM_SOYISIM||''). replace(/'/g,"\\'");
-    const hizEsc  = (x.r['H\u0130ZMET']||''). replace(/'/g,"\\'");
+    const gunLabel = x.gun >= 9999 ? 'Hiç gidilmedi' : x.gun + ' gün';
+    const hRenk = HIZMET_RENK[x.r['HİZMET']] || '#64748b';
+    const isimEsc = (x.r.ISIM_SOYISIM || '').replace(/'/g, "\\'");
+    const hizEsc  = (x.r['HİZMET'] || '').replace(/'/g, "\\'");
     return '<tr style="background:' + (i%2===0?'#fff':'#f8fafc') + ';cursor:pointer"'
-      + ' onclick="showDetail(\\''  + isimEsc + '\\', \\''  + hizEsc + '\\', \\'' + (x.r.AY||'') + '\\')">'
+      + ' onclick="showDetail(\'' + isimEsc + '\',\'' + hizEsc + '\',\'' + (x.r.AY||'') + '\')">'
       + '<td style="padding:9px 12px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9">' + (x.r.ISIM_SOYISIM||'') + '</td>'
-      + '<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9"><span style="background:' + hRenk + '18;color:' + hRenk + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">' + (x.r['H\u0130ZMET']||'') + '</span></td>'
-      + '<td style="padding:9px 12px;color:#475569;border-bottom:1px solid #f1f5f9">\u{1F4CD} ' + (x.r.MAHALLE||'') + '</td>'
+      + '<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9"><span style="background:' + hRenk + '18;color:' + hRenk + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">' + (x.r['HİZMET']||'') + '</span></td>'
+      + '<td style="padding:9px 12px;color:#475569;border-bottom:1px solid #f1f5f9">📍 ' + (x.r.MAHALLE||'') + '</td>'
       + '<td style="padding:9px 12px;color:#64748b;font-size:12px;border-bottom:1px solid #f1f5f9">' + x.tarihStr + '</td>'
       + '<td style="padding:9px 12px;text-align:center;border-bottom:1px solid #f1f5f9"><span style="background:' + bg + ';color:' + renk + ';font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;border:1px solid ' + renk + '30">' + gunLabel + '</span></td>'
       + '</tr>';
   }
 
   const thead = '<thead><tr style="background:#f8fafc">'
-    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">\u0130S\u0130M</th>'
-    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">H\u0130ZMET</th>'
+    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">İSİM</th>'
+    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">HİZMET</th>'
     + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">MAHALLE</th>'
-    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">SON Z\u0130YARET</th>'
-    + '<th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">GE\u00c7EN S\u00dcRE</th>'
+    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">SON ZİYARET</th>'
+    + '<th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">GEÇEN SÜRE</th>'
     + '</tr></thead>';
 
   let html = '';
 
-  if (hicGidilmeyenler.length) {
-    html += '<div style="margin-bottom:6px;padding:8px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#6d28d9">\u26a0\ufe0f Hi\u00e7 Gidilmeyenler (' + hicGidilmeyenler.length + ' ki\u015fi)</div>'
+  if (hicGidenler.length) {
+    html += '<div style="margin-bottom:6px;padding:8px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#6d28d9">'
+      + '⚠️ Hiç Gidilmeyenler (' + hicGidenler.length + ' kişi)</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">' + thead + '<tbody>'
-      + hicGidilmeyenler.map((x,i) => satirOlustur(x,i)).join('')
+      + hicGidenler.map((x,i) => satirOlustur(x,i)).join('')
       + '</tbody></table>';
   }
 
   if (uzunSuredir.length) {
-    html += '<div style="margin-bottom:6px;padding:8px 12px;background:#fff5f5;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#dc2626">\u23f2 30+ G\u00fcn Ziyaret Edilmeyenler (' + uzunSuredir.length + ' ki\u015fi)</div>'
+    html += '<div style="margin-bottom:6px;padding:8px 12px;background:#fff5f5;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#dc2626">'
+      + '⏱ 30+ Gün Ziyaret Edilmeyenler (' + uzunSuredir.length + ' kişi)</div>'
       + '<table style="width:100%;border-collapse:collapse;font-size:13px">' + thead + '<tbody>'
       + uzunSuredir.map((x,i) => satirOlustur(x,i)).join('')
       + '</tbody></table>';
