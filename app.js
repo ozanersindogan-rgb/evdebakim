@@ -1,4 +1,3 @@
-
 // 🔥 reload sonrası sayfa yönlendirme
 document.addEventListener("DOMContentLoaded", () => {
   // Önce postReloadPage (eski mekanizma), yoksa sonSayfa (kalıcı)
@@ -464,15 +463,30 @@ async function renderIslemLog() {
     .orderBy('zaman','desc').limit(200).get();
   const rows = [];
   snap.forEach(d => rows.push(d.data()));
+  const renk = {
+    'GÜNLÜK HİZMET KAYDI': '#16a34a',
+    'HİZMET VERİLEMEDİ':   '#b45309',
+    'ZİYARET SİLİNDİ':     '#dc2626',
+    'YENİ KAYIT':           '#2563eb',
+    'JSON GERİ YÜKLEME':   '#7c3aed',
+  };
   el.innerHTML = rows.length===0
     ? '<tr><td class="no-data">Henüz işlem yok</td></tr>'
-    : `<thead><tr><th>Yapan</th><th>Vatandaş</th><th>Değişiklik</th><th>Tarih/Saat</th></tr></thead>
-       <tbody>${rows.map(r=>`<tr>
-         <td style="font-weight:700;color:var(--primary)">${r.yapan||'—'}</td>
-         <td>${r.isim||'—'}</td>
-         <td style="font-size:11px;color:var(--text-soft);max-width:300px;word-break:break-all">${r.degisiklik||'—'}</td>
-         <td style="font-size:11px;color:var(--text-soft)">${r.zaman?.toDate?.()?.toLocaleString('tr-TR')||'—'}</td>
-       </tr>`).join('')}</tbody>`;
+    : `<thead><tr>
+        <th>Yapan</th><th>Vatandaş</th><th>Hizmet</th>
+        <th>Değişiklik</th><th>Detay</th><th>Tarih/Saat</th>
+       </tr></thead>
+       <tbody>${rows.map(r=>{
+         const renkKod = renk[r.degisiklik] || 'var(--text-soft)';
+         return `<tr>
+           <td style="font-weight:700;color:var(--primary)">${r.yapan||'—'}</td>
+           <td>${r.isim||'—'}</td>
+           <td style="font-size:11px;color:var(--text-soft)">${r.hizmet||'—'}</td>
+           <td style="font-size:11px;font-weight:700;color:${renkKod}">${r.degisiklik||'—'}</td>
+           <td style="font-size:11px;color:var(--text-soft);max-width:260px;word-break:break-all">${r.detay||'—'}</td>
+           <td style="font-size:11px;color:var(--text-soft);white-space:nowrap">${r.zaman?.toDate?.()?.toLocaleString('tr-TR')||'—'}</td>
+         </tr>`;
+       }).join('')}</tbody>`;
 }
 
 
