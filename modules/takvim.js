@@ -350,47 +350,48 @@ function renderUzunSure() {
   const bugun = new Date();
   bugun.setHours(0,0,0,0);
 
-  // Aktif vatandaşların son ziyaret tarihini bul
+  // Sadece en son ayın AKTİF kayıtlarını baz al
+  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const sonAy = [...new Set(allData.map(r => r.AY).filter(Boolean))]
+    .sort((a, b) => AY_SIRA.indexOf(b) - AY_SIRA.indexOf(a))[0];
+
+  const aktifKayitlar = allData.filter(r =>
+    r.AY === sonAy && (r.DURUM || '').toUpperCase() === 'AKTİF'
+  );
+
   const sonZiyaret = {};
-  allData.forEach(r => {
-    if (r.DURUM !== 'AKTİF') return;
+
+  // Banyo ve Kuaför: allData'dan tarih al
+  aktifKayitlar.forEach(r => {
+    if (r['HİZMET'] === 'TEMİZLİK') return;
     const isimKey = r.ISIM_SOYISIM + '|' + r['HİZMET'];
-    const tarihler = [r.BANYO1, r.BANYO2, r.BANYO3, r.BANYO4, r.BANYO5].filter(Boolean);
+    const tarihler = [r.BANYO1, r.BANYO2, r.BANYO3, r.BANYO4, r.BANYO5,
+                      r.SAC1, r.SAC2, r.TIRNAK1, r.TIRNAK2, r.SAKAL1, r.SAKAL2].filter(Boolean);
+    let enSon = null;
     tarihler.forEach(t => {
       const d = parseDate(t);
-      if (d) {
-        if (!sonZiyaret[isimKey] || d > sonZiyaret[isimKey].tarih) {
-          sonZiyaret[isimKey] = { tarih: d, r };
-        }
-      }
+      if (d && (!enSon || d > enSon)) enSon = d;
     });
+    sonZiyaret[isimKey] = { tarih: enSon, r };
   });
 
-  // Temizlik kayıtları için TP_DATA'dan da kontrol et (BANYO1 optimize ile silinmiş olabilir)
-  if (typeof TP_DATA !== 'undefined') {
-    TP_DATA.forEach(tp => {
-      if (tp.durum !== 'AKTİF' || !tp.sonGidilme) return;
-      const isimKey = tp.isim + '|TEMİZLİK';
-      const d = parseDate(tp.sonGidilme);
-      if (!d) return;
-      const rec = allData.find(r => r['HİZMET'] === 'TEMİZLİK' && r.ISIM_SOYISIM && r.ISIM_SOYISIM.toUpperCase() === tp.isim.toUpperCase());
-      const mahalle = (tp.mahalle || (rec && rec.MAHALLE) || '').toString().trim().toUpperCase();
-      const fakeRec = rec
-        ? { ...rec, MAHALLE: mahalle }
-        : { ISIM_SOYISIM: tp.isim, 'HİZMET': 'TEMİZLİK', MAHALLE: mahalle, DURUM: 'AKTİF', AY: '' };
-      if (!sonZiyaret[isimKey] || d > sonZiyaret[isimKey].tarih) {
-        sonZiyaret[isimKey] = { tarih: d, r: fakeRec };
-      }
-    });
-  }
+  // Temizlik: TP_DATA'dan al
+  aktifKayitlar.filter(r => r['HİZMET'] === 'TEMİZLİK').forEach(r => {
+    const isimKey = r.ISIM_SOYISIM + '|TEMİZLİK';
+    const tp = typeof TP_DATA !== 'undefined'
+      ? TP_DATA.find(t => t.isim && r.ISIM_SOYISIM && t.isim.toUpperCase() === r.ISIM_SOYISIM.toUpperCase())
+      : null;
+    const d = (tp && tp.sonGidilme) ? parseDate(tp.sonGidilme) : null;
+    sonZiyaret[isimKey] = { tarih: d, r };
+  });
 
-  // Gün farkına göre sırala
+  // 30+ gün veya hiç ziyaret edilmemiş — en uzun süre en üstte
   const liste = Object.values(sonZiyaret).map(({ tarih, r }) => {
-    const gun = Math.floor((bugun - tarih) / (1000*60*60*24));
-    return { r, gun, tarihStr: tarih.toLocaleDateString('tr-TR') };
+    const gun = tarih ? Math.floor((bugun - tarih) / (1000*60*60*24)) : 9999;
+    const tarihStr = tarih ? tarih.toLocaleDateString('tr-TR') : '—';
+    return { r, gun, tarihStr };
   }).filter(x => x.gun >= 30)
-    .sort((a, b) => b.gun - a.gun)
-    .slice(0, 15);
+    .sort((a, b) => b.gun - a.gun);
 
   if (!liste.length) {
     el.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:24px 0;font-size:13px">✅ Tüm vatandaşlar son 30 gün içinde ziyaret edildi</div>`;
@@ -412,10 +413,11 @@ function renderUzunSure() {
       </thead>
       <tbody>
         ${liste.map((x, i) => {
-          const renk = x.gun >= 90 ? '#dc2626' : x.gun >= 60 ? '#d97706' : '#ca8a04';
-          const bg   = x.gun >= 90 ? '#fff5f5' : x.gun >= 60 ? '#fffbeb' : '#fefce8';
+          const renk = x.gun >= 9999 ? '#7c3aed' : x.gun >= 90 ? '#dc2626' : x.gun >= 60 ? '#d97706' : '#ca8a04';
+          const bg   = x.gun >= 9999 ? '#f5f3ff' : x.gun >= 90 ? '#fff5f5' : x.gun >= 60 ? '#fffbeb' : '#fefce8';
+          const gunLabel = x.gun >= 9999 ? 'Hiç gidilmedi' : x.gun + ' gün';
           const hRenk = HIZMET_RENK[x.r['HİZMET']] || '#64748b';
-          return `<tr style="background:${i%2===0?'#fff':'#f8fafc'};cursor:pointer" onclick="showDetail('${x.r.ISIM_SOYISIM.replace(/'/g,"\\'")}','${x.r['HİZMET']}','${x.r.AY}')">
+          return `<tr style="background:${i%2===0?'#fff':'#f8fafc'};cursor:pointer" onclick="showDetail('${x.r.ISIM_SOYISIM.replace(/'/g,"\'")}','${x.r['HİZMET']}','${x.r.AY}')">
             <td style="padding:9px 12px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9">${x.r.ISIM_SOYISIM}</td>
             <td style="padding:9px 12px;border-bottom:1px solid #f1f5f9">
               <span style="background:${hRenk}18;color:${hRenk};font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">${x.r['HİZMET']}</span>
@@ -423,7 +425,7 @@ function renderUzunSure() {
             <td style="padding:9px 12px;color:#475569;border-bottom:1px solid #f1f5f9">📍 ${x.r.MAHALLE}</td>
             <td style="padding:9px 12px;color:#64748b;font-size:12px;border-bottom:1px solid #f1f5f9">${x.tarihStr}</td>
             <td style="padding:9px 12px;text-align:center;border-bottom:1px solid #f1f5f9">
-              <span style="background:${bg};color:${renk};font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;border:1px solid ${renk}30">${x.gun} gün</span>
+              <span style="background:${bg};color:${renk};font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;border:1px solid ${renk}30">${gunLabel}</span>
             </td>
           </tr>`;
         }).join('')}
