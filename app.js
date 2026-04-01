@@ -368,8 +368,10 @@ async function _flushSaveQueue() {
               yapan: currentUser.ad,
               uid: currentUser.uid,
               zaman: firebase.firestore.FieldValue.serverTimestamp(),
-              isim: item.isim,
-              degisiklik: JSON.stringify(item.changes)
+              isim: item.isim || '',
+              hizmet: item.hizmet || '',
+              degisiklik: 'VATANDAŞ GÜNCELLENDİ',
+              detay: JSON.stringify(item.changes)
             }).catch(()=>{});
           }
         }
