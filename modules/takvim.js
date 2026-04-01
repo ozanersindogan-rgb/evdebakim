@@ -369,23 +369,17 @@ function renderUzunSure() {
 
   const sonZiyaret = {};
 
-  // Banyo ve Kuaför: tüm allData'dan (tüm aylar) en son tarihi bul
+  // Banyo ve Kuaför: SADECE aktif ay kaydından tarihleri al
   aktifKayitlar.forEach(r => {
     if (r['HİZMET'] === 'TEMİZLİK') return;
     const isimKey = r.ISIM_SOYISIM + '|' + r['HİZMET'];
-    if (sonZiyaret[isimKey]) return; // zaten işlendi
+    if (sonZiyaret[isimKey]) return;
 
-    // Bu kişinin bu hizmette TÜM aylardan en son tarihini bul
     let enSon = null;
-    allData.filter(x =>
-      x['HİZMET'] === r['HİZMET'] &&
-      x.ISIM_SOYISIM && r.ISIM_SOYISIM &&
-      x.ISIM_SOYISIM.trim().toUpperCase() === r.ISIM_SOYISIM.trim().toUpperCase()
-    ).forEach(x => {
-      [x.BANYO1,x.BANYO2,x.BANYO3,x.BANYO4,x.BANYO5,
-       x.SAC1,x.SAC2,x.TIRNAK1,x.TIRNAK2,x.TIRNAK3,x.SAKAL1,x.SAKAL2].filter(Boolean).forEach(t => {
-        const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
-      });
+    // Sadece aktif ay (sonAy) kaydına bak — eski ayların çürük tarihleri karışmasın
+    [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
+     r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.TIRNAK3,r.SAKAL1,r.SAKAL2].filter(Boolean).forEach(t => {
+      const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
     });
     sonZiyaret[isimKey] = { tarih: enSon, r };
   });
@@ -403,15 +397,10 @@ function renderUzunSure() {
       );
       if (tp && tp.sonGidilme) enSon = parseDate(tp.sonGidilme);
     }
-    // Eğer TP_DATA'da yoksa tüm aylardan bul
+    // Eğer TP_DATA'da yoksa sadece aktif ay kaydından bul
     if (!enSon) {
-      allData.filter(x =>
-        x['HİZMET'] === 'TEMİZLİK' &&
-        x.ISIM_SOYISIM && x.ISIM_SOYISIM.trim().toUpperCase() === r.ISIM_SOYISIM.trim().toUpperCase()
-      ).forEach(x => {
-        [x.BANYO1,x.BANYO2,x.BANYO3,x.BANYO4,x.BANYO5].filter(Boolean).forEach(t => {
-          const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
-        });
+      [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5].filter(Boolean).forEach(t => {
+        const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
       });
     }
     sonZiyaret[isimKey] = { tarih: enSon, r };
