@@ -608,6 +608,21 @@ async function gkKaydet() {
       navTo('gunluk-kayit', navEl || null);
     }
     showToast(`✅ Kayıt başarılı: ${rec.ISIM_SOYISIM} · ${tarih}`);
+    // İşlemi logla
+    if (typeof currentUser !== 'undefined' && currentUser) {
+      const tipBilgi = hizmet === 'KUAFÖR' && seciliTipler.length
+        ? seciliTipler.map(t => t === 'SAC' ? 'Saç' : t === 'TIRNAK' ? 'Tırnak' : 'Sakal').join('+')
+        : '';
+      firebase.firestore().collection('islem_log').add({
+        yapan: currentUser.ad,
+        uid: currentUser.uid,
+        zaman: firebase.firestore.FieldValue.serverTimestamp(),
+        isim: rec.ISIM_SOYISIM || '',
+        hizmet: hizmet || '',
+        degisiklik: 'GÜNLÜK HİZMET KAYDI',
+        detay: 'Tarih: ' + tarihDB + (tipBilgi ? ' | Tip: ' + tipBilgi : '') + (not ? ' | Not: ' + not : '')
+      }).catch(() => {});
+    }
   } catch (e) {
     const meta = {};
     Object.keys(rec).forEach(k => { if (k.startsWith('_')) meta[k] = rec[k]; });
@@ -748,6 +763,18 @@ function gkVerilemediKaydet() {
   if(kaydetBtn){kaydetBtn.disabled=false;kaydetBtn.style.display='';}
   refreshAll();
   showToast(isim + ' - hizmet verilemedi notu eklendi');
+  // İşlemi logla
+  if (typeof currentUser !== 'undefined' && currentUser) {
+    firebase.firestore().collection('islem_log').add({
+      yapan: currentUser.ad,
+      uid: currentUser.uid,
+      zaman: firebase.firestore.FieldValue.serverTimestamp(),
+      isim: isim,
+      hizmet: hizmet || '',
+      degisiklik: 'HİZMET VERİLEMEDİ',
+      detay: 'Tarih: ' + tarihTR + ' | Açıklama: ' + aciklama.toUpperCase()
+    }).catch(() => {});
+  }
 }
 function gkTemizle() {
   ['gk-isim','gk-isim-search','gk-tarih','gk-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
