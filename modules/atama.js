@@ -523,11 +523,19 @@ async function atamaRenderSayfa() {
     });
   }
 
+  // Aktif personel filtresi (karta tıklayınca)
+  if (typeof window._atamaPersonelFiltre === 'undefined') window._atamaPersonelFiltre = '';
+
   const statsHtml = Object.entries(sayar).map(([ad, sayi], i) => {
     const renkler = ['#C2185B','#1565C0','#2E7D32','#E65100','#7c3aed','#0891b2','#64748b'];
     const renk = ad === 'Atanmamış' ? '#94a3b8' : renkler[i % renkler.length];
-    return `<div style="display:flex;align-items:center;gap:8px;background:#fff;border:2px solid ${renk}44;
-                        border-radius:12px;padding:8px 14px;min-width:100px">
+    const aktif = window._atamaPersonelFiltre === ad;
+    const adEsc = ad.replace(/'/g, "\\'");
+    return `<div onclick="atamaPersonelKartTikla('${adEsc}')"
+      style="display:flex;align-items:center;gap:8px;background:${aktif ? renk+'18' : '#fff'};
+             border:2px solid ${aktif ? renk : renk+'44'};
+             border-radius:12px;padding:8px 14px;min-width:100px;cursor:pointer;
+             transition:all .15s;position:relative;user-select:none">
       <div style="width:30px;height:30px;border-radius:50%;background:${renk};display:flex;align-items:center;
                   justify-content:center;color:#fff;font-weight:900;font-size:12px;flex-shrink:0">
         ${ad === 'Atanmamış' ? '?' : ad.charAt(0)}
@@ -536,6 +544,9 @@ async function atamaRenderSayfa() {
         <div style="font-weight:800;font-size:11px;color:#1e293b">${ad}</div>
         <div style="font-size:18px;font-weight:900;color:${renk}">${sayi} <span style="font-size:10px;color:#64748b">ev</span></div>
       </div>
+      ${aktif ? `<div style="position:absolute;top:-6px;right:-6px;width:16px;height:16px;background:${renk};border-radius:50%;display:flex;align-items:center;justify-content:center">
+        <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="2,5.5 4,8 8,2" stroke="#fff" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </div>` : ''}
     </div>`;
   }).join('');
 
@@ -575,6 +586,24 @@ async function atamaRenderSayfa() {
   // Arama filtresi
   if (_atamaAra) {
     vatList = vatList.filter(v => v.isim.toUpperCase().includes(_atamaAra.toUpperCase()));
+  }
+
+  // Personel kart filtresi
+  if (window._atamaPersonelFiltre) {
+    const pf = window._atamaPersonelFiltre;
+    if (pf === 'Atanmamış') {
+      vatList = vatList.filter(v => {
+        const key = atamaIsimKey(v.isim);
+        const a = window.ATAMA_DATA[key] || {};
+        return !(a[hm.alan1] || a[hm.alan2] || a[hm.alan3]);
+      });
+    } else {
+      vatList = vatList.filter(v => {
+        const key = atamaIsimKey(v.isim);
+        const a = window.ATAMA_DATA[key] || {};
+        return a[hm.alan1] === pf || a[hm.alan2] === pf || a[hm.alan3] === pf;
+      });
+    }
   }
 
   vatList.sort((a, b) => a.isim.localeCompare(b.isim, 'tr'));
@@ -632,6 +661,18 @@ async function atamaRenderSayfa() {
   // Bar'ı her render sonunda güncelle
   _atamaSeciliGuncelle();
 }
+// ─── Personel karta tıklama ───
+function atamaPersonelKartTikla(ad) {
+  // Aynı karta tekrar tıklayınca filtreyi kaldır
+  if (window._atamaPersonelFiltre === ad) {
+    window._atamaPersonelFiltre = '';
+  } else {
+    window._atamaPersonelFiltre = ad;
+  }
+  atamaRenderSayfa();
+}
+window.atamaPersonelKartTikla = atamaPersonelKartTikla;
+
 window.atamaRenderSayfa = atamaRenderSayfa;
 
 function atamaVatandasSec(isim) {
@@ -682,6 +723,7 @@ window.atamaSecimTemizle = atamaSecimTemizle;
 
 function atamaHizmetSec(hizmet, el) {
   _atamaHizmet = hizmet;
+  window._atamaPersonelFiltre = ''; // hizmet değişince filtre sıfırla
   document.querySelectorAll('.atama-hizmet-btn').forEach(b => {
     b.style.background = '#f1f5f9';
     b.style.color = '#475569';

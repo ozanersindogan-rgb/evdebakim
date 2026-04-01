@@ -345,40 +345,57 @@ function renderPlan() {
 
 function renderUzunSure() {
   const el = document.getElementById('ch-uzunsure');
-  if (!el) return;
+  const elHic  = document.getElementById('ch-hic-gidenler');
+  const elUzun = document.getElementById('ch-uzun-gidenler');
+  if (!el && !elHic && !elUzun) return;
 
   const bugun = new Date();
   bugun.setHours(0,0,0,0);
 
-  // En son ayı bul — allData'daki AY değerlerine göre
+  // En son ayı bul
   const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
   const sonAy = [...new Set(allData.map(r => r.AY).filter(Boolean))]
     .sort((a, b) => AY_SIRA.indexOf(b) - AY_SIRA.indexOf(a))[0];
 
-  if (!sonAy) { el.innerHTML = ''; return; }
+  if (!sonAy) {
+    if (el) el.innerHTML = '';
+    return;
+  }
 
-  // Sadece son ayın AKTİF kayıtları
+  // Son ayın AKTİF kayıtları — bunlar kimin aktif olduğunu belirler
   const aktifKayitlar = allData.filter(r =>
     r.AY === sonAy && (r.DURUM || '').toUpperCase() === 'AKTİF'
   );
 
   const sonZiyaret = {};
 
-  // Banyo ve Kuaför
+  // Banyo ve Kuaför: tüm allData'dan (tüm aylar) en son tarihi bul
   aktifKayitlar.forEach(r => {
     if (r['HİZMET'] === 'TEMİZLİK') return;
     const isimKey = r.ISIM_SOYISIM + '|' + r['HİZMET'];
-    const tarihler = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
-                      r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].filter(Boolean);
+    if (sonZiyaret[isimKey]) return; // zaten işlendi
+
+    // Bu kişinin bu hizmette TÜM aylardan en son tarihini bul
     let enSon = null;
-    tarihler.forEach(t => { const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d; });
+    allData.filter(x =>
+      x['HİZMET'] === r['HİZMET'] &&
+      x.ISIM_SOYISIM && r.ISIM_SOYISIM &&
+      x.ISIM_SOYISIM.trim().toUpperCase() === r.ISIM_SOYISIM.trim().toUpperCase()
+    ).forEach(x => {
+      [x.BANYO1,x.BANYO2,x.BANYO3,x.BANYO4,x.BANYO5,
+       x.SAC1,x.SAC2,x.TIRNAK1,x.TIRNAK2,x.TIRNAK3,x.SAKAL1,x.SAKAL2].filter(Boolean).forEach(t => {
+        const d = parseDate(t); if (d && (!enSon || d > enSon)) enSon = d;
+      });
+    });
     sonZiyaret[isimKey] = { tarih: enSon, r };
   });
 
-  // Temizlik: TP_DATA önce, sonra allData fallback
+  // Temizlik: TP_DATA önce (sonGidilme en güvenilir), sonra tüm allData fallback
   aktifKayitlar.filter(r => r['HİZMET'] === 'TEMİZLİK').forEach(r => {
     const isimKey = r.ISIM_SOYISIM + '|TEMİZLİK';
+    if (sonZiyaret[isimKey]) return;
     let enSon = null;
+    // TP_DATA'dan al (en güncel)
     if (typeof TP_DATA !== 'undefined') {
       const tp = TP_DATA.find(t =>
         t.isim && r.ISIM_SOYISIM &&
@@ -386,6 +403,7 @@ function renderUzunSure() {
       );
       if (tp && tp.sonGidilme) enSon = parseDate(tp.sonGidilme);
     }
+    // Eğer TP_DATA'da yoksa tüm aylardan bul
     if (!enSon) {
       allData.filter(x =>
         x['HİZMET'] === 'TEMİZLİK' &&
@@ -409,7 +427,10 @@ function renderUzunSure() {
   const uzunSuredir  = tumListe.filter(x => x.gun < 9999);
 
   if (!tumListe.length) {
-    el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:24px 0;font-size:13px">✅ Tüm vatandaşlar son 30 gün içinde ziyaret edildi</div>';
+    const msg = '<div style="text-align:center;color:#94a3b8;padding:24px 0;font-size:13px">✅ Tüm vatandaşlar son 30 gün içinde ziyaret edildi</div>';
+    if (el) el.innerHTML = msg;
+    if (elHic) elHic.innerHTML = msg;
+    if (elUzun) elUzun.innerHTML = msg;
     return;
   }
 
@@ -422,12 +443,14 @@ function renderUzunSure() {
     const hRenk = HIZMET_RENK[x.r['HİZMET']] || '#64748b';
     const isimEsc = (x.r.ISIM_SOYISIM || '').replace(/'/g, "\\'");
     const hizEsc  = (x.r['HİZMET'] || '').replace(/'/g, "\\'");
+    // Son ziyaret için ay bilgisi de göster
+    const tarihDetay = x.gun < 9999 ? x.tarihStr : '—';
     return '<tr style="background:' + (i%2===0?'#fff':'#f8fafc') + ';cursor:pointer"'
       + ' onclick="showDetail(\'' + isimEsc + '\',\'' + hizEsc + '\',\'' + (x.r.AY||'') + '\')">'
       + '<td style="padding:9px 12px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9">' + (x.r.ISIM_SOYISIM||'') + '</td>'
       + '<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9"><span style="background:' + hRenk + '18;color:' + hRenk + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">' + (x.r['HİZMET']||'') + '</span></td>'
       + '<td style="padding:9px 12px;color:#475569;border-bottom:1px solid #f1f5f9">📍 ' + (x.r.MAHALLE||'') + '</td>'
-      + '<td style="padding:9px 12px;color:#64748b;font-size:12px;border-bottom:1px solid #f1f5f9">' + x.tarihStr + '</td>'
+      + '<td style="padding:9px 12px;color:#64748b;font-size:12px;border-bottom:1px solid #f1f5f9">' + tarihDetay + '</td>'
       + '<td style="padding:9px 12px;text-align:center;border-bottom:1px solid #f1f5f9"><span style="background:' + bg + ';color:' + renk + ';font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;border:1px solid ' + renk + '30">' + gunLabel + '</span></td>'
       + '</tr>';
   }
@@ -440,8 +463,35 @@ function renderUzunSure() {
     + '<th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">GEÇEN SÜRE</th>'
     + '</tr></thead>';
 
-  let html = '';
+  // ─── İKİ PANEL: Hiç Gidilmeyenler + Uzun Süredir ───
+  // Panel 1: Hiç Gidilmeyenler
+  if (elHic) {
+    if (!hicGidenler.length) {
+      elHic.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Tümü ziyaret edildi ✅</div>';
+    } else {
+      elHic.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' + thead + '<tbody>'
+        + hicGidenler.map((x,i) => satirOlustur(x,i)).join('')
+        + '</tbody></table>';
+    }
+    const sayEl = document.getElementById('ch-hic-sayi');
+    if (sayEl) sayEl.textContent = hicGidenler.length + ' kişi';
+  }
 
+  // Panel 2: 30+ Gün Ziyaret Edilmeyenler
+  if (elUzun) {
+    if (!uzunSuredir.length) {
+      elUzun.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">30 günden uzun süre yok ✅</div>';
+    } else {
+      elUzun.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' + thead + '<tbody>'
+        + uzunSuredir.map((x,i) => satirOlustur(x,i)).join('')
+        + '</tbody></table>';
+    }
+    const sayEl2 = document.getElementById('ch-uzun-sayi');
+    if (sayEl2) sayEl2.textContent = uzunSuredir.length + ' kişi';
+  }
+
+  // Geriye uyumluluk: eski tek element varsa oraya da yaz
+  let html = '';
   if (hicGidenler.length) {
     html += '<div style="margin-bottom:6px;padding:8px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#6d28d9">'
       + '⚠️ Hiç Gidilmeyenler (' + hicGidenler.length + ' kişi)</div>'
@@ -449,7 +499,6 @@ function renderUzunSure() {
       + hicGidenler.map((x,i) => satirOlustur(x,i)).join('')
       + '</tbody></table>';
   }
-
   if (uzunSuredir.length) {
     html += '<div style="margin-bottom:6px;padding:8px 12px;background:#fff5f5;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#dc2626">'
       + '⏱ 30+ Gün Ziyaret Edilmeyenler (' + uzunSuredir.length + ' kişi)</div>'
@@ -457,7 +506,6 @@ function renderUzunSure() {
       + uzunSuredir.map((x,i) => satirOlustur(x,i)).join('')
       + '</tbody></table>';
   }
-
   el.innerHTML = html;
 }
 
