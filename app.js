@@ -1,3 +1,4 @@
+
 // 🔥 reload sonrası sayfa yönlendirme
 document.addEventListener("DOMContentLoaded", () => {
   // Önce postReloadPage (eski mekanizma), yoksa sonSayfa (kalıcı)
