@@ -5,7 +5,25 @@
 function renderMahalle() {
   const ay=document.getElementById('mah-ay').value;
   const hiz=document.getElementById('mah-hizmet').value;
-  const data=allData.filter(r=>(!ay||r.AY===ay)&&(!hiz||r['HİZMET']===hiz));
+  const yil=document.getElementById('mah-yil')?.value||'';
+  // Yıl filtresi: tarih alanlarından yıl çıkar (BANYO1 vb DD.MM.YYYY formatında)
+  const data=allData.filter(r=>{
+    if(ay && r.AY!==ay) return false;
+    if(hiz && r['HİZMET']!==hiz) return false;
+    if(yil){
+      // Bu kaydın herhangi bir tarih alanında bu yıl var mı?
+      const tarihler=[r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].filter(Boolean);
+      if(tarihler.length){
+        const yilSayi=parseInt(yil);
+        const varMi=tarihler.some(t=>{
+          const d=parseDate(t);
+          return d && d.getFullYear()===yilSayi;
+        });
+        if(!varMi) return false;
+      }
+    }
+    return true;
+  });
   const stats={};
   data.forEach(r=>{
     const m=r.MAHALLE||'—';

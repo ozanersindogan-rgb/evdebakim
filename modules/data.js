@@ -69,7 +69,7 @@ function initApp() {
 
 // ============ SIDEBAR ============
 function buildSidebar() {
-  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const AY_SIRA = window.AY_SIRA;
   const sonAy = [...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>AY_SIRA.indexOf(b)-AY_SIRA.indexOf(a))[0];
   const sonAyAktif = allData.filter(r=>r.AY===sonAy && r.DURUM==='AKTİF');
   const byH = {};

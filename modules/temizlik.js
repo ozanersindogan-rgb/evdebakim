@@ -4,12 +4,7 @@ const TP_DATA = [{"isim": "Sevim BEŞLİ", "ekip": "", "mahalle": "Türkmen", "s
 let tpSortDir = 'asc'; // asc = en eski önce
 window._tpPersonelFiltre = window._tpPersonelFiltre || '';
 
-function tpPersonelFiltrele(ad) {
-  window._tpPersonelFiltre = (window._tpPersonelFiltre === ad) ? '' : ad;
-  if (typeof tpRenderPersonelStats === 'function') tpRenderPersonelStats(window._tpPersonelFiltre || '');
-  tpRender();
-}
-window.tpPersonelFiltrele = tpPersonelFiltrele;
+// tpPersonelFiltrele → personel.js'de tanımlı
 
 function tpRender() {
   const seciliDurumlar = [...document.querySelectorAll('.tp-dur-cb:checked')].map(cb=>cb.value);

@@ -1,7 +1,7 @@
 // ── DASHBOARD ──
 // ============ DASHBOARD ============
 function renderDashboard() {
-  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const AY_SIRA = window.AY_SIRA;
   const mevcutAylar = [...new Set(allData.map(r=>r.AY).filter(Boolean))];
   const siraliAylar = [...mevcutAylar].sort((a,b)=>AY_SIRA.indexOf(a)-AY_SIRA.indexOf(b));
   const sonAy = siraliAylar[siraliAylar.length - 1];
@@ -12,14 +12,9 @@ function renderDashboard() {
   const aktifTekil = new Set(aktif.map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM)).size;
   const toplamTekil = new Set(allData.filter(r=>r.ISIM_SOYISIM).map(r=>r.ISIM_SOYISIM.trim().toUpperCase())).size;
 
-  // Bu yılki vefat
-  const buYil = new Date().getFullYear();
+  // Vefat: tekil isim bazlı toplam (VEFAT_TARIHI alanı henüz tutulmadığından tüm zamanlar)
   const vefatBuYil = new Set(
-    allData.filter(r => {
-      if (r.DURUM !== 'VEFAT') return false;
-      if (r.VEFAT_TARIHI) return new Date(r.VEFAT_TARIHI).getFullYear() === buYil;
-      return true;
-    }).map(r => r.ISIM_SOYISIM)
+    allData.filter(r => r.DURUM === 'VEFAT' && r.ISIM_SOYISIM).map(r => r.ISIM_SOYISIM.trim().toUpperCase())
   ).size;
 
   // Hizmet bazlı aktif
@@ -40,8 +35,18 @@ function renderDashboard() {
 
   // Bu ay henüz kaydı girilmemiş aktif vatandaşlar
   const buAyAktifIsimler = new Set(aktif.map(r=>r.ISIM_SOYISIM+'|'+r['HİZMET']));
-  const tumAktifTekil = new Set(allData.filter(r=>r.DURUM==='AKTİF').map(r=>r.ISIM_SOYISIM+'|'+r['HİZMET']));
-  const buAyGirilmemis = [...tumAktifTekil].filter(k=>!buAyAktifIsimler.has(k)).length;
+  // Bekleyenler: her kişinin en son kaydı AKTİF olanları say, bu ay kaydı girilmemişleri bul
+  const sonKayitMap = {};
+  allData.forEach(r => {
+    if (!r.ISIM_SOYISIM || !r['HİZMET'] || !r.AY) return;
+    const key = r.ISIM_SOYISIM.trim().toUpperCase() + '|' + r['HİZMET'];
+    const mevcut = sonKayitMap[key];
+    if (!mevcut || AY_SIRA.indexOf(r.AY) > AY_SIRA.indexOf(mevcut.AY)) sonKayitMap[key] = r;
+  });
+  const gercekAktifler = new Set(
+    Object.values(sonKayitMap).filter(r => r.DURUM === 'AKTİF').map(r => r.ISIM_SOYISIM.trim().toUpperCase() + '|' + r['HİZMET'])
+  );
+  const buAyGirilmemis = [...gercekAktifler].filter(k => !buAyAktifIsimler.has(k)).length;
 
   // ── KPI Grid ──
   const grid = document.getElementById('stats-grid');
@@ -59,7 +64,7 @@ function renderDashboard() {
     </div>
     <div class="stat-card" style="background:linear-gradient(135deg,#fef2f2,#fff5f5);border:1.5px solid #fecaca;position:relative;overflow:hidden">
       <div class="si">🕊️</div><div class="sv" style="color:#dc2626">${vefatBuYil}</div>
-      <div class="sl" style="color:#991b1b">Vefat (${buYil})</div>
+      <div class="sl" style="color:#991b1b">Toplam Vefat</div>
       <div style="position:absolute;bottom:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#ef4444,#f87171)"></div>
     </div>
     <div class="stat-card" style="background:linear-gradient(135deg,#fffbeb,#fef9c3);border:1.5px solid #fde68a;position:relative;overflow:hidden;cursor:pointer" onclick="navTo('vatandaslar',null)">
@@ -160,7 +165,7 @@ function renderTarihPanels() {
   const elUzun = document.getElementById('tp-uzun-liste');
   if (!elHic && !elUzun) return;
 
-  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const AY_SIRA = window.AY_SIRA;
 
   const TARIH_ALANLARI = {
     'KADIN BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],

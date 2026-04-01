@@ -1,3 +1,6 @@
+// ── Paylaşılan Sabitler ──
+window.AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+
 // ── HELPERS + XLSX WRITER ──
 // ============ HELPERS ============
 

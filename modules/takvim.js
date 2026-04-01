@@ -353,7 +353,7 @@ function renderUzunSure() {
   bugun.setHours(0,0,0,0);
 
   // Ay siralaması
-  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const AY_SIRA = window.AY_SIRA;
   const mevcutAylar = [...new Set(allData.map(r => r.AY).filter(Boolean))]
     .sort((a, b) => AY_SIRA.indexOf(b) - AY_SIRA.indexOf(a));
   const sonAy = mevcutAylar[0];
@@ -838,6 +838,7 @@ function globalSearchRun(q) {
         <div style="font-size:11px;color:#64748b;margin-top:1px;display:flex;gap:8px;flex-wrap:wrap">
           <span style="color:${hRenk};font-weight:700">${hizmet}</span>
           <span>📍 ${hl(r.MAHALLE, q)}</span>
+          ${r.AY ? `<span style="background:#f1f5f9;padding:1px 6px;border-radius:4px;font-weight:700">${r.AY}</span>` : ''}
           ${r.TELEFON ? `<span>📞 ${hl(r.TELEFON, q)}</span>` : ''}
           ${r.TC ? `<span style="font-family:monospace;font-size:10px">TC: ${hl(r.TC.toString(), q)}</span>` : ''}
         </div>
