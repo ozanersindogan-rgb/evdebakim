@@ -51,6 +51,7 @@
     <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>Yıllık İstatistik</div>
     <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
     <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">📊</span>Sayı Ver</div>
+    <div class="nav-item" onclick="navTo('analiz',this);analizRender()"><span class="icon">✨</span>Analiz & Grafikler</div>
     <div class="nav-item" onclick="navTo('islem-log',this)"><span class="icon">📋</span>İşlem Logu</div>
     <div class="nav-item" id="nav-ayarlar" onclick="navTo('ayarlar',this)" style="display:none"><span class="icon">⚙️</span>Ayarlar</div>
     <div class="nav-item" id="nav-yedekler" onclick="navTo('yedekler',this)" style="display:none"><span class="icon">💾</span>Yedekler</div>
@@ -1359,6 +1360,23 @@
       </div>
 
 
+
+      <!-- ═══════════════════════════════════════════
+           ANALİZ & GRAFİKLER
+      ═══════════════════════════════════════════ -->
+      <div class="page" id="page-analiz">
+        <div style="padding:0 0 60px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+            <div>
+              <div style="font-size:20px;font-weight:900;color:var(--text);letter-spacing:-0.02em">✨ Analiz & Grafikler</div>
+              <div style="font-size:12px;color:var(--text-soft);margin-top:3px">Canlı veriden otomatik hesaplanır · Kartlara tıklayarak açın</div>
+            </div>
+            <div id="analiz-ozet-chips" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+          </div>
+          <div id="analiz-kartlar"></div>
+        </div>
+      </div>
+
     </div><!-- /content -->
   </div><!-- /main -->
 </div><!-- /app-root -->
@@ -1528,6 +1546,7 @@
 <script src="./modules/raporlar.js?v=1775069935"></script>
 <script src="./modules/personel.js?v=1775069935"></script>
 <script src="./modules/atama.js?v=1775069935"></script>
+<script src="./modules/analiz.js?v=1775069935"></script>
 <script src="./app.js?v=1775069935"></script>
 
 <!-- ADRES DÜZENLE MODAL -->
