@@ -49,6 +49,7 @@
     <div class="nav-item" id="nav-personel-atama" onclick="navTo('personel-atama',this)"><span class="icon">👤</span>Personel Atama</div>
     <div class="nav-section">Veri & Raporlama</div>
     <div class="nav-item" onclick="navTo('mahalle',this)"><span class="icon">📍</span>Mahalle Raporu</div>
+    <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>Yıllık İstatistik</div>
     <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
     <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">📊</span>Sayı Ver</div>
     <div class="nav-item" onclick="navTo('islem-log',this)"><span class="icon">📋</span>İşlem Logu</div>
@@ -514,6 +515,39 @@
             </div>
           </div>
           <div id="mah-tablo" style="overflow-x:auto"></div>
+        </div>
+      </div>
+
+      <!-- ─── YILLIK İSTATİSTİK ─── -->
+      <div class="page" id="page-yillik-ist">
+        <div class="form-section">
+          <h3>📊 Yıllık Mahalle İstatistikleri</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">2019–2024 yıllarına ait mahalle bazlı hizmet verileri (Excel kaynaklı).</p>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px">
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">YIL</label>
+              <select id="yil-ist-yil" class="form-select" style="min-width:110px" onchange="renderYillikIstatistik()">
+                <option value="">Tüm Yıllar</option>
+                <option value="2019">2019</option>
+                <option value="2020">2020</option>
+                <option value="2021">2021</option>
+                <option value="2022">2022</option>
+                <option value="2023">2023</option>
+                <option value="2024">2024</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">HİZMET</label>
+              <select id="yil-ist-hizmet" class="form-select" style="min-width:160px" onchange="renderYillikIstatistik()">
+                <option value="">Tüm Hizmetler</option>
+                <option value="ERKEK BANYO">🚿 Erkek Banyo</option>
+                <option value="KADIN BANYO">🛁 Kadın Banyo</option>
+                <option value="EV TEMİZLİĞİ">🧹 Ev Temizliği</option>
+                <option value="KUAFÖR">✂️ Kuaför</option>
+              </select>
+            </div>
+          </div>
+          <div id="yil-ist-tablo" style="overflow-x:auto"></div>
         </div>
       </div>
 
