@@ -48,7 +48,6 @@
     <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
     <div class="nav-item" id="nav-personel-atama" onclick="navTo('personel-atama',this)"><span class="icon">👤</span>Personel Atama</div>
     <div class="nav-section">Veri & Raporlama</div>
-    <div class="nav-item" onclick="navTo('mahalle',this)"><span class="icon">📍</span>Mahalle Raporu</div>
     <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>Yıllık İstatistik</div>
     <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
     <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">📊</span>Sayı Ver</div>
@@ -476,47 +475,6 @@
       </div>
 
       <!-- ─── MAHALLE ─── -->
-      <div class="page" id="page-mahalle">
-        <div class="form-section">
-          <h3>📍 Mahalle Raporu</h3>
-          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Mahallelere göre vatandaş ve hizmet istatistikleri.</p>
-          <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px">
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">AY</label>
-              <select id="mah-ay" class="form-select" style="min-width:120px" onchange="renderMahalle()">
-                <option value="">Tüm Aylar</option>
-                <option value="OCAK">Ocak</option>
-                <option value="ŞUBAT">Şubat</option>
-                <option value="MART">Mart</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">HİZMET</label>
-              <select id="mah-hizmet" class="form-select" style="min-width:160px" onchange="renderMahalle()">
-                <option value="">Tüm Hizmetler</option>
-                <option value="KADIN BANYO">🛁 Kadın Banyo</option>
-                <option value="ERKEK BANYO">🚿 Erkek Banyo</option>
-                <option value="KUAFÖR">✂️ Kuaför</option>
-                <option value="TEMİZLİK">🧹 Temizlik</option>
-              </select>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--text-soft);display:block;margin-bottom:4px">YIL</label>
-              <select id="mah-yil" class="form-select" style="min-width:100px" onchange="renderMahalle()">
-                <option value="">Tüm Yıllar</option>
-                <option value="2023">2023</option>
-                <option value="2024">2024</option>
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-              </select>
-            </div>
-            <div style="margin-top:18px">
-              <button class="btn btn-primary" onclick="mahIndir()" style="padding:9px 18px;font-size:13px">⬇️ Excel İndir</button>
-            </div>
-          </div>
-          <div id="mah-tablo" style="overflow-x:auto"></div>
-        </div>
-      </div>
 
       <!-- ─── YILLIK İSTATİSTİK ─── -->
       <div class="page" id="page-yillik-ist">
@@ -534,6 +492,8 @@
                 <option value="2022">2022</option>
                 <option value="2023">2023</option>
                 <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026 🔴</option>
               </select>
             </div>
             <div>
