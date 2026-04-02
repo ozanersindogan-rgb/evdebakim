@@ -2,6 +2,20 @@
 // ═══════════════════════════════════════════════════════════
 // MAHALLE RAPORU
 // ═══════════════════════════════════════════════════════════
+
+// Hizmet türüne göre hangi tarih alanlarının sayılacağını belirler
+function getTarihAlanlari(hizmet) {
+  const h = (hizmet||'').toUpperCase();
+  if(h==='KUAFÖR') return ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'];
+  // KADIN BANYO, ERKEK BANYO, TEMİZLİK ve bilinmeyenler
+  return ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+}
+
+// Bir kayıttaki girilen tarih sayısını hesaplar (hizmet türüne göre doğru alanları kullanır)
+function ziyaretSay(r) {
+  return getTarihAlanlari(r['HİZMET']).filter(a=>r[a]).length;
+}
+
 function renderMahalle() {
   const ay=document.getElementById('mah-ay').value;
   const hiz=document.getElementById('mah-hizmet').value;
@@ -12,7 +26,8 @@ function renderMahalle() {
     if(hiz && r['HİZMET']!==hiz) return false;
     if(yil){
       // Bu kaydın herhangi bir tarih alanında bu yıl var mı?
-      const tarihler=[r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].filter(Boolean);
+      const alanlar=getTarihAlanlari(r['HİZMET']);
+      const tarihler=alanlar.map(a=>r[a]).filter(Boolean);
       if(tarihler.length){
         const yilSayi=parseInt(yil);
         const varMi=tarihler.some(t=>{
@@ -35,7 +50,8 @@ function renderMahalle() {
     else if(d==='VEFAT')stats[m].vefat++;
     else if(d==='PASİF')stats[m].pasif++;
     else if(d==='BEKLEME')stats[m].bekleme++;
-    stats[m].ziyaret+=[r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].filter(Boolean).length;
+    // Hizmet türüne göre doğru alanlardan tarih say
+    stats[m].ziyaret+=ziyaretSay(r);
   });
   const sorted=Object.entries(stats).filter(([m])=>m&&m!=='—').sort((a,b)=>b[1].aktif-a[1].aktif);
   const el=document.getElementById('mah-tablo');
@@ -95,7 +111,7 @@ async function mahIndir() {
     else if(d==='VEFAT')stats[m].vefat++;
     else if(d==='PASİF')stats[m].pasif++;
     else if(d==='BEKLEME')stats[m].bekleme++;
-    stats[m].ziyaret+=[r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].filter(Boolean).length;
+    stats[m].ziyaret+=ziyaretSay(r);
   });
   const sorted=Object.entries(stats).filter(([m])=>m&&m!=='—').sort((a,b)=>b[1].aktif-a[1].aktif);
   if(!sorted.length){showToast('Veri yok');return;}
@@ -1095,3 +1111,103 @@ ${sharedStrs.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}
   showToast(`✅ ${ay} özeti indirildi (${satirlar.length} kayıt)`);
 }
 window.aylikOzetIndir = aylikOzetIndir;
+
+// ═══════════════════════════════════════════════════════════
+// YILLIK İSTATİSTİK RAPORU
+// ═══════════════════════════════════════════════════════════
+
+// Excelden alınan yıllık mahalle verileri (2019-2024)
+const YILLIK_VERI = {"2019":{"ALACAMESCİT MAHALLESİ":{"ERKEK BANYO":51,"KADIN BANYO":141,"EV TEMİZLİĞİ":17},"BAYRAKLIDEDE MAHALLESİ":{"ERKEK BANYO":27,"KADIN BANYO":198,"EV TEMİZLİĞİ":9},"CAFERLİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"CAMİATİK MAHALLESİ":{"ERKEK BANYO":43,"KADIN BANYO":129,"EV TEMİZLİĞİ":45},"CAMİKEBİR MAHALLESİ":{"ERKEK BANYO":32,"KADIN BANYO":102,"EV TEMİZLİĞİ":14},"CUMHURİYET MAHALLESİ":{"ERKEK BANYO":237,"KADIN BANYO":342,"EV TEMİZLİĞİ":52},"ÇINARKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":34,"EV TEMİZLİĞİ":103},"DAĞ MAHALLESİ":{"ERKEK BANYO":42,"KADIN BANYO":0,"EV TEMİZLİĞİ":11},"DAVUTLAR MAHALLESİ":{"ERKEK BANYO":202,"KADIN BANYO":648,"EV TEMİZLİĞİ":116},"DEĞİRMENDERE MAHALLESİ":{"ERKEK BANYO":317,"KADIN BANYO":267,"EV TEMİZLİĞİ":23},"EGE MAHALLESİ":{"ERKEK BANYO":114,"KADIN BANYO":256,"EV TEMİZLİĞİ":42},"GÜZELÇAMLI MAHALLESİ":{"ERKEK BANYO":107,"KADIN BANYO":201,"EV TEMİZLİĞİ":112},"HACIFEYZULLAH MAHALLESİ":{"ERKEK BANYO":213,"KADIN BANYO":712,"EV TEMİZLİĞİ":157},"İKİÇEŞMELİK MAHALLESİ":{"ERKEK BANYO":240,"KADIN BANYO":224,"EV TEMİZLİĞİ":64},"KADIKALESİ MAHALLESİ":{"ERKEK BANYO":47,"KADIN BANYO":130,"EV TEMİZLİĞİ":7},"KADINLAR DENİZİ MAHALLESİ":{"ERKEK BANYO":187,"KADIN BANYO":406,"EV TEMİZLİĞİ":161},"KARAOVA MAHALLESİ":{"ERKEK BANYO":198,"KADIN BANYO":196,"EV TEMİZLİĞİ":49},"KİRAZLI MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":2},"SOĞUCAK MAHALLESİ":{"ERKEK BANYO":21,"KADIN BANYO":87,"EV TEMİZLİĞİ":9},"TÜRKMEN MAHALLESİ":{"ERKEK BANYO":64,"KADIN BANYO":462,"EV TEMİZLİĞİ":54},"YAVANSU MAHALLESİ":{"ERKEK BANYO":57,"KADIN BANYO":63,"EV TEMİZLİĞİ":6},"YAYLAKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":11},"YENİKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0}},"2020":{"ALACAMESCİT MAHALLESİ":{"ERKEK BANYO":31,"KADIN BANYO":0,"EV TEMİZLİĞİ":7},"BAYRAKLIDEDE MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":136,"EV TEMİZLİĞİ":6},"CAFERLİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"CAMİATİK MAHALLESİ":{"ERKEK BANYO":24,"KADIN BANYO":57,"EV TEMİZLİĞİ":32},"CAMİKEBİR MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":41,"EV TEMİZLİĞİ":8},"CUMHURİYET MAHALLESİ":{"ERKEK BANYO":167,"KADIN BANYO":127,"EV TEMİZLİĞİ":28},"ÇINARKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":38,"EV TEMİZLİĞİ":0},"DAĞ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":9},"DAVUTLAR MAHALLESİ":{"ERKEK BANYO":122,"KADIN BANYO":311,"EV TEMİZLİĞİ":87},"DEĞİRMENDERE MAHALLESİ":{"ERKEK BANYO":201,"KADIN BANYO":164,"EV TEMİZLİĞİ":17},"EGE MAHALLESİ":{"ERKEK BANYO":85,"KADIN BANYO":195,"EV TEMİZLİĞİ":26},"GÜZELÇAMLI MAHALLESİ":{"ERKEK BANYO":54,"KADIN BANYO":116,"EV TEMİZLİĞİ":71},"HACIFEYZULLAH MAHALLESİ":{"ERKEK BANYO":137,"KADIN BANYO":421,"EV TEMİZLİĞİ":84},"İKİÇEŞMELİK MAHALLESİ":{"ERKEK BANYO":48,"KADIN BANYO":384,"EV TEMİZLİĞİ":58},"KADIKALESİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":47,"EV TEMİZLİĞİ":13},"KADINLAR DENİZİ MAHALLESİ":{"ERKEK BANYO":147,"KADIN BANYO":272,"EV TEMİZLİĞİ":125},"KARAOVA MAHALLESİ":{"ERKEK BANYO":142,"KADIN BANYO":136,"EV TEMİZLİĞİ":43},"KİRAZLI MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"SOĞUCAK MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":51,"EV TEMİZLİĞİ":0},"TÜRKMEN MAHALLESİ":{"ERKEK BANYO":51,"KADIN BANYO":398,"EV TEMİZLİĞİ":32},"YAVANSU MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":32,"EV TEMİZLİĞİ":9},"YAYLAKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":11},"YENİKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0}},"2021":{"ALACAMESCİT MAHALLESİ":{"ERKEK BANYO":40,"KADIN BANYO":37,"EV TEMİZLİĞİ":9},"BAYRAKLIDEDE MAHALLESİ":{"ERKEK BANYO":7,"KADIN BANYO":192,"EV TEMİZLİĞİ":7},"CAFERLİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"CAMİATİK MAHALLESİ":{"ERKEK BANYO":39,"KADIN BANYO":83,"EV TEMİZLİĞİ":35},"CAMİKEBİR MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":9},"CUMHURİYET MAHALLESİ":{"ERKEK BANYO":207,"KADIN BANYO":168,"EV TEMİZLİĞİ":29},"ÇINARKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":39,"EV TEMİZLİĞİ":0},"DAĞ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":9},"DAVUTLAR MAHALLESİ":{"ERKEK BANYO":152,"KADIN BANYO":485,"EV TEMİZLİĞİ":40},"DEĞİRMENDERE MAHALLESİ":{"ERKEK BANYO":249,"KADIN BANYO":201,"EV TEMİZLİĞİ":11},"EGE MAHALLESİ":{"ERKEK BANYO":244,"KADIN BANYO":110,"EV TEMİZLİĞİ":38},"GÜZELÇAMLI MAHALLESİ":{"ERKEK BANYO":81,"KADIN BANYO":157,"EV TEMİZLİĞİ":19},"HACIFEYZULLAH MAHALLESİ":{"ERKEK BANYO":164,"KADIN BANYO":516,"EV TEMİZLİĞİ":112},"İKİÇEŞMELİK MAHALLESİ":{"ERKEK BANYO":240,"KADIN BANYO":336,"EV TEMİZLİĞİ":48},"KADIKALESİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"KADINLAR DENİZİ MAHALLESİ":{"ERKEK BANYO":154,"KADIN BANYO":337,"EV TEMİZLİĞİ":117},"KARAOVA MAHALLESİ":{"ERKEK BANYO":136,"KADIN BANYO":158,"EV TEMİZLİĞİ":9},"KİRAZLI MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"SOĞUCAK MAHALLESİ":{"ERKEK BANYO":8,"KADIN BANYO":0,"EV TEMİZLİĞİ":3},"TÜRKMEN MAHALLESİ":{"ERKEK BANYO":51,"KADIN BANYO":398,"EV TEMİZLİĞİ":48},"YAVANSU MAHALLESİ":{"ERKEK BANYO":79,"KADIN BANYO":105,"EV TEMİZLİĞİ":4},"YAYLAKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"YENİKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0}},"2022":{"ALACAMESCİT MAHALLESİ":{"ERKEK BANYO":29,"KADIN BANYO":0,"EV TEMİZLİĞİ":3},"BAYRAKLIDEDE MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":121,"EV TEMİZLİĞİ":4},"CAFERLİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"CAMİATİK MAHALLESİ":{"ERKEK BANYO":31,"KADIN BANYO":61,"EV TEMİZLİĞİ":29},"CAMİKEBİR MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":6},"CUMHURİYET MAHALLESİ":{"ERKEK BANYO":156,"KADIN BANYO":123,"EV TEMİZLİĞİ":24},"ÇINARKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"DAĞ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":4},"DAVUTLAR MAHALLESİ":{"ERKEK BANYO":123,"KADIN BANYO":347,"EV TEMİZLİĞİ":31},"DEĞİRMENDERE MAHALLESİ":{"ERKEK BANYO":154,"KADIN BANYO":189,"EV TEMİZLİĞİ":13},"EGE MAHALLESİ":{"ERKEK BANYO":73,"KADIN BANYO":161,"EV TEMİZLİĞİ":22},"GÜZELÇAMLI MAHALLESİ":{"ERKEK BANYO":62,"KADIN BANYO":124,"EV TEMİZLİĞİ":24},"HACIFEYZULLAH MAHALLESİ":{"ERKEK BANYO":126,"KADIN BANYO":438,"EV TEMİZLİĞİ":96},"İKİÇEŞMELİK MAHALLESİ":{"ERKEK BANYO":184,"KADIN BANYO":192,"EV TEMİZLİĞİ":11},"KADIKALESİ MAHALLESİ":{"ERKEK BANYO":17,"KADIN BANYO":46,"EV TEMİZLİĞİ":0},"KADINLAR DENİZİ MAHALLESİ":{"ERKEK BANYO":119,"KADIN BANYO":244,"EV TEMİZLİĞİ":101},"KARAOVA MAHALLESİ":{"ERKEK BANYO":108,"KADIN BANYO":125,"EV TEMİZLİĞİ":5},"KİRAZLI MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"SOĞUCAK MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":47,"EV TEMİZLİĞİ":6},"TÜRKMEN MAHALLESİ":{"ERKEK BANYO":59,"KADIN BANYO":327,"EV TEMİZLİĞİ":31},"YAVANSU MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":63,"EV TEMİZLİĞİ":4},"YAYLAKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0},"YENİKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0}},"2023":{"ALACAMESCİT MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":12,"EV TEMİZLİĞİ":0,"KUAFÖR":1},"BAYRAKLIDEDE MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":123,"EV TEMİZLİĞİ":0,"KUAFÖR":11},"CAFERLİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0,"KUAFÖR":0},"CAMİATİK MAHALLESİ":{"ERKEK BANYO":11,"KADIN BANYO":74,"EV TEMİZLİĞİ":22,"KUAFÖR":4},"CAMİKEBİR MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0,"KUAFÖR":4},"CUMHURİYET MAHALLESİ":{"ERKEK BANYO":99,"KADIN BANYO":130,"EV TEMİZLİĞİ":48,"KUAFÖR":14},"ÇINARKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":19,"EV TEMİZLİĞİ":0,"KUAFÖR":0},"DAĞ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0,"KUAFÖR":0},"DAVUTLAR MAHALLESİ":{"ERKEK BANYO":49,"KADIN BANYO":208,"EV TEMİZLİĞİ":41,"KUAFÖR":27},"DEĞİRMENDERE MAHALLESİ":{"ERKEK BANYO":63,"KADIN BANYO":191,"EV TEMİZLİĞİ":39,"KUAFÖR":23},"EGE MAHALLESİ":{"ERKEK BANYO":216,"KADIN BANYO":176,"EV TEMİZLİĞİ":51,"KUAFÖR":60},"GÜZELÇAMLI MAHALLESİ":{"ERKEK BANYO":34,"KADIN BANYO":124,"EV TEMİZLİĞİ":29,"KUAFÖR":34},"HACIFEYZULLAH MAHALLESİ":{"ERKEK BANYO":46,"KADIN BANYO":459,"EV TEMİZLİĞİ":97,"KUAFÖR":77},"İKİÇEŞMELİK MAHALLESİ":{"ERKEK BANYO":66,"KADIN BANYO":144,"EV TEMİZLİĞİ":84,"KUAFÖR":23},"KADIKALESİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0,"KUAFÖR":0},"KADINLAR DENİZİ MAHALLESİ":{"ERKEK BANYO":220,"KADIN BANYO":256,"EV TEMİZLİĞİ":49,"KUAFÖR":55},"KARAOVA MAHALLESİ":{"ERKEK BANYO":84,"KADIN BANYO":187,"EV TEMİZLİĞİ":26,"KUAFÖR":10},"KİRAZLI MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0,"KUAFÖR":0},"SOĞUCAK MAHALLESİ":{"ERKEK BANYO":46,"KADIN BANYO":67,"EV TEMİZLİĞİ":7,"KUAFÖR":22},"TÜRKMEN MAHALLESİ":{"ERKEK BANYO":169,"KADIN BANYO":506,"EV TEMİZLİĞİ":74,"KUAFÖR":55},"YAVANSU MAHALLESİ":{"ERKEK BANYO":3,"KADIN BANYO":50,"EV TEMİZLİĞİ":9,"KUAFÖR":9},"YAYLAKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0,"KUAFÖR":0},"YENİKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0,"EV TEMİZLİĞİ":0,"KUAFÖR":0}},"2024":{"ALACAMESCİT MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":48},"BAYRAKLIDEDE MAHALLESİ":{"ERKEK BANYO":2,"KADIN BANYO":61},"CAFERLİ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0},"CAMİATİK MAHALLESİ":{"ERKEK BANYO":21,"KADIN BANYO":35},"CAMİKEBİR MAHALLESİ":{"ERKEK BANYO":1,"KADIN BANYO":7},"CUMHURİYET MAHALLESİ":{"ERKEK BANYO":34,"KADIN BANYO":103},"ÇINARKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":23},"DAĞ MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0},"DAVUTLAR MAHALLESİ":{"ERKEK BANYO":169,"KADIN BANYO":178},"DEĞİRMENDERE MAHALLESİ":{"ERKEK BANYO":70,"KADIN BANYO":116},"EGE MAHALLESİ":{"ERKEK BANYO":221,"KADIN BANYO":70},"GÜZELÇAMLI MAHALLESİ":{"ERKEK BANYO":94,"KADIN BANYO":97},"HACIFEYZULLAH MAHALLESİ":{"ERKEK BANYO":48,"KADIN BANYO":261},"İKİÇEŞMELİK MAHALLESİ":{"ERKEK BANYO":92,"KADIN BANYO":108},"KADIKALESİ MAHALLESİ":{"ERKEK BANYO":7,"KADIN BANYO":0},"KADINLAR DENİZİ MAHALLESİ":{"ERKEK BANYO":207,"KADIN BANYO":201},"KARAOVA MAHALLESİ":{"ERKEK BANYO":53,"KADIN BANYO":55},"KİRAZLI MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":1},"SOĞUCAK MAHALLESİ":{"ERKEK BANYO":48,"KADIN BANYO":42},"TÜRKMEN MAHALLESİ":{"ERKEK BANYO":56,"KADIN BANYO":326},"YAVANSU MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":39},"YAYLAKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0},"YENİKÖY MAHALLESİ":{"ERKEK BANYO":0,"KADIN BANYO":0}}};
+
+const HIZ_RENK = {'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#7c3aed','EV TEMİZLİĞİ':'#0d9488'};
+const HIZ_ICON = {'KADIN BANYO':'🛁','ERKEK BANYO':'🚿','KUAFÖR':'✂️','EV TEMİZLİĞİ':'🧹'};
+
+function renderYillikIstatistik() {
+  const yil = document.getElementById('yil-ist-yil')?.value || '';
+  const hiz = document.getElementById('yil-ist-hizmet')?.value || '';
+  const el  = document.getElementById('yil-ist-tablo');
+  if(!el) return;
+
+  const yillar = Object.keys(YILLIK_VERI).sort();
+  const seciliYillar = yil ? [yil] : yillar;
+
+  // Tüm mahalleler
+  const mahalleler = [...new Set(yillar.flatMap(y=>Object.keys(YILLIK_VERI[y]||{})))].sort();
+
+  // Hizmet türleri (seçili yıllarda mevcut olanlar)
+  const hizmetler = hiz ? [hiz] : [...new Set(yillar.flatMap(y=>
+    Object.values(YILLIK_VERI[y]||{}).flatMap(m=>Object.keys(m))
+  ))].sort((a,b)=>{
+    const ord=['ERKEK BANYO','KADIN BANYO','EV TEMİZLİĞİ','KUAFÖR'];
+    return (ord.indexOf(a)||99)-(ord.indexOf(b)||99);
+  });
+
+  // Sütun başlıkları: her seçili yıl için seçili hizmetler
+  const cols=[];
+  seciliYillar.forEach(y=>hizmetler.forEach(h=>cols.push({yil:y,hiz:h})));
+
+  const baslik = hiz ? (HIZ_ICON[hiz]||'')+(hiz) : 'Tüm Hizmetler';
+  const renk   = hiz ? (HIZ_RENK[hiz]||'#1A237E') : '#1A237E';
+
+  // Toplam satırı için
+  const totals={};
+  cols.forEach(c=>{totals[c.yil+'_'+c.hiz]=0;});
+
+  let tbody='';
+  mahalleler.forEach((m,i)=>{
+    const bg=i%2===0?'#fff':'#f8fafc';
+    let herhangiVarMi=false;
+    let tds=cols.map(c=>{
+      const v=(YILLIK_VERI[c.yil]?.[m]?.[c.hiz])||0;
+      if(v>0)herhangiVarMi=true;
+      totals[c.yil+'_'+c.hiz]=(totals[c.yil+'_'+c.hiz]||0)+v;
+      return `<td style="padding:7px 8px;text-align:center;border-bottom:1px solid #e2e8f0;${v===0?'color:#cbd5e1':'font-weight:700;color:#1e3a5f'}">${v||'—'}</td>`;
+    }).join('');
+    tbody+=`<tr style="background:${bg}${herhangiVarMi?'':';opacity:.55'}">
+      <td style="padding:7px 12px;font-weight:700;border-bottom:1px solid #e2e8f0;white-space:nowrap">${m}</td>${tds}
+    </tr>`;
+  });
+
+  // Toplam satırı
+  const totalTds=cols.map(c=>{
+    const v=totals[c.yil+'_'+c.hiz]||0;
+    return `<td style="padding:8px;text-align:center;font-weight:900;color:#1A237E">${v||'—'}</td>`;
+  }).join('');
+
+  // Yıl grubu başlıkları (colspan)
+  let yilBasliklari='<th style="padding:10px 12px;text-align:left;background:'+renk+';color:#fff;border-right:2px solid #fff">MAHALLE</th>';
+  if(!yil){
+    // yıl seçilmemişse yıl grupları göster
+    seciliYillar.forEach(y=>{
+      yilBasliklari+=`<th colspan="${hizmetler.length}" style="padding:8px;text-align:center;background:${renk};color:#fff;border-right:2px solid #fff;border-left:2px solid #fff">${y}</th>`;
+    });
+  } else {
+    yilBasliklari+=`<th colspan="${hizmetler.length}" style="padding:8px;text-align:center;background:${renk};color:#fff">${yil}</th>`;
+  }
+
+  // Hizmet başlıkları
+  let hizBasliklari='<th style="background:#e8eaf6"></th>';
+  cols.forEach(c=>{
+    const r=HIZ_RENK[c.hiz]||'#555';
+    hizBasliklari+=`<th style="padding:6px 8px;text-align:center;background:#e8eaf6;color:${r};font-size:11px;font-weight:800;border-right:1px solid #ddd">${HIZ_ICON[c.hiz]||''} ${c.hiz}</th>`;
+  });
+
+  el.innerHTML=`<div style="margin-bottom:8px;font-size:12px;color:#64748b">
+    ${seciliYillar.length} yıl · ${mahalleler.length} mahalle · ${cols.length} sütun
+  </div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+    <thead>
+      <tr>${yilBasliklari}</tr>
+      <tr>${hizBasliklari}</tr>
+    </thead>
+    <tbody>${tbody}</tbody>
+    <tfoot>
+      <tr style="background:#EEF2FF">
+        <td style="padding:8px 12px;font-weight:900;color:#1A237E">TOPLAM</td>${totalTds}
+      </tr>
+    </tfoot>
+  </table>
+  </div>`;
+}
+window.renderYillikIstatistik = renderYillikIstatistik;
