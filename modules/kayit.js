@@ -538,6 +538,10 @@ async function gkKaydet() {
   if (!isim) { _gkIslemDevam = false; showToast('Vatandas adi zorunlu'); return; }
   if (!tarih) { _gkIslemDevam = false; showToast('Tarih zorunlu'); return; }
 
+  // İleri tarih kontrolü
+  const bugunStr = new Date().toISOString().split('T')[0];
+  if (tarih > bugunStr) { _gkIslemDevam = false; showToast('❌ İleri tarihli kayıt girilemiyor'); return; }
+
   const tarihDB = _isoToDDMMYYYY(tarih); // allData ile uyumlu DD.MM.YYYY
 
   const hizmet = document.getElementById('gk-hizmet').value;
@@ -690,6 +694,10 @@ function gkVerilemediKaydet() {
   if (!isim) { window._gkVerilemediDevam = false; showToast('Lutfen once vatandas secin'); return; }
   if (!tarih) { window._gkVerilemediDevam = false; showToast('Tarih zorunlu'); return; }
   if (!aciklama) { window._gkVerilemediDevam = false; showToast('Aciklama zorunlu'); return; }
+
+  // İleri tarih kontrolü
+  const _bugunStr = new Date().toISOString().split('T')[0];
+  if (tarih > _bugunStr) { window._gkVerilemediDevam = false; showToast('❌ İleri tarihli kayıt girilemiyor'); return; }
 
   const tarihTR = (d=>{const[y,m,g]=d.split('-');return g+'.'+m+'.'+y;})(tarih);
   const tarihDB = tarihTR; // DD.MM.YYYY — allData ile tutarlı format

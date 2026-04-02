@@ -645,9 +645,16 @@ function svRender() {
   const sonuc = svHesapla(yil, hizmetFiltre);
   const hizmetler = hizmetFiltre ? [hizmetFiltre] : svGetHizmetTurleri();
 
-  // Hangi ayların verisi var?
+  // Hangi ayların verisi var? (Gelecek aylar hiçbir zaman gösterilmez)
+  const _bugun = new Date();
+  const _buYil = _bugun.getFullYear();
+  const _buAy  = _bugun.getMonth() + 1; // 1-12
   const aktifAylar = [];
   for(let ay=1;ay<=12;ay++) {
+    // Mevcut yıl seçiliyse VEYA "Tümü" seçiliyse, gelecek ayları her zaman gizle
+    const seciliYil = yil ? parseInt(yil) : null;
+    const buYilFiltresi = !seciliYil || seciliYil === _buYil;
+    if (buYilFiltresi && ay > _buAy) continue;
     const toplam = hizmetler.reduce((s,h)=>s+(sonuc[h]?.[ay]?.hizmet||0),0);
     if(toplam>0) aktifAylar.push(ay);
   }
