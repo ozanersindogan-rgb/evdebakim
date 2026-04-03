@@ -366,26 +366,40 @@ function _analizRenderIc(container) {
   const trendBadge = `<div style="font-size:16px;font-weight:900;color:var(--primary)">${AY_KISA[maxAyIdx] || '—'}</div><div style="font-size:10px;color:var(--text-soft)">en yoğun ay · ${afmt(maxAyToplam)}</div>`;
 
   // ════════════════════════════
-  //  KART 3: MAHALLE SIRALAMALARI
+  //  KART 3: MAHALLE SIRALAMALARI (yıl seçimli)
   // ════════════════════════════
-  // YILLIK_VERI 2023'ten kullan (en tam veri)
-  let mahYil = '2023';
-  const mahData = typeof YILLIK_VERI !== 'undefined' ? YILLIK_VERI[mahYil] : {};
-  const mahRows = Object.entries(mahData||{})
-    .map(([m, hz]) => [m.replace(' MAHALLESİ',''), Object.values(hz).reduce((a,b)=>a+b,0)])
-    .filter(([,v])=>v>0)
-    .sort((a,b)=>b[1]-a[1])
-    .slice(0,12);
-  const mahMax = mahRows[0]?.[1] || 1;
+  const mahYillar = typeof YILLIK_VERI !== 'undefined' ? Object.keys(YILLIK_VERI).sort() : [];
+  const ilkMahYil = mahYillar[mahYillar.length-1] || '2023';
+
+  function mahBarsHTML(yil) {
+    const data = typeof YILLIK_VERI !== 'undefined' ? YILLIK_VERI[yil] : {};
+    const rows = Object.entries(data||{})
+      .map(([m, hz]) => [m.replace(' MAHALLESİ',''), Object.values(hz).reduce((a,b)=>a+b,0)])
+      .filter(([,v])=>v>0)
+      .sort((a,b)=>b[1]-a[1])
+      .slice(0,12);
+    const max = rows[0]?.[1] || 1;
+    return { rows, html: buildBarChart(rows, max, (lbl) => {
+      const idx = rows.findIndex(r=>r[0]===lbl);
+      return idx===0?'#c8401a':idx<3?'#2a5298':'var(--primary)';
+    }, 'an-bar-mah') };
+  }
+
+  const { rows: ilkRows, html: ilkBarsHTML } = mahBarsHTML(ilkMahYil);
 
   const mahHTML = `
-    <div style="font-size:11px;color:var(--text-soft);margin-bottom:14px;letter-spacing:0.05em">İlk 12 mahalle · ${mahYil} verisinden (toplam hizmet)</div>
-    ${buildBarChart(mahRows, mahMax, (lbl,i) => {
-      const idx = mahRows.findIndex(r=>r[0]===lbl);
-      return idx===0?'#c8401a':idx<3?'#2a5298':'var(--primary)';
-    }, 'an-bar-mah')}`;
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px" id="an-mah-yillar">
+      ${mahYillar.map(y => `
+        <button onclick="anMahYilSec('${y}')" id="an-mah-btn-${y}"
+          style="padding:5px 14px;border-radius:20px;border:1.5px solid ${y===ilkMahYil?'var(--primary)':'var(--border)'};
+                 background:${y===ilkMahYil?'var(--primary)':'var(--surface)'};
+                 color:${y===ilkMahYil?'#fff':'var(--text)'};
+                 font-size:12px;font-weight:700;cursor:pointer;transition:all 0.15s"
+        >${y}</button>`).join('')}
+    </div>
+    <div id="an-mah-bars">${ilkBarsHTML}</div>`;
 
-  const mahBadge = `<div style="font-size:14px;font-weight:900;color:var(--primary)">${mahRows[0]?.[0]||'—'}</div><div style="font-size:10px;color:var(--text-soft)">lider mahalle · ${afmt(mahRows[0]?.[1]||0)}</div>`;
+  const mahBadge = `<div style="font-size:14px;font-weight:900;color:var(--primary)">${ilkRows[0]?.[0]||'—'}</div><div style="font-size:10px;color:var(--text-soft)">lider mahalle · ${afmt(ilkRows[0]?.[1]||0)}</div>`;
 
   // ════════════════════════════
   //  KART 4: HİZMET BAZLI DETAY
@@ -434,55 +448,6 @@ function _analizRenderIc(container) {
 
   const detayBadge = `<div style="font-size:16px;font-weight:900;color:var(--primary)">${afmt(toplamAktif)}</div><div style="font-size:10px;color:var(--text-soft)">aktif vatandaş · ${sonAy||'—'}</div>`;
 
-  // ════════════════════════════
-  //  KART 5: GEÇMİŞ YILLAR KARŞILAŞTIRMASI (YILLIK_VERI)
-  // ════════════════════════════
-  let karsilHTML = '<div style="font-size:11px;color:var(--text-soft);margin-bottom:4px">Geçmiş yıllara ait istatistiksel veriler (2019–2024)</div>';
-  if (typeof YILLIK_VERI !== 'undefined') {
-    const yillar = Object.keys(YILLIK_VERI).sort();
-    const yilToplam = yillar.map(y =>
-      Object.values(YILLIK_VERI[y]).reduce((s,m) => s+Object.values(m).reduce((a,b)=>a+b,0), 0)
-    );
-    const maxYT = Math.max(...yilToplam, 1);
-
-    karsilHTML += `
-      <div style="margin-bottom:20px">
-        ${buildBarChart(
-          yillar.map((y,i) => [y, yilToplam[i]]),
-          maxYT,
-          (lbl) => {
-            const idx = yillar.indexOf(lbl);
-            const colors = ['#6b7280','#9ca3af','#4b9cd3','#2a5298','#c8401a','#db2777'];
-            return colors[idx] || 'var(--primary)';
-          },
-          'an-bar-yil'
-        )}
-      </div>
-      <div style="font-size:11px;color:var(--text-soft);margin-bottom:12px;margin-top:8px">Hizmet türü bazında yıllık kırılım</div>
-      <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:12px">
-          <thead>
-            <tr style="border-bottom:2px solid var(--border)">
-              <th style="text-align:left;padding:8px;color:var(--text-soft);font-weight:600">Hizmet</th>
-              ${yillar.map(y=>`<th style="text-align:right;padding:8px;color:var(--text-soft);font-weight:600">${y}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${['KADIN BANYO','ERKEK BANYO','EV TEMİZLİĞİ','KUAFÖR'].map(hz => {
-              const renk = ANALIZ_RENKLER[hz==='EV TEMİZLİĞİ'?'TEMİZLİK':hz] || 'var(--text)';
-              return `<tr style="border-bottom:1px solid var(--border)">
-                <td style="padding:8px;font-weight:700;color:${renk}">${hz}</td>
-                ${yillar.map(y => {
-                  const v = Object.values(YILLIK_VERI[y]).reduce((s,m)=>s+(m[hz]||0),0);
-                  return `<td style="text-align:right;padding:8px;font-weight:${v>0?'700':'400'};color:${v>0?'var(--text)':'var(--text-soft)'}">${v>0?afmt(v):'—'}</td>`;
-                }).join('')}
-              </tr>`;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  }
-  const gecmisBadge = `<div style="font-size:14px;font-weight:900;color:var(--primary)">2019–2024</div><div style="font-size:10px;color:var(--text-soft)">6 yıllık tarihsel veri</div>`;
 
   // ════════════════════════════
   //  RENDER ALL CARDS
@@ -491,7 +456,46 @@ function _analizRenderIc(container) {
     buildAnalizKart('dagilim', '🍩', 'Hizmet Dağılımı', `${buYil} yılı · 4 kategori · canlı veri`, dagBadge, donutHTML),
     buildAnalizKart('trend',   '📈', 'Aylık Trend',      `${buYil} · ${AY_KISA[0]}–${AY_KISA[buAy-1]} · hizmet akışı`, trendBadge, trendHTML),
     buildAnalizKart('hizmet',  '📋', 'Hizmet Bazlı Detay', 'Aktif vatandaş · aylık hizmet · çubuk grafikler', detayBadge, detayHTML),
-    buildAnalizKart('mahalle', '🏘️', 'Mahalle Sıralaması', `${mahYil} · ilk 12 mahalle · toplam hizmet`, mahBadge, mahHTML),
-    buildAnalizKart('gecmis',  '📅', 'Geçmiş Yıllar Karşılaştırması', '2019–2024 · yıllık toplam · hizmet kırılımı', gecmisBadge, karsilHTML),
+    buildAnalizKart('mahalle', '🏘️', 'Mahalle Sıralaması', `İlk 12 mahalle · yıl seçilebilir`, mahBadge, mahHTML),
   ].join('');
+}
+
+// Mahalle kart yıl değiştirici
+function anMahYilSec(yil) {
+  if (typeof YILLIK_VERI === 'undefined') return;
+  const yillar = Object.keys(YILLIK_VERI).sort();
+  yillar.forEach(y => {
+    const btn = document.getElementById(`an-mah-btn-${y}`);
+    if (!btn) return;
+    const active = y === yil;
+    btn.style.border = `1.5px solid ${active ? 'var(--primary)' : 'var(--border)'}`;
+    btn.style.background = active ? 'var(--primary)' : 'var(--surface)';
+    btn.style.color = active ? '#fff' : 'var(--text)';
+  });
+
+  const data = YILLIK_VERI[yil] || {};
+  const rows = Object.entries(data)
+    .map(([m, hz]) => [m.replace(' MAHALLESİ',''), Object.values(hz).reduce((a,b)=>a+b,0)])
+    .filter(([,v])=>v>0)
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,12);
+  const max = rows[0]?.[1] || 1;
+
+  function afmt2(n) { return (n||0).toLocaleString('tr-TR'); }
+
+  const barsHTML = rows.map(([label, val]) => {
+    const pct = (val/max*100).toFixed(1);
+    const idx = rows.findIndex(r=>r[0]===label);
+    const color = idx===0?'#c8401a':idx<3?'#2a5298':'var(--primary)';
+    return `<div style="display:grid;grid-template-columns:140px 1fr 52px;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${label}">${label}</div>
+      <div style="height:7px;background:var(--border);border-radius:4px;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:4px"></div>
+      </div>
+      <div style="font-size:12px;font-weight:800;color:var(--text);text-align:right">${afmt2(val)}</div>
+    </div>`;
+  }).join('');
+
+  const container = document.getElementById('an-mah-bars');
+  if (container) container.innerHTML = barsHTML;
 }
