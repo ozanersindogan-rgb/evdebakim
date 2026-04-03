@@ -1317,3 +1317,83 @@ function yillikHucreKaydet(input, yil, mahalle, hizmet) {
 window.renderYillikIstatistik = renderYillikIstatistik;
 window.yillikHucreAc = yillikHucreAc;
 window.yillikHucreKaydet = yillikHucreKaydet;
+
+// ── Sistem İstatistikleri Excel İndir ──
+async function expStatsIndir() {
+  const AY_SIRA = window.AY_SIRA || ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const sonAy = [...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>AY_SIRA.indexOf(b)-AY_SIRA.indexOf(a))[0];
+  if (!sonAy) { showToast('⚠️ Veri bulunamadı'); return; }
+
+  const sonAyData = allData.filter(r => r.AY === sonAy);
+  const aktifler  = new Set(sonAyData.filter(r=>r.DURUM==='AKTİF').map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM));
+  const tb = sonAyData.reduce((s,r)=>s+['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'].filter(f=>r[f]).length, 0);
+  const hizmetler = ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'];
+
+  // Satır 1: Genel özet
+  const genelOzet = [
+    ['Ay', sonAy],
+    ['Toplam Kayıt', sonAyData.length],
+    ['Aktif Vatandaş', aktifler.size],
+    ['Toplam Ziyaret', tb],
+    ['Mahalle Sayısı', new Set(sonAyData.map(r=>r.MAHALLE).filter(Boolean)).size],
+    [], // boş satır
+    ['Hizmet', 'Kayıt Sayısı', 'Aktif'],
+    ...hizmetler.map(hz => [
+      hz,
+      sonAyData.filter(r=>r['HİZMET']===hz).length,
+      sonAyData.filter(r=>r['HİZMET']===hz && r.DURUM==='AKTİF').length
+    ]),
+  ];
+
+  // Mahalle bazlı dağılım
+  const mahalleler = [...new Set(sonAyData.map(r=>r.MAHALLE).filter(Boolean))].sort();
+  const mahSatirlar = [
+    [],
+    ['Mahalle', ...hizmetler, 'Toplam'],
+    ...mahalleler.map(m => {
+      const vals = hizmetler.map(hz => sonAyData.filter(r=>r.MAHALLE===m&&r['HİZMET']===hz).length);
+      return [m, ...vals, vals.reduce((a,b)=>a+b,0)];
+    }),
+  ];
+
+  const tumSatirlar = [...genelOzet, ...mahSatirlar];
+
+  const esc = s => (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let sharedStrs = [];
+  const strIdx = s => { let i = sharedStrs.indexOf(s+''); if(i===-1){i=sharedStrs.length;sharedStrs.push(s+'');} return i; };
+
+  const xmlRows = tumSatirlar.map(row => {
+    if (!row.length) return '<row/>';
+    return '<row>' + row.map(v => {
+      if (v === '' || v === undefined || v === null) return '<c/>';
+      if (typeof v === 'number') return `<c t="n"><v>${v}</v></c>`;
+      return `<c t="s"><v>${strIdx(v)}</v></c>`;
+    }).join('') + '</row>';
+  }).join('');
+
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${xmlRows}</sheetData></worksheet>`;
+  const ssXml    = `<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStrs.length}" uniqueCount="${sharedStrs.length}">${sharedStrs.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}</sst>`;
+  const wbXml    = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${esc(sonAy+' İstatistik')}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const CT       = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>`;
+  const RELS     = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`;
+  const APP_RELS = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+
+  const e = s => new TextEncoder().encode(s);
+  const zip = await buildZip([
+    ['[Content_Types].xml',        e(CT),       true],
+    ['_rels/.rels',                e(APP_RELS), true],
+    ['xl/workbook.xml',            e(wbXml),    false],
+    ['xl/_rels/workbook.xml.rels', e(RELS),     true],
+    ['xl/worksheets/sheet1.xml',   e(sheetXml), false],
+    ['xl/sharedStrings.xml',       e(ssXml),    false],
+  ]);
+
+  const blob = new Blob([zip], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `istatistik_${sonAy.toLowerCase()}.xlsx`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast(`✅ ${sonAy} istatistikleri indirildi`);
+}
+window.expStatsIndir = expStatsIndir;
