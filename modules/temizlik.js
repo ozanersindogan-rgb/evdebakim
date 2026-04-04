@@ -387,6 +387,8 @@ function navTo(id, el) {
   if(id==='ayarlar')        if(typeof ayarlarPersonelRender==='function')ayarlarPersonelRender();
   if(id==='personel-atama') if(typeof atamaRenderSayfa==='function')atamaRenderSayfa();
   if(id==='analiz')         if(typeof analizRender==='function')analizRender();
+  if(id==='stok-temizlik')  if(typeof stokRender==='function')stokRender('temizlik');
+  if(id==='stok-medikal')   if(typeof stokRender==='function')stokRender('medikal');
   if(typeof mobMenuKapat==='function')mobMenuKapat();
   const mbnMap={dashboard:'mbn-dashboard',gunluk:'mbn-gunluk','gunluk-kayit':'mbn-gunluk-kayit',vatandaslar:'mbn-vatandaslar'};
   if(mbnMap[id]){document.querySelectorAll('.mbn-item').forEach(b=>b.classList.remove('active'));document.getElementById(mbnMap[id])?.classList.add('active');}
