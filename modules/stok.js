@@ -609,61 +609,450 @@ async function stokSil(id, kategori) {
 
 // ── EXCEL İNDİR ──────────────────────────────────────────
 async function stokExcelIndir(kategori) {
-  const hareketler = _stokData[kategori] || [];
-  const kalan = stokHesaplaKalan(kategori);
+  const hareketler = [...(_stokData[kategori] || [])].sort((a,b) => {
+    const ta = a.tarih?.toDate ? a.tarih.toDate() : new Date(a.tarih);
+    const tb = b.tarih?.toDate ? b.tarih.toDate() : new Date(b.tarih);
+    return tb - ta;
+  });
+  const kalan   = stokHesaplaKalan(kategori);
   const malzemeler = STOK_MALZEMELER[kategori];
-  const baslik = kategori === 'temizlik' ? 'TEMİZLİK MALZEMESİ' : 'MEDİKAL MALZEME';
+  const baslik  = kategori === 'temizlik' ? 'TEMİZLİK MALZEMESİ STOK RAPORU' : 'MEDİKAL MALZEME STOK RAPORU';
+  const renk    = kategori === 'temizlik' ? 'FF059669' : 'FF2563EB';
+  const bugun   = new Date().toLocaleDateString('tr-TR', {day:'2-digit',month:'2-digit',year:'numeric'});
 
-  const esc = s => (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  let sharedStrs = [];
-  const si = s => { s = String(s ?? ''); let i = sharedStrs.indexOf(s); if(i===-1){i=sharedStrs.length;sharedStrs.push(s);} return i; };
+  const te = new TextEncoder();
+  const e  = s => te.encode(s);
+  const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-  // Sayfa 1: Stok Özeti
-  const ozetRows = [
-    ['MALZEME', 'TÜR', 'KALAN'],
-    ...malzemeler.map(m => [m.ad, m.tur, kalan[m.ad] ?? 0]),
-  ].map(row => '<row>' + row.map((v, ci) =>
-    ci === 2 ? `<c t="n"><v>${v}</v></c>` : `<c t="s"><v>${si(v)}</v></c>`
-  ).join('') + '</row>').join('');
+  // Shared strings
+  const ss = []; const ssIdx = {};
+  const S = v => {
+    const k = String(v==null?'':v);
+    if (!k) return null;
+    if (ssIdx[k] === undefined) { ssIdx[k] = ss.length; ss.push(k); }
+    return ssIdx[k];
+  };
 
-  // Sayfa 2: Hareketler
-  const hareketRows = [
-    ['TİP','MALZEME','TÜR','MİKTAR','PERSONEL','TARİH','AÇIKLAMA'],
-    ...hareketler.map(h => [
-      h.tip, h.malzeme, h.tur, h.miktar, h.personel, stokTarihTR(h.tarih), h.aciklama||''
-    ]),
-  ].map(row => '<row>' + row.map((v, ci) =>
-    ci === 3 ? `<c t="n"><v>${Number(v)||0}</v></c>` : `<c t="s"><v>${si(v)}</v></c>`
-  ).join('') + '</row>').join('');
+  // ── Style IDs ────────────────────────────────────────
+  // 0: Başlık (beyaz bold, koyu arka plan)
+  // 1: Alt başlık (beyaz, biraz daha açık)
+  // 2: Tablo başlığı (beyaz bold, renk arka plan)
+  // 3: Normal satır (koyu metin, beyaz)
+  // 4: Zebra satır (açık gri arka plan)
+  // 5: Sayı normal
+  // 6: Sayı zebra
+  // 7: GELEN badge (yeşil bold)
+  // 8: ÇIKAN badge (kırmızı bold)
+  // 9: Toplam satır (bold, sarı arka plan)
+  // 10: Toplam sayı
 
-  const ssXml = `<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStrs.length}" uniqueCount="${sharedStrs.length}">${sharedStrs.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}</sst>`;
-  const wbXml = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Stok Özeti" sheetId="1" r:id="rId1"/><sheet name="Hareketler" sheetId="2" r:id="rId2"/></sheets></workbook>`;
-  const s1Xml = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${ozetRows}</sheetData></worksheet>`;
-  const s2Xml = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${hareketRows}</sheetData></worksheet>`;
-  const CT = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>`;
-  const RELS = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`;
-  const APPRELS = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const fontsXml = [
+    '<font><sz val="14"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',       // 0 başlık
+    '<font><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',            // 1 alt başlık
+    '<font><sz val="10"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>',        // 2 tablo header
+    '<font><sz val="10"/><color rgb="FF1F2937"/><name val="Calibri"/></font>',            // 3 normal
+    '<font><sz val="10"/><b/><color rgb="FF059669"/><name val="Calibri"/></font>',        // 4 GELEN yeşil
+    '<font><sz val="10"/><b/><color rgb="FFDC2626"/><name val="Calibri"/></font>',        // 5 ÇIKAN kırmızı
+    '<font><sz val="10"/><b/><color rgb="FF1F2937"/><name val="Calibri"/></font>',        // 6 toplam bold
+    '<font><sz val="10"/><b/><color rgb="FF1A3A6B"/><name val="Calibri"/></font>',        // 7 kalan mavi
+  ].join('');
 
-  const e = s => new TextEncoder().encode(s);
+  const fillsXml = [
+    '<fill><patternFill patternType="none"/></fill>',
+    '<fill><patternFill patternType="gray125"/></fill>',
+    `<fill><patternFill patternType="solid"><fgColor rgb="${renk}"/></patternFill></fill>`,    // 2 ana renk
+    `<fill><patternFill patternType="solid"><fgColor rgb="${renk}AA"/></patternFill></fill>`,  // 3 tablo header (biraz açık)
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill>',   // 4 beyaz
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFF8FAFB"/></patternFill></fill>',   // 5 zebra açık
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFFFF9C4"/></patternFill></fill>',   // 6 sarı toplam
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFF0FDF4"/></patternFill></fill>',   // 7 yeşil arka
+    '<fill><patternFill patternType="solid"><fgColor rgb="FFFFF2F2"/></patternFill></fill>',   // 8 kırmızı arka
+  ].join('');
+
+  const bordersXml = [
+    '<border><left/><right/><top/><bottom/><diagonal/></border>',
+    '<border><left style="thin"><color rgb="FFE5E7EB"/></left><right style="thin"><color rgb="FFE5E7EB"/></right><top style="thin"><color rgb="FFE5E7EB"/></top><bottom style="thin"><color rgb="FFE5E7EB"/></bottom><diagonal/></border>',
+  ].join('');
+
+  // xf: [fontId, fillId, borderId, ha, va, bold]
+  const xfs = [
+    [0, 2, 0, 'center', 'center'],  // 0: başlık
+    [1, 2, 0, 'center', 'center'],  // 1: alt başlık
+    [2, 3, 1, 'center', 'center'],  // 2: tablo header
+    [3, 4, 1, 'left',   'center'],  // 3: normal sol
+    [3, 5, 1, 'left',   'center'],  // 4: zebra sol
+    [3, 4, 1, 'center', 'center'],  // 5: normal merkez
+    [3, 5, 1, 'center', 'center'],  // 6: zebra merkez
+    [4, 7, 1, 'center', 'center'],  // 7: GELEN
+    [5, 8, 1, 'center', 'center'],  // 8: ÇIKAN
+    [6, 6, 1, 'left',   'center'],  // 9: toplam sol
+    [6, 6, 1, 'center', 'center'],  // 10: toplam sayı
+    [7, 4, 1, 'center', 'center'],  // 11: kalan mavi
+    [7, 5, 1, 'center', 'center'],  // 12: kalan mavi zebra
+  ];
+  const cellXfs = xfs.map(([fi,fli,bi,ha,va]) =>
+    `<xf numFmtId="0" fontId="${fi}" fillId="${fli}" borderId="${bi}" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${ha}" vertical="${va}" wrapText="0"/></xf>`
+  ).join('');
+
+  const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="8">${fontsXml}</fonts>
+<fills count="9">${fillsXml}</fills>
+<borders count="2">${bordersXml}</borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="13">${cellXfs}</cellXfs>
+</styleSheet>`;
+
+  // ── Sayfa 1: STOK ÖZETİ ──────────────────────────────
+  const COLS1 = ['A','B','C','D','E'];
+  const rows1 = [];
+
+  // Başlık bloğu
+  rows1.push([{v:S('T.C. KUŞADASI BELEDİYESİ — EVDE BAKIM BİRİMİ'),s:0,span:'A1:E1'}]);
+  rows1.push([{v:S(baslik),s:1,span:'A2:E2'}]);
+  rows1.push([{v:S('Rapor Tarihi: '+bugun),s:1,span:'A3:E3'}]);
+  rows1.push([{v:null,s:0,span:'A4:E4'}]); // boş ayırıcı satır
+
+  // Tablo başlığı
+  rows1.push([
+    {v:S('MALZEME ADI'),    s:2},
+    {v:S('TÜR'),           s:2},
+    {v:S('TOPLAM GİREN'),  s:2},
+    {v:S('TOPLAM ÇIKAN'),  s:2},
+    {v:S('KALAN STOK'),    s:2},
+  ]);
+
+  // Veri satırları
+  let toplamGiren = 0, toplamCikan = 0;
+  malzemeler.forEach((m, i) => {
+    const giren = hareketler.filter(h=>h.malzeme===m.ad&&h.tip==='GELEN').reduce((s,h)=>s+Number(h.miktar||0),0);
+    const cikan = hareketler.filter(h=>h.malzeme===m.ad&&h.tip==='CIKAN').reduce((s,h)=>s+Number(h.miktar||0),0);
+    const k = giren - cikan;
+    toplamGiren += giren; toplamCikan += cikan;
+    const z = i % 2 === 0;
+    const kalanS = k <= 0 ? (z?4:5) : (z?11:12); // kırmızı ise normal, pozitifse mavi
+    const kalanFont = k <= 0 ? (z?3:4) : (z?11:12);
+    rows1.push([
+      {v:S(m.ad),  s:z?3:4},
+      {v:S(m.tur), s:z?5:6},
+      {v:giren,    s:z?5:6, n:true},
+      {v:cikan,    s:z?5:6, n:true},
+      {v:k,        s:kalanS, n:true},
+    ]);
+  });
+
+  // Toplam satırı
+  rows1.push([
+    {v:S('TOPLAM'), s:9},
+    {v:S(''),       s:10},
+    {v:toplamGiren, s:10, n:true},
+    {v:toplamCikan, s:10, n:true},
+    {v:toplamGiren-toplamCikan, s:10, n:true},
+  ]);
+
+  // XML oluştur
+  const merges1 = ['A1:E1','A2:E2','A3:E3','A4:E4'];
+  let rowsXml1 = '';
+  rows1.forEach((row, ri) => {
+    let cx = '';
+    row.forEach((cell, ci) => {
+      const ref = COLS1[ci] + (ri+1);
+      if (cell.v === null || cell.v === undefined) { cx += `<c r="${ref}" s="${cell.s}"/>`; return; }
+      if (cell.n) cx += `<c r="${ref}" s="${cell.s}" t="n"><v>${cell.v}</v></c>`;
+      else        cx += `<c r="${ref}" s="${cell.s}" t="s"><v>${cell.v}</v></c>`;
+    });
+    rowsXml1 += `<row r="${ri+1}" ht="20" customHeight="1">${cx}</row>`;
+  });
+  const mergeXml1 = merges1.map(m=>`<mergeCell ref="${m}"/>`).join('');
+  const s1Xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetFormatPr defaultRowHeight="20"/>
+<cols>
+  <col min="1" max="1" width="32" customWidth="1"/>
+  <col min="2" max="2" width="12" customWidth="1"/>
+  <col min="3" max="4" width="14" customWidth="1"/>
+  <col min="5" max="5" width="14" customWidth="1"/>
+</cols>
+<sheetData>${rowsXml1}</sheetData>
+<mergeCells count="${merges1.length}">${mergeXml1}</mergeCells>
+</worksheet>`;
+
+  // ── Sayfa 2: HAREKETLER ──────────────────────────────
+  const COLS2 = ['A','B','C','D','E','F','G','H'];
+  const rows2 = [];
+
+  rows2.push([{v:S('T.C. KUŞADASI BELEDİYESİ — EVDE BAKIM BİRİMİ'),s:0,span:'A1:H1'}]);
+  rows2.push([{v:S('STOK HAREKETLERİ — '+baslik),s:1,span:'A2:H2'}]);
+  rows2.push([{v:S('Rapor Tarihi: '+bugun+'   |   Toplam: '+hareketler.length+' Hareket'),s:1,span:'A3:H3'}]);
+  rows2.push([{v:null,s:0,span:'A4:H4'}]);
+
+  rows2.push([
+    {v:S('TARİH'),    s:2},
+    {v:S('TİP'),      s:2},
+    {v:S('MALZEME'),  s:2},
+    {v:S('TÜR'),      s:2},
+    {v:S('MİKTAR'),   s:2},
+    {v:S('ALAN PERSONEL'), s:2},
+    {v:S('ZİMMET YAPAN'),  s:2},
+    {v:S('AÇIKLAMA'),      s:2},
+  ]);
+
+  hareketler.forEach((h, i) => {
+    const z = i % 2 === 0;
+    const tipS = h.tip === 'GELEN' ? 7 : 8;
+    rows2.push([
+      {v:S(stokTarihTR(h.tarih)), s:z?5:6},
+      {v:S(h.tip||''),            s:tipS},
+      {v:S(h.malzeme||''),        s:z?3:4},
+      {v:S(h.tur||''),            s:z?5:6},
+      {v:Number(h.miktar||0),     s:z?5:6, n:true},
+      {v:S(h.personel||'—'),      s:z?3:4},
+      {v:S(h.zimmetPersonel||'—'),s:z?3:4},
+      {v:S(h.aciklama||''),       s:z?3:4},
+    ]);
+  });
+
+  const merges2 = ['A1:H1','A2:H2','A3:H3','A4:H4'];
+  let rowsXml2 = '';
+  rows2.forEach((row, ri) => {
+    let cx = '';
+    row.forEach((cell, ci) => {
+      const ref = COLS2[ci] + (ri+1);
+      if (cell.v === null || cell.v === undefined) { cx += `<c r="${ref}" s="${cell.s}"/>`; return; }
+      if (cell.n) cx += `<c r="${ref}" s="${cell.s}" t="n"><v>${cell.v}</v></c>`;
+      else        cx += `<c r="${ref}" s="${cell.s}" t="s"><v>${cell.v}</v></c>`;
+    });
+    rowsXml2 += `<row r="${ri+1}" ht="20" customHeight="1">${cx}</row>`;
+  });
+  const mergeXml2 = merges2.map(m=>`<mergeCell ref="${m}"/>`).join('');
+  const s2Xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<sheetFormatPr defaultRowHeight="20"/>
+<cols>
+  <col min="1" max="1" width="13" customWidth="1"/>
+  <col min="2" max="2" width="10" customWidth="1"/>
+  <col min="3" max="3" width="30" customWidth="1"/>
+  <col min="4" max="4" width="10" customWidth="1"/>
+  <col min="5" max="5" width="10" customWidth="1"/>
+  <col min="6" max="6" width="22" customWidth="1"/>
+  <col min="7" max="7" width="20" customWidth="1"/>
+  <col min="8" max="8" width="20" customWidth="1"/>
+</cols>
+<sheetData>${rowsXml2}</sheetData>
+<mergeCells count="${merges2.length}">${mergeXml2}</mergeCells>
+</worksheet>`;
+
+  // ── Zip & İndir ───────────────────────────────────────
+  const sharedXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${ss.length}" uniqueCount="${ss.length}">${ss.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}</sst>`;
+  const wbXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Stok Özeti" sheetId="1" r:id="rId1"/><sheet name="Hareketler" sheetId="2" r:id="rId2"/></sheets></workbook>`;
+  const RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`;
+  const APPRELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+  const CT = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>`;
+
   const zip = await buildZip([
-    ['[Content_Types].xml',          e(CT),      true],
-    ['_rels/.rels',                  e(APPRELS), true],
-    ['xl/workbook.xml',              e(wbXml),   false],
-    ['xl/_rels/workbook.xml.rels',   e(RELS),    true],
-    ['xl/worksheets/sheet1.xml',     e(s1Xml),   false],
-    ['xl/worksheets/sheet2.xml',     e(s2Xml),   false],
-    ['xl/sharedStrings.xml',         e(ssXml),   false],
+    ['[Content_Types].xml',        e(CT),         true],
+    ['_rels/.rels',                e(APPRELS),    true],
+    ['xl/workbook.xml',            e(wbXml),      false],
+    ['xl/_rels/workbook.xml.rels', e(RELS),       true],
+    ['xl/worksheets/sheet1.xml',   e(s1Xml),      false],
+    ['xl/worksheets/sheet2.xml',   e(s2Xml),      false],
+    ['xl/styles.xml',              e(stylesXml),  false],
+    ['xl/sharedStrings.xml',       e(sharedXml),  false],
   ]);
 
   const blob = new Blob([zip], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
   a.href = url;
   a.download = `stok_${kategori}_${stokTodayISO()}.xlsx`;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
-  showToast(`✅ ${baslik} stok raporu indirildi`);
+  showToast(`✅ ${kategori === 'temizlik' ? 'Temizlik' : 'Medikal'} stok raporu indirildi`);
 }
+
+// ── EXCEL'DEN AKTARILAN GEÇMİŞ VERİLER (SEED) ───────────
+// Firestore boş olduğunda ilk açılışta bu veriler yüklenir.
+// Çalıştırmak için: stokSeedYukle() — ayarlar sayfasından veya konsoldan
+const STOK_SEED_HAREKETLER = [
+  // ── BAŞLANGIÇ SAYIMLARI (17.11.2025) ────────────────────
+  {tip:'GELEN',malzeme:'Büyük Çekpas',tur:'Adet',miktar:22,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Büyük Kova',tur:'Adet',miktar:14,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Cam Silme Bezi',tur:'Paket',miktar:33,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Camsil',tur:'Litre',miktar:380,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Cif',tur:'Litre',miktar:86,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Çamaşır Deterjanı',tur:'Paket',miktar:10,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Çamaşır Suyu',tur:'Litre',miktar:220,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Çöp Poşeti ( Battal )',tur:'Adet',miktar:90,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Çöp Poşeti ( Jumbo )',tur:'Adet',miktar:55,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'FIRÇA',tur:'Adet',miktar:17,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Genel Temizleyici',tur:'Litre',miktar:100,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Kireç Çözücü',tur:'Litre',miktar:380,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Küçük Çekpas',tur:'Adet',miktar:28,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:100,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'M Beden Latex Pudrasız Eldiven',tur:'Kutu',miktar:62,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Mutfak Silme Bezi',tur:'Paket',miktar:5,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:334,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Sıvı Sabun',tur:'Bidon',miktar:50,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:288,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Tuvalet Kağıdı',tur:'Adet',miktar:48,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Vileda ( Metal )',tur:'Adet',miktar:69,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Vileda ( Tahta )',tur:'Adet',miktar:58,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Vileda Havlu Paspas',tur:'Adet',miktar:171,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Vileda Kovası',tur:'Adet',miktar:23,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Yağçöz',tur:'Litre',miktar:420,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Yüzey Temizleyici',tur:'Litre',miktar:280,personel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Bulaşık Deterjanı',tur:'Litre',miktar:5,personel:'Ayşegül Tulğan',tarih:'2025-11-19',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Çamaşır Suyu',tur:'Litre',miktar:30,personel:'Ayşegül Tulğan',tarih:'2025-11-19',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Silme Bezi',tur:'Paket',miktar:260,personel:'Ayşegül Tulğan',tarih:'2025-11-19',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Tuvalet Kağıdı',tur:'Adet',miktar:12,personel:'Ayşegül Tulğan',tarih:'2025-11-19',aciklama:'Başlangıç sayımı'},
+  {tip:'GELEN',malzeme:'Maske',tur:'Kutu',miktar:250,personel:'Ayşegül Tulğan',tarih:'2025-11-11',aciklama:'Başlangıç sayımı'},
+  // ── ARALIK 2025 GELENLEr ────────────────────────────────
+  {tip:'GELEN',malzeme:'Bulaşık Süngeri',tur:'Adet',miktar:4,personel:'Ayşegül Tulğan',tarih:'2025-12-25',aciklama:'Gelen malzeme'},
+  {tip:'GELEN',malzeme:'Bulaşık Deterjanı',tur:'Litre',miktar:10,personel:'Ayşegül Tulğan',tarih:'2025-12-25',aciklama:'Gelen malzeme'},
+  {tip:'GELEN',malzeme:'Çamaşır Suyu',tur:'Litre',miktar:20,personel:'Ayşegül Tulğan',tarih:'2025-12-25',aciklama:'Gelen malzeme'},
+  {tip:'GELEN',malzeme:'Çöp Poşeti ( Battal )',tur:'Adet',miktar:10,personel:'Ayşegül Tulğan',tarih:'2025-12-25',aciklama:'Gelen malzeme'},
+  {tip:'GELEN',malzeme:'Tuvalet Kağıdı',tur:'Adet',miktar:12,personel:'Ayşegül Tulğan',tarih:'2025-12-25',aciklama:'Gelen malzeme'},
+  {tip:'GELEN',malzeme:'Tuvalet Kağıdı',tur:'Adet',miktar:12,personel:'Ayşegül Tulğan',tarih:'2025-11-26',aciklama:'Gelen malzeme'},
+  {tip:'GELEN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Ayşegül Tulğan',tarih:'2025-12-25',aciklama:'Gelen kayıt'},
+  // ── ZİMMETLER / ÇIKIŞLAR ────────────────────────────────
+  {tip:'CIKAN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:16,personel:'Seher Işık',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-03-05',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:8,personel:'Ecevit Çakır',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-29',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:1,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-29',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-29',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tuvalet Kağıdı',tur:'Adet',miktar:2,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-28',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:10,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'Büyük Çekpas',tur:'Adet',miktar:3,personel:'Nihal Erkivaç',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Nihal Erkivaç',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda Kovası',tur:'Adet',miktar:2,personel:'Nihal Erkivaç',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda ( Tahta )',tur:'Adet',miktar:1,personel:'Nihal Erkivaç',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'FIRÇA',tur:'Adet',miktar:2,personel:'Nihal Erkivaç',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda Kovası',tur:'Adet',miktar:1,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'Çöp Poşeti ( Jumbo )',tur:'Adet',miktar:3,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda Havlu Paspas',tur:'Adet',miktar:8,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-25',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Münire Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-13',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:1,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-13',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-13',aciklama:''},
+  {tip:'CIKAN',malzeme:'Çamaşır Suyu',tur:'Litre',miktar:30,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-12',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:5,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-09',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Ecevit Çakır',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-09',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-09',aciklama:''},
+  {tip:'CIKAN',malzeme:'Cam Silme Bezi',tur:'Paket',miktar:3,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-07',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Sibel Can',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-07',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-07',aciklama:''},
+  {tip:'CIKAN',malzeme:'Çamaşır Suyu',tur:'Litre',miktar:30,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-07',aciklama:''},
+  {tip:'CIKAN',malzeme:'Yağçöz',tur:'Litre',miktar:30,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-07',aciklama:''},
+  {tip:'CIKAN',malzeme:'Camsil',tur:'Litre',miktar:30,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-07',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Sezgin Gür',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-06',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:2,personel:'Seher Işık',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-06',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Seher Işık',zimmetPersonel:'Ayşegül Tulğan',tarih:'2026-01-06',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:2,personel:'Perihan Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-31',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Perihan Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-31',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Ecevit Çakır',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'Cif',tur:'Litre',miktar:3,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Ferda Evran',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudrasız Eldiven',tur:'Kutu',miktar:2,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Seher Işık',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:4,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudrasız Eldiven',tur:'Kutu',miktar:1,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:8,personel:'Sezgin Gür',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:8,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-30',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:8,personel:'Talat Duman',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-22',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:2,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-22',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:2,personel:'Perihan Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-22',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Perihan Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-22',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Sezgin Gür',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-22',aciklama:''},
+  {tip:'CIKAN',malzeme:'Yüzey Temizleyici',tur:'Litre',miktar:20,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-22',aciklama:''},
+  {tip:'CIKAN',malzeme:'Cam Silme Bezi',tur:'Paket',miktar:1,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-17',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:1,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-17',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:20,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-17',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Ferda Evran',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-16',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudrasız Eldiven',tur:'Kutu',miktar:1,personel:'Ferda Evran',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-16',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Münire Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-16',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:2,personel:'Seher Işık',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-16',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:4,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-16',aciklama:''},
+  {tip:'CIKAN',malzeme:'Yağçöz',tur:'Litre',miktar:20,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-16',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Ecevit Çakır',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-15',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:1,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-15',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-15',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:8,personel:'Seher Işık',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-15',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tıraş Bıçağı',tur:'Adet',miktar:16,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-15',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Ecevit Çakır',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-11',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Perihan Gökçenoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-11',aciklama:''},
+  {tip:'CIKAN',malzeme:'Tuvalet Kağıdı',tur:'Adet',miktar:1,personel:'Talat Duman',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-10',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:1,personel:'Ferda Evran',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-05',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-05',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:4,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-05',aciklama:''},
+  {tip:'CIKAN',malzeme:'Çöp Poşeti ( Jumbo )',tur:'Adet',miktar:1,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-04',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-04',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:4,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-04',aciklama:''},
+  {tip:'CIKAN',malzeme:'Çöp Poşeti ( Jumbo )',tur:'Adet',miktar:2,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-03',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:3,personel:'Sibel Can',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-03',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-03',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Sezgin Gür',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-01',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:3,personel:'Sibel Can',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-01',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:1,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-12-01',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:1,personel:'Perihan Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-28',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:2,personel:'Perihan Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-28',aciklama:''},
+  {tip:'CIKAN',malzeme:'Cam Silme Bezi',tur:'Paket',miktar:3,personel:'Şafak Sayar',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Ecevit Çakır',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'Mutfak Silme Bezi',tur:'Paket',miktar:1,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'Mutfak Silme Bezi',tur:'Paket',miktar:4,personel:'Şafak Sayar',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Şafak Sayar',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda Havlu Paspas',tur:'Adet',miktar:20,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda Havlu Paspas',tur:'Adet',miktar:2,personel:'Şafak Sayar',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda Kovası',tur:'Adet',miktar:1,personel:'Şafak Sayar',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-27',aciklama:''},
+  {tip:'CIKAN',malzeme:'Cam Silme Bezi',tur:'Paket',miktar:3,personel:'Ferda Evran',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-26',aciklama:''},
+  {tip:'CIKAN',malzeme:'Çamaşır Suyu',tur:'Litre',miktar:10,personel:'Ozan Ersin Doğan',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-26',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Ecevit Çakır',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-24',aciklama:''},
+  {tip:'CIKAN',malzeme:'Maske',tur:'Kutu',miktar:2,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-24',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Seher Işık',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-24',aciklama:''},
+  {tip:'CIKAN',malzeme:'Silme Bezi',tur:'Paket',miktar:4,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-24',aciklama:''},
+  {tip:'CIKAN',malzeme:'Yüzey Temizleyici',tur:'Litre',miktar:20,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-21',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudrasız Eldiven',tur:'Kutu',miktar:1,personel:'Perihan Gökçenoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-21',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Yasemin Kapusuz',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-21',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Perihan Gökçenoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-21',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Emine Abdülkerimoğlu',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-21',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Sezgin Gür',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-21',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda Havlu Paspas',tur:'Adet',miktar:10,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-21',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Münire Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-20',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Talat Duman',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-19',aciklama:''},
+  {tip:'CIKAN',malzeme:'M Beden Latex Pudrasız Eldiven',tur:'Kutu',miktar:1,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Gülin Çetindağ',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:''},
+  {tip:'CIKAN',malzeme:'Vileda ( Tahta )',tur:'Adet',miktar:5,personel:'Hava Aybuğa',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-17',aciklama:''},
+  {tip:'CIKAN',malzeme:'S Beden Latex Pudralı Eldiven',tur:'Kutu',miktar:1,personel:'Perihan Taş',zimmetPersonel:'Ayşegül Tulğan',tarih:'2025-11-18',aciklama:''},
+];
+
+// Seed yükleyici — konsoldan veya Ayarlar'dan çalıştırılır
+async function stokSeedYukle() {
+  const db = firebase.firestore();
+  // Zaten kayıt var mı kontrol et
+  const mevcut = await db.collection('stok_hareketler').where('kategori','==','temizlik').limit(1).get();
+  if (!mevcut.empty) {
+    showToast('⚠️ Stok veritabanı zaten dolu — seed atlandı');
+    return;
+  }
+  showToast('⏳ Excel verileri yükleniyor...');
+  const batch = db.batch();
+  STOK_SEED_HAREKETLER.forEach(h => {
+    const ref = db.collection('stok_hareketler').doc();
+    batch.set(ref, {
+      ...h,
+      kategori: 'temizlik',
+      tarih: firebase.firestore.Timestamp.fromDate(new Date(h.tarih)),
+      olusturma: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+  try {
+    await batch.commit();
+    showToast('✅ ' + STOK_SEED_HAREKETLER.length + ' kayıt Firestore\'a yüklendi!');
+    await stokRender('temizlik');
+  } catch(e) {
+    showToast('❌ Seed hatası: ' + e.message);
+  }
+}
+window.stokSeedYukle = stokSeedYukle;
 
 // Global olarak aç
 window.stokRender             = stokRender;
