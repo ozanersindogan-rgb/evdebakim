@@ -34,7 +34,17 @@ async function adresBilgiYukle() {
 }
 
 // Manuel tekli ekleme
-const ADRES_MAHALLELER = ['ALACAMESCİT','BAYRAKLIDEDE','CAMİATİK','CAMİKEBİR','CUMHURİYET','DAVUTLAR','DAĞ','DEĞİRMENDERE','EGE','GÜZELÇAMLI','HACIFEYZULLAH','KADINLAR DENİZİ','KARAOVA','SOĞUCAK','TÜRKMEN','YAVANSU','İKİÇEŞMELİK'];
+// Mahalle listesi: allData'dan canlı + sabit liste birleşimi
+const _ADRES_MAH_SABIT = ['ALACAMESCİT','BAYRAKLIDEDE','CAFERLİ','CAMİATİK','CAMİKEBİR','CUMHURİYET',
+  'DAVUTLAR','DAĞ','DEĞİRMENDERE','EGE','GÜZELÇAMLI','HACIFEYZULLAH','İKİÇEŞMELİK',
+  'KADIKALESİ','KADINLAR DENİZİ','KARAOVA','KİRAZLI','SOĞUCAK','TÜRKMEN','YAVANSU','YAYLAKÖY','YENİKÖY'];
+function getAdresMahalleler() {
+  const dinamik = (typeof allData !== 'undefined')
+    ? allData.map(r => r.MAHALLE).filter(Boolean)
+    : [];
+  return [...new Set([..._ADRES_MAH_SABIT, ...dinamik])].sort((a,b) => a.localeCompare(b,'tr'));
+}
+const ADRES_MAHALLELER = _ADRES_MAH_SABIT; // geriye dönük uyumluluk
 const ADRES_HIZMETLER = ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'];
 
 async function adresManuelEkle() {
@@ -100,7 +110,7 @@ function adresRender() {
     return div;
   })();
   if(manuelContainer) {
-    const mahOpts = ADRES_MAHALLELER.map(m=>`<option value="${m}">${m}</option>`).join('');
+    const mahOpts = getAdresMahalleler().map(m=>`<option value="${m}">${m}</option>`).join('');
     manuelContainer.innerHTML=`
       <div style="background:#EEF2FF;border:1.5px solid #c7d2fe;border-radius:12px;padding:14px 16px;margin-bottom:16px">
         <div style="font-weight:800;color:#1A237E;font-size:13px;margin-bottom:10px">➕ Manuel Tekli Kayıt Ekle / Güncelle</div>
@@ -363,7 +373,7 @@ function adresEditAc(isim) {
   const mahSel = document.getElementById('aem-mahalle');
   if(mahSel) {
     mahSel.innerHTML = '<option value="">Seçin...</option>' +
-      ADRES_MAHALLELER.map(m=>`<option value="${m}"${m===mahalle?' selected':''}>${m}</option>`).join('');
+      getAdresMahalleler().map(m=>`<option value="${m}"${m===mahalle?' selected':''}>${m}</option>`).join('');
   }
 
   const modal = document.getElementById('adres-edit-modal');

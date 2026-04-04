@@ -1141,6 +1141,32 @@ const CANLI_YILLAR  = ['2026'];
 
 // 2026 verisini allData'dan hesapla: mahalle × hizmet → girilen tarih sayısı
 function hesapla2026() {
+  // YILLIK_VERI'deki tüm mahalle anahtarlarını bir set'e al (ör: "ALACAMESCİT MAHALLESİ")
+  const _statikMahalleler = new Set(
+    Object.values(_yillikDuzenleme).flatMap(y => Object.keys(y))
+  );
+
+  // allData'dan gelen kısa mahalle adını statik formata eşle
+  // Örn: "ALACAMESCIT" → "ALACAMESCİT MAHALLESİ"
+  function normalizeMahalle(m) {
+    if (!m || m === '—') return '—';
+    m = m.trim().toUpperCase();
+    // Zaten tam format
+    if (_statikMahalleler.has(m)) return m;
+    // " MAHALLESİ" ekleyerek dene
+    if (_statikMahalleler.has(m + ' MAHALLESİ')) return m + ' MAHALLESİ';
+    // Türkçe karakter farklılıklarını düzelterek dene (I → İ, i → i vb.)
+    for (const sm of _statikMahalleler) {
+      if (sm.replace(' MAHALLESİ','') === m) return sm;
+      // Karakter normalize karşılaştırma
+      if (sm.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase() ===
+          (m + ' MAHALLESİ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()) return sm;
+      if (sm.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase() ===
+          m.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()) return sm;
+    }
+    return m; // eşleşme yoksa orijinal bırak
+  }
+
   const sonuc = {};
   (typeof allData !== 'undefined' ? allData : []).forEach(r => {
     const yil = (() => {
@@ -1153,7 +1179,7 @@ function hesapla2026() {
       return null;
     })();
     if (yil !== '2026') return;
-    const m   = r.MAHALLE || '—';
+    const m   = normalizeMahalle(r.MAHALLE || '—');
     const hiz = r['HİZMET'] || '';
     if (!sonuc[m]) sonuc[m] = {};
     if (!sonuc[m][hiz]) sonuc[m][hiz] = 0;
