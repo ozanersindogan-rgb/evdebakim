@@ -370,8 +370,8 @@ function stokGelenFormHTML(kategori) {
           </div>
           <div>
             <label style="font-size:11px;font-weight:800;color:var(--text-soft);display:block;margin-bottom:4px">TESLİM ALAN / KAYDEDEN</label>
-            <input id="stok-g-personel" placeholder="Personel adı..."
-              style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+            <input id="stok-g-personel" readonly value="Ayşegül Tulğan"
+              style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-soft);color:var(--text-soft)">
           </div>
           <div>
             <label style="font-size:11px;font-weight:800;color:var(--text-soft);display:block;margin-bottom:4px">TARİH *</label>
@@ -488,13 +488,20 @@ function stokZimmetFormHTML(kategori) {
           <div id="stok-z-kalan-bilgi" style="font-size:12px;color:var(--text-soft);background:var(--bg-soft);padding:8px 12px;border-radius:6px"></div>
           <div>
             <label style="font-size:11px;font-weight:800;color:var(--text-soft);display:block;margin-bottom:4px">ALAN PERSONEL *</label>
-            <input id="stok-z-personel" placeholder="Personel adı..."
+            <select id="stok-z-personel"
               style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+              <option value="">— Personel seçin —</option>
+              ${(window.PERSONEL_DATA || [])
+                .filter(p => p.aktif !== false)
+                .sort((a,b) => a.ad.localeCompare(b.ad, 'tr'))
+                .map(p => `<option value="${p.ad}">${p.ad} (${p.hizmet})</option>`)
+                .join('')}
+            </select>
           </div>
           <div>
             <label style="font-size:11px;font-weight:800;color:var(--text-soft);display:block;margin-bottom:4px">ZIMMET YAPAN (Depo Sorumlusu)</label>
-            <input id="stok-z-zimmetpersonel" placeholder="Zimmet yapan personel..."
-              style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+            <input id="stok-z-zimmetpersonel" readonly value="Ayşegül Tulğan"
+              style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-soft);color:var(--text-soft)">
           </div>
           <div>
             <label style="font-size:11px;font-weight:800;color:var(--text-soft);display:block;margin-bottom:4px">TARİH *</label>
