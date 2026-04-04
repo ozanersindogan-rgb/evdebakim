@@ -1312,65 +1312,47 @@
 
       <!-- ─── TEMİZLİK PLANI ─── -->
       <div class="page" id="page-temizlik-plan">
-        <div class="form-section" style="margin-bottom:12px">
+        <!-- Personel kartları -->
+        <div id="tp-personel-stats-bar" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px"></div>
+
+        <!-- Üst araç çubuğu -->
+        <div class="form-section" style="margin-bottom:12px;padding:12px 16px">
           <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-              <span style="font-size:11px;font-weight:700;color:var(--text-soft)">DURUM:</span>
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #16a34a;color:#16a34a;background:#f0fdf4">
-                <input type="checkbox" value="AKTİF" class="tp-dur-cb" onchange="tpRender()" checked style="cursor:pointer"> AKTİF
-              </label>
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #64748b;color:#64748b;background:#f8fafc">
-                <input type="checkbox" value="PASİF" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> PASİF
-              </label>
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #ef4444;color:#ef4444;background:#fef2f2">
-                <input type="checkbox" value="İPTAL" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> İPTAL
-              </label>
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #f59e0b;color:#f59e0b;background:#fffbeb">
-                <input type="checkbox" value="BEKLEME LİSTESİ" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> BEKLEME
-              </label>
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #94a3b8;color:#94a3b8;background:#f8fafc">
-                <input type="checkbox" value="" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> DİĞER
-              </label>
-            </div>
-            <select class="form-select" id="tp-ekip" onchange="tpRender()" style="max-width:130px">
-              <option value="">Tüm Ekip</option>
-              <option value="Gülin">Gülin</option>
-              <option value="Hava">Hava</option>
-              <option value="Nihal">Nihal</option>
-              <option value="Tüm Ekip">Tüm Ekip</option>
-            </select>
+            <span style="font-size:11px;font-weight:700;color:var(--text-soft)">DURUM:</span>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #16a34a;color:#16a34a;background:#f0fdf4">
+              <input type="checkbox" value="AKTİF" class="tp-dur-cb" onchange="tpRender()" checked style="cursor:pointer"> AKTİF
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #64748b;color:#64748b;background:#f8fafc">
+              <input type="checkbox" value="PASİF" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> PASİF
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #ef4444;color:#ef4444;background:#fef2f2">
+              <input type="checkbox" value="İPTAL" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> İPTAL
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;font-weight:700;cursor:pointer;padding:4px 10px;border-radius:20px;border:1.5px solid #f59e0b;color:#f59e0b;background:#fffbeb">
+              <input type="checkbox" value="BEKLEME LİSTESİ" class="tp-dur-cb" onchange="tpRender()" style="cursor:pointer"> BEKLEME
+            </label>
             <select class="form-select" id="tp-renk" onchange="tpRender()" style="max-width:150px">
               <option value="">Tüm Süreler</option>
-              <option value="kirmizi">🔴 180+ gün</option>
-              <option value="sari">🟡 60-179 gün</option>
-              <option value="yesil">🟢 0-59 gün</option>
+              <option value="kirmizi">🔴 61-90 gün</option>
+              <option value="sari">🟡 45-60 gün</option>
+              <option value="yesil">🟢 0-44 gün</option>
+              <option value="siyah">⚫ 90+ gün</option>
             </select>
             <button onclick="tpSort()" class="btn" style="background:var(--bg-soft);border:1px solid var(--border);font-size:12px;padding:6px 14px;border-radius:8px;cursor:pointer" id="tp-sort-btn">⬆ En Eski Önce</button>
-            <input type="text" id="tp-ara" placeholder="İsim ara..." oninput="tpRender()" style="padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;max-width:160px">
-            <span id="tp-count" style="font-size:12px;color:var(--text-soft);margin-left:auto"></span>
+            <span id="tp-count" style="font-size:12px;color:var(--text-soft);margin-left:auto;font-weight:700"></span>
           </div>
         </div>
-        <div id="tp-ekip-stats" style="display:none"></div>
-      <div id="tp-personel-stats-bar" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px"></div>
+
+        <!-- Tablo -->
         <div class="table-card" style="padding:0">
           <div class="scroll-table">
             <table id="tp-table" style="width:100%;border-collapse:collapse;font-size:13px">
-              <thead>
-                <tr style="background:var(--primary);color:#fff">
-                  <th style="padding:10px 8px;text-align:left;white-space:nowrap">İsim Soyisim</th>
-                  <th style="padding:10px 8px;text-align:left">Mahalle</th>
-                  <th style="padding:10px 8px;text-align:left;white-space:nowrap">Son Gidiş</th>
-                  <th style="padding:10px 8px;text-align:center;white-space:nowrap">Geçen Gün</th>
-                  <th style="padding:10px 8px;text-align:left">Not / Neden</th>
-                  <th style="padding:10px 8px;text-align:center">Durum</th>
-                  <th style="padding:10px 8px;text-align:center">Personel</th>
-                  <th style="padding:10px 8px;text-align:center">İşlem</th>
-                </tr>
-              </thead>
+              <thead id="tp-thead"></thead>
               <tbody id="tp-tbody"></tbody>
             </table>
           </div>
         </div>
+        <div id="tp-ekip-stats" style="display:none"></div>
       </div>
 
 
