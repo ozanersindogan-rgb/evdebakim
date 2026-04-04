@@ -1124,6 +1124,17 @@ function renderDuTable() {
        </tr>`).join('')}</tbody>`;
 }
 
+// ── Vatandaşlar kolon sıralama ve ek filtreler ────────────
+let vatSortCol = '';
+let vatSortDir = 'asc';
+const _vatKolFiltre = { ay: '', durum: '' };
+
+function vatSortBy(col) {
+  if (vatSortCol === col) vatSortDir = vatSortDir === 'asc' ? 'desc' : 'asc';
+  else { vatSortCol = col; vatSortDir = 'asc'; }
+  renderVat();
+}
+
 function filterVat() {
   const srch=document.getElementById('vat-search').value.toLowerCase();
   const mah=document.getElementById('vat-mah').value;
@@ -1135,6 +1146,9 @@ function filterVat() {
     const sOk=!srch||r.ISIM_SOYISIM.toLowerCase().includes(srch)||r.MAHALLE.toLowerCase().includes(srch);
     const mOk=!mah||r.MAHALLE===mah;
     const dOk=!dur||r.DURUM===dur;
+    // Kolon dropdown filtreleri
+    const ayOk = !_vatKolFiltre.ay || r.AY === _vatKolFiltre.ay;
+    const durKolOk = !_vatKolFiltre.durum || r.DURUM === _vatKolFiltre.durum;
     // Kadın banyo personel filtresi
     let pOk = true;
     if (kbFiltre && vatHizmet === 'KADIN BANYO') {
@@ -1174,7 +1188,7 @@ function filterVat() {
         }
       }
     }
-    return hOk&&aOk&&sOk&&mOk&&dOk&&pOk;
+    return hOk&&aOk&&sOk&&mOk&&dOk&&pOk&&ayOk&&durKolOk;
   });
   // KB stats panelini göster/gizle
   const wrap = document.getElementById('kb-personel-stats-wrap');
@@ -1207,10 +1221,69 @@ function renderVat() {
   const isKuafor = vatHizmet==='KUAFÖR';
   const isErkekBanyo = vatHizmet==='ERKEK BANYO';
   const isTemizlik = vatHizmet==='TEMİZLİK';
+
+  // Kolon filtre dropdown seçenekleri (filtrelenmiş tüm veri üzerinden değil, allData üzerinden)
+  const _allTem = vatHizmet ? allData.filter(r=>r['HİZMET']===vatHizmet) : allData;
+  const _aylar = [...new Set(_allTem.map(r=>r.AY).filter(Boolean))].sort((a,b)=>{
+    const s=['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+    return s.indexOf(a)-s.indexOf(b);
+  });
+  const _durumlar = [...new Set(_allTem.map(r=>r.DURUM||'').filter(Boolean))].sort();
+  const _dd = 'margin-top:3px;width:100%;font-size:10px;border:1px solid rgba(255,255,255,0.3);border-radius:4px;background:rgba(255,255,255,0.15);color:#fff;padding:2px 4px;cursor:pointer';
+  const _th = 'padding:7px 6px;text-align:left;white-space:nowrap;position:relative;font-size:12px';
+
+  // Sıralama ok işareti
+  const _sor = (col) => vatSortCol===col?(vatSortDir==='asc'?'↑':'↓'):'⇅';
+
+  const thead = `<thead><tr style="background:var(--primary);color:#fff">
+    <th style="${_th}">
+      <div onclick="vatSortBy('hizmet')" style="cursor:pointer">Hizmet ${_sor('hizmet')}</div>
+    </th>
+    <th style="${_th}">
+      <div onclick="vatSortBy('isim')" style="cursor:pointer">İsim Soyisim ${_sor('isim')}</div>
+    </th>
+    <th style="${_th}">
+      <div onclick="vatSortBy('mahalle')" style="cursor:pointer">Mahalle ${_sor('mahalle')}</div>
+    </th>
+    <th style="${_th}">
+      <div onclick="vatSortBy('ay')" style="cursor:pointer">Ay ${_sor('ay')}</div>
+      <select onchange="_vatKolFiltre.ay=this.value;filterVat()" style="${_dd}">
+        <option value="">Tümü</option>
+        ${_aylar.map(a=>`<option value="${a}" ${_vatKolFiltre.ay===a?'selected':''}>${a}</option>`).join('')}
+      </select>
+    </th>
+    ${isKuafor?'<th style="'+_th+'">Saç</th><th style="'+_th+'">Tırnak</th><th style="'+_th+'">Sakal</th>':'<th style="'+_th+'">Tarihler</th>'}
+    <th style="${_th}">Yaş</th>
+    <th style="${_th}">Notlar</th>
+    <th style="${_th}">Telefon</th>
+    <th style="${_th}">Adres</th>
+    <th style="${_th}">
+      <div onclick="vatSortBy('durum')" style="cursor:pointer">Durum ${_sor('durum')}</div>
+      <select onchange="_vatKolFiltre.durum=this.value;filterVat()" style="${_dd}">
+        <option value="">Tümü</option>
+        ${_durumlar.map(d=>`<option value="${d}" ${_vatKolFiltre.durum===d?'selected':''}>${d}</option>`).join('')}
+      </select>
+    </th>
+    ${vatHizmet==='KADIN BANYO'?'<th style="'+_th+'">Personel</th>':''}
+    ${isErkekBanyo?'<th style="'+_th+'">Personel</th>':''}
+    ${isKuafor?'<th style="'+_th+'">Personel</th>':''}
+    ${isTemizlik?'<th style="'+_th+'">Personel</th>':''}
+    <th style="width:36px"></th>
+  </tr></thead>`;
+
+  // Sıralama uygula
+  if (vatSortCol) {
+    const colMap = { isim:'ISIM_SOYISIM', mahalle:'MAHALLE', ay:'AY', durum:'DURUM', hizmet:"HİZMET" };
+    const key = colMap[vatSortCol] || vatSortCol;
+    slice.sort((a,b)=>{
+      const va=(a[key]||'').toString().toUpperCase();
+      const vb=(b[key]||'').toString().toUpperCase();
+      return vatSortDir==='asc'?va.localeCompare(vb,'tr'):vb.localeCompare(va,'tr');
+    });
+  }
+
   document.getElementById('vat-table').innerHTML=`
-    <thead><tr><th>Hizmet</th><th>İsim Soyisim</th><th>Mahalle</th><th>Ay</th>
-    ${isKuafor?'<th>Saç</th><th>Tırnak</th><th>Sakal</th>':'<th>Tarihler</th>'}
-    <th>Yaş</th><th>Notlar</th><th>Telefon</th><th>Adres</th><th>Durum</th>${vatHizmet==='KADIN BANYO'?'<th>Personel</th>':''}${isErkekBanyo?'<th>Personel</th>':''}${isKuafor?'<th>Personel</th>':''}${isTemizlik?'<th>Personel</th>':''}<th style="width:36px"></th></tr></thead>
+    ${thead}
     <tbody>${slice.map((r,ri)=>{
       const globalIdx=allData.indexOf(r);
       const _isimKey = r.ISIM_SOYISIM;
