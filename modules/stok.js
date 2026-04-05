@@ -42,24 +42,6 @@ const STOK_MALZEMELER = {
     { ad: 'Yağçöz',                     tur: 'Litre' },
     { ad: 'Yüzey Temizleyici',          tur: 'Litre' },
   ],
-  medikal: [
-    { ad: 'Medikal Maske',              tur: 'Kutu'  },
-    { ad: 'N95 Maske',                  tur: 'Adet'  },
-    { ad: 'Nitril Eldiven (S)',          tur: 'Kutu'  },
-    { ad: 'Nitril Eldiven (M)',          tur: 'Kutu'  },
-    { ad: 'Nitril Eldiven (L)',          tur: 'Kutu'  },
-    { ad: 'Galoş',                      tur: 'Paket' },
-    { ad: 'Bone',                       tur: 'Paket' },
-    { ad: 'Önlük (Tek Kullanımlık)',    tur: 'Adet'  },
-    { ad: 'Alkol Bazlı El Dezenfektanı',tur: 'Litre' },
-    { ad: 'Yüzey Dezenfektanı',        tur: 'Litre' },
-    { ad: 'Steril Spanç',              tur: 'Paket' },
-    { ad: 'Flaster',                    tur: 'Kutu'  },
-    { ad: 'Sargı Bezi',                tur: 'Adet'  },
-    { ad: 'Termometre',                tur: 'Adet'  },
-    { ad: 'Tansiyon Aleti',            tur: 'Adet'  },
-    { ad: 'Nabız Oksimetre',           tur: 'Adet'  },
-  ],
 };
 
 // ── Yetki ─────────────────────────────────────────────────
@@ -86,9 +68,9 @@ function stokDepoAdi() {
 }
 
 // Firestore'dan yüklenen hareketler (her kategori için ayrı)
-const _stokData = { temizlik: [], medikal: [] };
+const _stokData = { temizlik: [] };
 // Firestore'dan yüklenen malzeme listesi (kalıcı)
-const _stokMalzemeler = { temizlik: [], medikal: [] };
+const _stokMalzemeler = { temizlik: [] };
 let _stokAktifKategori = 'temizlik';
 let _stokAktifSekme = 'ozet';
 
@@ -189,6 +171,20 @@ async function stokRender(kategori) {
   if (!root) return;
 
   root.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-soft)">⏳ Yükleniyor...</div>`;
+
+  // Firestore'daki yanlışlıkla yazılmış medikal kayıtlarını temizle
+  try {
+    const mSnap = await firebase.firestore()
+      .collection('stok_malzemeler').where('kategori','==','medikal').get();
+    if (!mSnap.empty) {
+      for (let i = 0; i < mSnap.docs.length; i += 20) {
+        const b = firebase.firestore().batch();
+        mSnap.docs.slice(i, i+20).forEach(d => b.delete(d.ref));
+        await b.commit();
+      }
+    }
+  } catch(e) { /* sessiz geç */ }
+
   await Promise.all([
     stokFirestoreYukle(kategori),
     stokMalzemeListesiYukle(kategori),
@@ -965,6 +961,24 @@ function stokAyarlarHTML(kategori) {
       </div>
     </div>
 
+
+    <!-- ── DUPLICATE TEMİZLE ── -->
+    <div class="table-card" style="padding:20px;border:2px solid #fca5a5">
+      <div class="table-header" style="padding:0 0 16px;border:none;background:none">
+        <span class="table-title">🧹 Duplicate Malzeme Temizle</span>
+      </div>
+      <p style="font-size:13px;color:var(--text-soft);margin-bottom:14px;line-height:1.6">
+        Firestore'da aynı isimli malzemelerden birden fazla varsa siler, her malzemeden sadece bir tane bırakır.
+        Sayfada tekrar eden malzeme görüyorsan buraya bas.
+      </p>
+      <button onclick="stokDuplicateTemizle('${kategori}')"
+        style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:10px 20px;
+               font-size:13px;font-weight:800;cursor:pointer">
+        🧹 Tekrarlayan Malzemeleri Temizle
+      </button>
+      <div id="stok-temizle-log" style="margin-top:10px;font-size:12px;color:#16a34a;font-weight:700"></div>
+    </div>
+
     <!-- ── VERİ AKTARIMI ── -->
     <div class="table-card" style="padding:20px">
       <div class="table-header" style="padding:0 0 16px;border:none;background:none">
@@ -1530,6 +1544,54 @@ async function stokSeedYukle() {
   showToast(`✅ ${yuklenen} kayıt başarıyla Firestore'a yüklendi!`);
   await stokRender('temizlik');
 }
+
+// ── Duplicate malzeme temizleyici ────────────────────────
+async function stokDuplicateTemizle(kategori) {
+  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) { showToast('⛔ Yetkiniz yok'); return; }
+  const logEl = document.getElementById('stok-temizle-log');
+  if (logEl) logEl.textContent = '⏳ Kontrol ediliyor...';
+
+  const db = firebase.firestore();
+  const snap = await db.collection('stok_malzemeler')
+    .where('kategori', '==', kategori)
+    .get();
+
+  const goruldu = {};
+  const silinecek = [];
+  snap.docs.forEach(doc => {
+    const ad = doc.data().ad;
+    if (goruldu[ad]) {
+      silinecek.push(doc.ref);
+    } else {
+      goruldu[ad] = true;
+    }
+  });
+
+  if (silinecek.length === 0) {
+    showToast('✅ Zaten temiz, duplicate yok');
+    if (logEl) logEl.textContent = '✅ Temiz — duplicate bulunamadı.';
+    return;
+  }
+
+  if (logEl) logEl.textContent = `🗑️ ${silinecek.length} duplicate siliniyor...`;
+
+  for (let i = 0; i < silinecek.length; i += 20) {
+    const b = db.batch();
+    silinecek.slice(i, i + 20).forEach(ref => b.delete(ref));
+    await b.commit();
+  }
+
+  // Local state temizle
+  _stokMalzemeler[kategori] = [];
+  showToast(`✅ ${silinecek.length} duplicate silindi`);
+  if (logEl) logEl.textContent = `✅ ${silinecek.length} tekrar eden kayıt silindi. Yenileniyor...`;
+
+  // Yeniden yükle ve render et
+  await stokMalzemeListesiYukle(kategori);
+  stokRenderIc(kategori);
+}
+window.stokDuplicateTemizle = stokDuplicateTemizle;
+
 window.stokSeedYukle = stokSeedYukle;
 
 // Global olarak aç
