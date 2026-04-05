@@ -71,10 +71,7 @@ const STOK_DEPO_UID    = 'LBntADGnP2MHVecmn4jAnFRPW222'; // Ayşegül TULĞAN
 
 function stokYetkiVar() {
   const uid = window.currentUser?.uid;
-  return uid === STOK_ADMIN_UID || uid === STOK_DEPO_UID;
-}
-function stokAyarlarGorebilir() {
-  return window.currentUser?.uid === STOK_ADMIN_UID;
+  return uid === STOK_ADMIN_UID;
 }
 function stokDepoAdi() {
   return window.currentUser?.ad || 'Ayşegül TULĞAN';
@@ -201,17 +198,15 @@ function stokRenderIc(kategori) {
   const renk   = kategori === 'temizlik' ? '#059669' : '#2563eb';
 
   const sekmeler = [
-    { id: 'ozet',       ikon: '📊', ad: 'Stok Özeti'    },
+{ id: 'ozet',       ikon: '📊', ad: 'Stok Özeti'    },
     { id: 'hareketler', ikon: '📋', ad: 'Tüm Hareketler'},
     { id: 'personel',   ikon: '👥', ad: 'Personel'       },
     { id: 'gelen',      ikon: '📥', ad: 'Gelen Kayıt'   },
     { id: 'zimmet',     ikon: '📤', ad: 'Zimmet / Çıkış'},
-    ...(stokAyarlarGorebilir() ? [{ id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' }] : []),
+    ...(window.currentUser?.uid === STOK_ADMIN_UID ? [
+      { id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' }
+    ] : []),
   ];
-
-  if (_stokAktifSekme === 'ayarlar' && !stokAyarlarGorebilir()) {
-    _stokAktifSekme = 'ozet';
-  }
 
   root.innerHTML = `
     <div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -243,10 +238,9 @@ function stokRenderIc(kategori) {
 }
 
 function stokSekme(kategori, sekme) {
-  if (sekme === 'ayarlar' && !stokAyarlarGorebilir()) {
+  if (sekme === 'ayarlar' && window.currentUser?.uid !== STOK_ADMIN_UID) {
     _stokAktifSekme = 'ozet';
     stokRenderIc(kategori);
-    showToast('⛔ Ayarlar sekmesini sadece Ozan Ersin DOĞAN görebilir');
     return;
   }
   _stokAktifSekme = sekme;
@@ -256,14 +250,16 @@ function stokSekme(kategori, sekme) {
 function stokSekmeIcerik(kategori, sekme) {
   const el = document.getElementById('stok-sekme-icerik');
   if (!el) return;
+  if (sekme === 'ayarlar' && window.currentUser?.uid !== STOK_ADMIN_UID) {
+    sekme = 'ozet';
+    _stokAktifSekme = 'ozet';
+  }
   if (sekme === 'ozet')       el.innerHTML = stokOzetHTML(kategori);
   if (sekme === 'hareketler') el.innerHTML = stokHareketlerHTML(kategori);
   if (sekme === 'personel')   el.innerHTML = stokPersonelHTML(kategori);
   if (sekme === 'gelen')      el.innerHTML = stokGelenFormHTML(kategori);
   if (sekme === 'zimmet')     el.innerHTML = stokZimmetFormHTML(kategori);
-  if (sekme === 'ayarlar')    el.innerHTML = stokAyarlarGorebilir()
-    ? stokAyarlarHTML(kategori)
-    : stokOzetHTML(kategori);
+  if (sekme === 'ayarlar')    el.innerHTML = stokAyarlarHTML(kategori);
 }
 
 // ── SEKME 1: STOK ÖZETİ ──────────────────────────────────
@@ -817,11 +813,13 @@ function stokPersonelDetay(personel, kategori) {
 
 // ── SEKME: AYARLAR (sadece yetkili) ─────────────────────
 function stokAyarlarHTML(kategori) {
-  if (!stokAyarlarGorebilir()) {
-    return `<div style="text-align:center;padding:60px;color:var(--text-soft)">
-      <div style="font-size:48px;margin-bottom:12px">🔒</div>
-      <p>Bu alanı sadece Ozan Ersin DOĞAN görebilir.</p>
-    </div>`;
+  if (window.currentUser?.uid !== STOK_ADMIN_UID) {
+    return `
+      <div style="text-align:center;padding:60px 20px;color:var(--text-soft)">
+        <div style="font-size:54px;margin-bottom:10px">🔒</div>
+        <div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:6px">Yetkisiz Erişim</div>
+        <div style="font-size:13px">Bu alan sadece Ozan Ersin DOĞAN kullanıcısı içindir.</div>
+      </div>`;
   }
 
   const renk = '#059669';
