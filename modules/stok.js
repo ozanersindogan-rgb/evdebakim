@@ -209,35 +209,55 @@ function stokSekmeIcerik(kategori, sekme) {
 
 // ── SEKME 1: STOK ÖZETİ ──────────────────────────────────
 function stokOzetHTML(kategori) {
-  const kalan = stokHesaplaKalan(kategori);
+  const hareketler = _stokData[kategori] || [];
   const renk  = kategori === 'temizlik' ? '#059669' : '#2563eb';
   const malzemeler = STOK_MALZEMELER[kategori];
 
-  // Kritik eşik (0 veya az): kırmızı
+  // Her malzeme için başlangıç (ilk GELEN ile "Başlangıç sayımı" aciklamasi), sonraki gelenler, çıkanlar
   const rows = malzemeler.map(m => {
-    const adet = kalan[m.ad] ?? 0;
-    const durum = adet <= 0 ? 'kritik' : adet <= 5 ? 'az' : 'ok';
-    return { ...m, adet, durum };
-  }).sort((a, b) => a.adet - b.adet); // azdan çoğa
+    const tumGelen  = hareketler.filter(h => h.tip === 'GELEN' && h.malzeme === m.ad);
+    const tumCikan  = hareketler.filter(h => h.tip === 'CIKAN' && h.malzeme === m.ad);
+
+    // Başlangıç sayımı: "Başlangıç sayımı" açıklamalı kayıtlar
+    const baslangic = tumGelen
+      .filter(h => (h.aciklama||'').includes('Başlangıç'))
+      .reduce((s,h) => s + Number(h.miktar||0), 0);
+
+    // Sonradan gelen (başlangıç sayımı hariç)
+    const sonraGelen = tumGelen
+      .filter(h => !(h.aciklama||'').includes('Başlangıç'))
+      .reduce((s,h) => s + Number(h.miktar||0), 0);
+
+    const toplam_gelen = baslangic + sonraGelen;
+    const cikan  = tumCikan.reduce((s,h) => s + Number(h.miktar||0), 0);
+    const kalan  = toplam_gelen - cikan;
+    const durum  = kalan <= 0 ? 'kritik' : kalan <= 10 ? 'az' : 'ok';
+    return { ...m, baslangic, sonraGelen, toplam_gelen, cikan, kalan, durum };
+  }).sort((a, b) => a.kalan - b.kalan);
 
   const toplamMalzeme = malzemeler.length;
   const kritikSayisi  = rows.filter(r => r.durum === 'kritik').length;
   const azSayisi      = rows.filter(r => r.durum === 'az').length;
+  const yeterliSayisi = rows.filter(r => r.durum === 'ok').length;
 
   return `
     <!-- Özet kartları -->
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
-      <div class="table-card" style="padding:16px;text-align:center">
-        <div style="font-size:28px;font-weight:900;color:${renk}">${toplamMalzeme}</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Toplam Malzeme</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+      <div class="table-card" style="padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:900;color:${renk}">${toplamMalzeme}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Toplam Çeşit</div>
       </div>
-      <div class="table-card" style="padding:16px;text-align:center;border-color:#fca5a5">
-        <div style="font-size:28px;font-weight:900;color:#dc2626">${kritikSayisi}</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Stok Tükendi</div>
+      <div class="table-card" style="padding:14px;text-align:center">
+        <div style="font-size:24px;font-weight:900;color:#16a34a">${yeterliSayisi}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Yeterli</div>
       </div>
-      <div class="table-card" style="padding:16px;text-align:center;border-color:#fde68a">
-        <div style="font-size:28px;font-weight:900;color:#d97706">${azSayisi}</div>
-        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Az Stok (≤5)</div>
+      <div class="table-card" style="padding:14px;text-align:center;border-color:#fde68a">
+        <div style="font-size:24px;font-weight:900;color:#d97706">${azSayisi}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Az Stok</div>
+      </div>
+      <div class="table-card" style="padding:14px;text-align:center;border-color:#fca5a5">
+        <div style="font-size:24px;font-weight:900;color:#dc2626">${kritikSayisi}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Tükendi</div>
       </div>
     </div>
 
@@ -245,7 +265,7 @@ function stokOzetHTML(kategori) {
     <div class="table-card" style="padding:0;overflow:hidden">
       <div class="table-header" style="background:linear-gradient(135deg,${renk}18,${renk}08)">
         <span class="table-title">📦 Mevcut Stok Durumu</span>
-        <span style="font-size:11px;color:var(--text-soft)">Kalan = Gelen − Çıkan</span>
+        <span style="font-size:11px;color:var(--text-soft)">Başlangıç + Gelen − Çıkan = Kalan</span>
       </div>
       <div class="scroll-table">
         <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -253,20 +273,30 @@ function stokOzetHTML(kategori) {
             <tr style="background:${renk};color:#fff">
               <th style="padding:10px 12px;text-align:left">Malzeme</th>
               <th style="padding:10px 8px;text-align:center">Tür</th>
-              <th style="padding:10px 12px;text-align:center">Kalan</th>
+              <th style="padding:10px 8px;text-align:center;white-space:nowrap">🏁 Başlangıç</th>
+              <th style="padding:10px 8px;text-align:center;white-space:nowrap">📥 Sonradan Gelen</th>
+              <th style="padding:10px 8px;text-align:center;white-space:nowrap">📤 Çıkan</th>
+              <th style="padding:10px 10px;text-align:center;white-space:nowrap">📦 Kalan</th>
               <th style="padding:10px 8px;text-align:center">Durum</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.map(r => {
-              const bg = r.durum==='kritik' ? 'rgba(239,68,68,0.06)' : r.durum==='az' ? 'rgba(251,191,36,0.08)' : '';
-              const renk2 = r.durum==='kritik' ? '#dc2626' : r.durum==='az' ? '#d97706' : '#16a34a';
-              const badge = r.durum==='kritik' ? '🔴 Tükendi' : r.durum==='az' ? '🟡 Az' : '🟢 Yeterli';
+            ${rows.map((r,i) => {
+              const bg    = i%2===0 ? '' : 'rgba(0,0,0,0.02)';
+              const renkK = r.durum==='kritik' ? '#dc2626' : r.durum==='az' ? '#d97706' : '#16a34a';
+              const badge = r.durum==='kritik'
+                ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:800">🔴 Tükendi</span>'
+                : r.durum==='az'
+                ? '<span style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:800">🟡 Az</span>'
+                : '<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:800">🟢 Yeterli</span>';
               return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
                 <td style="padding:9px 12px;font-weight:600">${r.ad}</td>
                 <td style="padding:9px 8px;text-align:center;font-size:11px;color:var(--text-soft)">${r.tur}</td>
-                <td style="padding:9px 12px;text-align:center;font-size:18px;font-weight:900;color:${renk2}">${stokFmt(r.adet)}</td>
-                <td style="padding:9px 8px;text-align:center;font-size:11px;font-weight:700;color:${renk2}">${badge}</td>
+                <td style="padding:9px 8px;text-align:center;color:#6366f1;font-weight:700">${r.baslangic > 0 ? stokFmt(r.baslangic) : '<span style="color:#ccc">—</span>'}</td>
+                <td style="padding:9px 8px;text-align:center;color:#059669;font-weight:700">${r.sonraGelen > 0 ? '+'+stokFmt(r.sonraGelen) : '<span style="color:#ccc">—</span>'}</td>
+                <td style="padding:9px 8px;text-align:center;color:#dc2626;font-weight:700">${r.cikan > 0 ? '−'+stokFmt(r.cikan) : '<span style="color:#ccc">—</span>'}</td>
+                <td style="padding:9px 10px;text-align:center;font-size:18px;font-weight:900;color:${renkK}">${stokFmt(r.kalan)}</td>
+                <td style="padding:9px 8px;text-align:center">${badge}</td>
               </tr>`;
             }).join('')}
           </tbody>
