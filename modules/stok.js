@@ -1044,7 +1044,6 @@ const STOK_SEED_HAREKETLER = [
 
 // Seed yükleyici — konsoldan veya Ayarlar'dan çalıştırılır
 async function stokSeedYukle() {
-  if (window.currentUser?.uid !== STOK_ADMIN_UID) { showToast('⛔ Bu işlem sadece Ozan Ersin tarafından yapılabilir'); return; }
   const db = firebase.firestore();
   // Zaten kayıt var mı kontrol et
   const mevcut = await db.collection('stok_hareketler').where('kategori','==','temizlik').limit(1).get();
