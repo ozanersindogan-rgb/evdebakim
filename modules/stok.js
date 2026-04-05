@@ -117,9 +117,15 @@ async function stokFirestoreYukle(kategori) {
     const snap = await firebase.firestore()
       .collection('stok_hareketler')
       .where('kategori', '==', kategori)
-      .orderBy('tarih', 'desc')
       .get();
-    _stokData[kategori] = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    const docs = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    // JS tarafında tarihe göre sırala (desc)
+    docs.sort((a, b) => {
+      const ta = a.tarih?.toDate ? a.tarih.toDate() : new Date(a.tarih || 0);
+      const tb = b.tarih?.toDate ? b.tarih.toDate() : new Date(b.tarih || 0);
+      return tb - ta;
+    });
+    _stokData[kategori] = docs;
   } catch(e) {
     console.warn('Stok yüklenemedi:', e);
     _stokData[kategori] = [];
@@ -1045,36 +1051,49 @@ const STOK_SEED_HAREKETLER = [
 // Seed yükleyici — konsoldan veya Ayarlar'dan çalıştırılır
 async function stokSeedYukle() {
   const db = firebase.firestore();
-  // Tüm koleksiyonu kontrol et (kategori fark etmeksizin)
-  const mevcut = await db.collection('stok_hareketler').limit(1).get();
-  if (!mevcut.empty) {
-    const devamEt = confirm('⚠️ Stok veritabanında kayıt var.\n\nMevcut kayıtları SİLİP Excel verilerini yeniden yüklemek ister misiniz?');
+
+  // Mevcut kayıtları sil
+  const mevcutSnap = await db.collection('stok_hareketler').get();
+  if (!mevcutSnap.empty) {
+    const devamEt = confirm(`⚠️ Veritabanında ${mevcutSnap.size} kayıt var.\nHepsini silip Excel verilerini yüklemek ister misiniz?`);
     if (!devamEt) return;
-    // Mevcut tüm kayıtları sil
-    showToast('🗑️ Eski kayıtlar temizleniyor...');
-    const tumKayitlar = await db.collection('stok_hareketler').get();
-    const silBatch = db.batch();
-    tumKayitlar.docs.forEach(d => silBatch.delete(d.ref));
-    await silBatch.commit();
+    // 20'şerli batch ile sil
+    const silDocs = mevcutSnap.docs;
+    for (let i = 0; i < silDocs.length; i += 20) {
+      const b = db.batch();
+      silDocs.slice(i, i + 20).forEach(d => b.delete(d.ref));
+      await b.commit();
+    }
+    showToast('🗑️ Eski kayıtlar silindi');
   }
-  showToast('⏳ Excel verileri yükleniyor...');
-  const batch = db.batch();
-  STOK_SEED_HAREKETLER.forEach(h => {
-    const ref = db.collection('stok_hareketler').doc();
-    batch.set(ref, {
-      ...h,
-      kategori: 'temizlik',
-      tarih: firebase.firestore.Timestamp.fromDate(new Date(h.tarih)),
-      olusturma: firebase.firestore.FieldValue.serverTimestamp(),
+
+  // 20'şerli batch ile yükle
+  showToast('⏳ Yükleniyor...');
+  const liste = STOK_SEED_HAREKETLER;
+  let yuklenen = 0;
+  for (let i = 0; i < liste.length; i += 20) {
+    const b = db.batch();
+    liste.slice(i, i + 20).forEach(h => {
+      const ref = db.collection('stok_hareketler').doc();
+      b.set(ref, {
+        tip: h.tip,
+        kategori: 'temizlik',
+        malzeme: h.malzeme,
+        tur: h.tur,
+        miktar: Number(h.miktar),
+        personel: h.personel || '',
+        zimmetPersonel: h.zimmetPersonel || '',
+        tarih: firebase.firestore.Timestamp.fromDate(new Date(h.tarih + 'T00:00:00')),
+        aciklama: h.aciklama || '',
+      });
     });
-  });
-  try {
-    await batch.commit();
-    showToast('✅ ' + STOK_SEED_HAREKETLER.length + ' kayıt Firestore\'a yüklendi!');
-    await stokRender('temizlik');
-  } catch(e) {
-    showToast('❌ Seed hatası: ' + e.message);
+    await b.commit();
+    yuklenen += Math.min(20, liste.length - i);
+    showToast(`⏳ ${yuklenen}/${liste.length} kayıt yüklendi...`);
   }
+
+  showToast(`✅ ${yuklenen} kayıt başarıyla Firestore'a yüklendi!`);
+  await stokRender('temizlik');
 }
 window.stokSeedYukle = stokSeedYukle;
 
