@@ -179,11 +179,12 @@ function mOzetHTML() {
   });
 
   const rows = Object.values(stokMap).sort((a,b) => a.ad.localeCompare(b.ad,'tr'));
-  const aktif = rows.filter(r => r.teslimde > 0).length;
-  const bosta = rows.filter(r => r.teslimde === 0).length;
+  const aktif   = rows.filter(r => r.teslimde > 0).length;
+  const stokYok = rows.filter(r => (r.stok||0) === 0 && r.teslimde === 0).length;
+  const bosta   = rows.filter(r => (r.stok||0) > 0 && r.teslimde === 0).length;
 
   return `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
       <div class="table-card" style="padding:14px;text-align:center">
         <div style="font-size:26px;font-weight:900;color:${renk}">${rows.length}</div>
         <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Toplam Çeşit</div>
@@ -195,6 +196,10 @@ function mOzetHTML() {
       <div class="table-card" style="padding:14px;text-align:center;border-color:#bbf7d0">
         <div style="font-size:26px;font-weight:900;color:#16a34a">${bosta}</div>
         <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Depoda</div>
+      </div>
+      <div class="table-card" style="padding:14px;text-align:center;border-color:#e2e8f0">
+        <div style="font-size:26px;font-weight:900;color:#94a3b8">${stokYok}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">Stok Girilmedi</div>
       </div>
     </div>
 
@@ -219,9 +224,14 @@ function mOzetHTML() {
             ${rows.map((r,i) => {
               const bg = i%2===0?'':'rgba(0,0,0,0.02)';
               const stokMiktar = (r.stok||0) - r.teslimde;
+              const depodaKalan = (r.stok||0) - r.teslimde;
               const durum = r.teslimde > 0
                 ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800">📤 Teslimde (${r.teslimde})</span>`
-                : `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800">✅ Depoda</span>`;
+                : depodaKalan > 0
+                ? `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800">✅ Depoda (${depodaKalan})</span>`
+                : (r.stok||0) === 0
+                ? `<span style="background:#f8fafc;color:#94a3b8;border:1px solid #e2e8f0;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800">— Stok Girilmedi</span>`
+                : `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800">🔴 Stok Yok</span>`;
               const depodaRenk = stokMiktar > 0 ? '#16a34a' : stokMiktar < 0 ? '#dc2626' : '#94a3b8';
               return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
                 <td style="padding:10px 14px;font-weight:700">${r.ad}</td>
