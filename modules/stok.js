@@ -73,6 +73,9 @@ function stokYetkiVar() {
   const uid = window.currentUser?.uid;
   return uid === STOK_ADMIN_UID || uid === STOK_DEPO_UID;
 }
+function stokAyarlarGorebilir() {
+  return window.currentUser?.uid === STOK_ADMIN_UID;
+}
 function stokDepoAdi() {
   return window.currentUser?.ad || 'Ayşegül TULĞAN';
 }
@@ -203,8 +206,12 @@ function stokRenderIc(kategori) {
     { id: 'personel',   ikon: '👥', ad: 'Personel'       },
     { id: 'gelen',      ikon: '📥', ad: 'Gelen Kayıt'   },
     { id: 'zimmet',     ikon: '📤', ad: 'Zimmet / Çıkış'},
-    { id: 'ayarlar',    ikon: '⚙️', ad: 'Ayarlar'        },
+    ...(stokAyarlarGorebilir() ? [{ id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' }] : []),
   ];
+
+  if (_stokAktifSekme === 'ayarlar' && !stokAyarlarGorebilir()) {
+    _stokAktifSekme = 'ozet';
+  }
 
   root.innerHTML = `
     <div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
@@ -236,6 +243,12 @@ function stokRenderIc(kategori) {
 }
 
 function stokSekme(kategori, sekme) {
+  if (sekme === 'ayarlar' && !stokAyarlarGorebilir()) {
+    _stokAktifSekme = 'ozet';
+    stokRenderIc(kategori);
+    showToast('⛔ Ayarlar sekmesini sadece Ozan Ersin DOĞAN görebilir');
+    return;
+  }
   _stokAktifSekme = sekme;
   stokRenderIc(kategori);
 }
@@ -248,7 +261,9 @@ function stokSekmeIcerik(kategori, sekme) {
   if (sekme === 'personel')   el.innerHTML = stokPersonelHTML(kategori);
   if (sekme === 'gelen')      el.innerHTML = stokGelenFormHTML(kategori);
   if (sekme === 'zimmet')     el.innerHTML = stokZimmetFormHTML(kategori);
-  if (sekme === 'ayarlar')    el.innerHTML = stokAyarlarHTML(kategori);
+  if (sekme === 'ayarlar')    el.innerHTML = stokAyarlarGorebilir()
+    ? stokAyarlarHTML(kategori)
+    : stokOzetHTML(kategori);
 }
 
 // ── SEKME 1: STOK ÖZETİ ──────────────────────────────────
@@ -802,10 +817,10 @@ function stokPersonelDetay(personel, kategori) {
 
 // ── SEKME: AYARLAR (sadece yetkili) ─────────────────────
 function stokAyarlarHTML(kategori) {
-  if (!stokYetkiVar()) {
+  if (!stokAyarlarGorebilir()) {
     return `<div style="text-align:center;padding:60px;color:var(--text-soft)">
       <div style="font-size:48px;margin-bottom:12px">🔒</div>
-      <p>Bu alan sadece Depo Sorumlusu veya Yönetici içindir.</p>
+      <p>Bu alanı sadece Ozan Ersin DOĞAN görebilir.</p>
     </div>`;
   }
 
