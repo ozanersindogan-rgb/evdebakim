@@ -22,42 +22,54 @@
   <div class="sidebar-logo">
     <div class="icon">🏥</div>
     <h1>Evde Bakım<br>Yönetim Sistemi</h1>
-    <p>4 Hizmet Kategorisi</p>
+    <p>Kuşadası Belediyesi</p>
   </div>
 
   <!-- sidebar-mini: app.js için gerekli ama gizli -->
   <div id="sidebar-mini" style="display:none"></div>
 
   <nav class="sidebar-nav">
+
+    <!-- ── GENEL ───────────────────────────────── -->
     <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="icon">🏠</span>Ana Sayfa</div>
     <div class="nav-item" onclick="navTo('adres-guncelle',this)"><span class="icon">📞</span>Adres & Telefon</div>
-    <div class="nav-section">İşlemler</div>
-    <div class="nav-item" onclick="navTo('gunluk-kayit',this)"><span class="icon">📝</span>Günlük Hizmet Kaydı</div>
-    <div class="nav-item" onclick="navTo('yeni-vatandas',this)"><span class="icon">➕</span>Yeni Vatandaş Kaydı</div>
-    <div class="nav-item" onclick="navTo('durum',this)"><span class="icon">🔄</span>Durum Güncelle</div>
-    <div class="nav-item" onclick="navTo('temizlik-plan',this)"><span class="icon">🧹</span>Temizlik Planı</div>
-
-    <div class="nav-section">Raporlar</div>
-    <div class="nav-item" onclick="navTo('takvim',this)"><span class="icon">📆</span>Ziyaret Takvimi</div>
-    <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
     <div class="nav-item" onclick="navTo('vatandaslar',this)"><span class="icon">👥</span>Vatandaşlar</div>
-    <div class="nav-section">Hizmetler</div>
+
+    <!-- ── GÜNLÜK İŞLEMLER ─────────────────────── -->
+    <div class="nav-section">📝 Günlük İşlemler</div>
+    <div class="nav-item" onclick="navTo('gunluk-kayit',this)"><span class="icon">📝</span>Hizmet Kaydı</div>
+    <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
+    <div class="nav-item" onclick="navTo('takvim',this)"><span class="icon">📆</span>Ziyaret Takvimi</div>
+    <div class="nav-item" onclick="navTo('durum',this)"><span class="icon">🔄</span>Durum Güncelle</div>
+    <div class="nav-item" onclick="navTo('yeni-vatandas',this)"><span class="icon">➕</span>Yeni Vatandaş</div>
+
+    <!-- ── HİZMETLER ───────────────────────────── -->
+    <div class="nav-section">🏥 Hizmetler</div>
     <div class="nav-item" onclick="quickFilter('KADIN BANYO',this);setTimeout(()=>{if(typeof kbRenderPersonelStats==='function')kbRenderPersonelStats(window._kbPersonelFiltre||'')},200)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
     <div class="nav-item" onclick="quickFilter('ERKEK BANYO',this)"><span class="icon">🚿</span>Erkek Banyo<span class="hizmet-tag tag-erkek">EB</span></div>
     <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
     <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
+    <div class="nav-item" onclick="navTo('temizlik-plan',this)"><span class="icon">📋</span>Temizlik Planı</div>
     <div class="nav-item" id="nav-personel-atama" onclick="navTo('personel-atama',this)"><span class="icon">👤</span>Personel Atama</div>
-    <div class="nav-section">Veri & Raporlama</div>
-    <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>Yıllık İstatistik</div>
-    <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
-    <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">📊</span>Sayı Ver</div>
-    <div class="nav-item" onclick="navTo('analiz',this);analizRender()"><span class="icon">✨</span>Analiz & Grafikler</div>
-    <div style="font-size:9px;font-weight:800;color:rgba(255,255,255,0.4);letter-spacing:.12em;padding:10px 16px 4px;text-transform:uppercase">📦 Stok Yönetimi</div>
+
+    <!-- ── STOK YÖNETİMİ ───────────────────────── -->
+    <div class="nav-section">📦 Stok Yönetimi</div>
     <div class="nav-item" onclick="navTo('stok-temizlik',this);stokRender('temizlik')"><span class="icon">🧴</span>Temizlik Malzemesi</div>
     <div class="nav-item" onclick="navTo('stok-medikal',this);medikalRender()"><span class="icon">💊</span>Medikal Malzeme</div>
+
+    <!-- ── RAPORLAMA ────────────────────────────── -->
+    <div class="nav-section">📊 Raporlama</div>
+    <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>Yıllık İstatistik</div>
+    <div class="nav-item" onclick="navTo('analiz',this);analizRender()"><span class="icon">✨</span>Analiz & Grafikler</div>
+    <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">🔢</span>Sayı Ver</div>
+    <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
+
+    <!-- ── SİSTEM ───────────────────────────────── -->
+    <div class="nav-section">⚙️ Sistem</div>
     <div class="nav-item" onclick="navTo('islem-log',this)"><span class="icon">📋</span>İşlem Logu</div>
     <div class="nav-item" id="nav-ayarlar" onclick="navTo('ayarlar',this)" style="display:none"><span class="icon">⚙️</span>Ayarlar</div>
     <div class="nav-item" id="nav-yedekler" onclick="navTo('yedekler',this)" style="display:none"><span class="icon">💾</span>Yedekler</div>
+
   </nav>
 </div>
 
