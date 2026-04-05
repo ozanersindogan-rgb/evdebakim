@@ -69,12 +69,20 @@ const STOK_MALZEMELER = {
 const STOK_ADMIN_UID   = 'SBIyovehB5RAkSkhc05bIm88PJs2'; // Ozan Ersin DOĞAN
 const STOK_DEPO_UID    = 'LBntADGnP2MHVecmn4jAnFRPW222'; // Ayşegül TULĞAN
 
+function stokCurrentUser() {
+  try {
+    if (typeof window !== 'undefined' && window.currentUser) return window.currentUser;
+    if (typeof currentUser !== 'undefined' && currentUser) return currentUser;
+  } catch (e) {}
+  return null;
+}
+
 function stokYetkiVar() {
-  const uid = window.currentUser?.uid;
-  return uid === STOK_ADMIN_UID;
+  const uid = stokCurrentUser()?.uid;
+  return uid === STOK_ADMIN_UID || uid === STOK_DEPO_UID;
 }
 function stokDepoAdi() {
-  return window.currentUser?.ad || 'Ayşegül TULĞAN';
+  return stokCurrentUser()?.ad || 'Ayşegül TULĞAN';
 }
 
 // Firestore'dan yüklenen hareketler (her kategori için ayrı)
@@ -203,7 +211,7 @@ function stokRenderIc(kategori) {
     { id: 'personel',   ikon: '👥', ad: 'Personel'       },
     { id: 'gelen',      ikon: '📥', ad: 'Gelen Kayıt'   },
     { id: 'zimmet',     ikon: '📤', ad: 'Zimmet / Çıkış'},
-    ...(window.currentUser?.uid === STOK_ADMIN_UID ? [
+    ...(stokCurrentUser()?.uid === STOK_ADMIN_UID ? [
       { id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' }
     ] : []),
   ];
@@ -238,7 +246,7 @@ function stokRenderIc(kategori) {
 }
 
 function stokSekme(kategori, sekme) {
-  if (sekme === 'ayarlar' && window.currentUser?.uid !== STOK_ADMIN_UID) {
+  if (sekme === 'ayarlar' && stokCurrentUser()?.uid !== STOK_ADMIN_UID) {
     _stokAktifSekme = 'ozet';
     stokRenderIc(kategori);
     return;
@@ -250,7 +258,7 @@ function stokSekme(kategori, sekme) {
 function stokSekmeIcerik(kategori, sekme) {
   const el = document.getElementById('stok-sekme-icerik');
   if (!el) return;
-  if (sekme === 'ayarlar' && window.currentUser?.uid !== STOK_ADMIN_UID) {
+  if (sekme === 'ayarlar' && stokCurrentUser()?.uid !== STOK_ADMIN_UID) {
     sekme = 'ozet';
     _stokAktifSekme = 'ozet';
   }
@@ -813,7 +821,7 @@ function stokPersonelDetay(personel, kategori) {
 
 // ── SEKME: AYARLAR (sadece yetkili) ─────────────────────
 function stokAyarlarHTML(kategori) {
-  if (window.currentUser?.uid !== STOK_ADMIN_UID) {
+  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) {
     return `
       <div style="text-align:center;padding:60px 20px;color:var(--text-soft)">
         <div style="font-size:54px;margin-bottom:10px">🔒</div>
