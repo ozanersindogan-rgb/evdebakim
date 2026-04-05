@@ -156,8 +156,10 @@ function stokRenderIc(kategori) {
   const sekmeler = [
     { id: 'ozet',       ikon: '📊', ad: 'Stok Özeti'    },
     { id: 'hareketler', ikon: '📋', ad: 'Tüm Hareketler'},
+    { id: 'personel',   ikon: '👥', ad: 'Personel'       },
     { id: 'gelen',      ikon: '📥', ad: 'Gelen Kayıt'   },
     { id: 'zimmet',     ikon: '📤', ad: 'Zimmet / Çıkış'},
+    ...(stokYetkiVar() ? [{ id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' }] : []),
   ];
 
   root.innerHTML = `
@@ -199,8 +201,10 @@ function stokSekmeIcerik(kategori, sekme) {
   if (!el) return;
   if (sekme === 'ozet')       el.innerHTML = stokOzetHTML(kategori);
   if (sekme === 'hareketler') el.innerHTML = stokHareketlerHTML(kategori);
+  if (sekme === 'personel')   el.innerHTML = stokPersonelHTML(kategori);
   if (sekme === 'gelen')      el.innerHTML = stokGelenFormHTML(kategori);
   if (sekme === 'zimmet')     el.innerHTML = stokZimmetFormHTML(kategori);
+  if (sekme === 'ayarlar')    el.innerHTML = stokAyarlarHTML(kategori);
 }
 
 // ── SEKME 1: STOK ÖZETİ ──────────────────────────────────
@@ -611,6 +615,236 @@ async function stokZimmetKaydet(kategori) {
     kayit.tarih = new Date(tarih);
     _stokData[kategori].unshift(kayit);
     showToast(`✅ ${malzeme} — ${miktar} ${tur} zimmet kaydedildi`);
+    stokRenderIc(kategori);
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
+}
+
+// ── SEKME: PERSONEL KARTLARI ────────────────────────────
+function stokPersonelHTML(kategori) {
+  const hareketler = (_stokData[kategori] || []).filter(h => h.tip === 'CIKAN');
+  const renk = kategori === 'temizlik' ? '#059669' : '#2563eb';
+
+  // Personel listesini zimmet kayıtlarından çıkar + window.PERSONEL_DATA'dan ekle
+  const personelSet = new Set();
+  hareketler.forEach(h => { if (h.personel) personelSet.add(h.personel); });
+  (window.PERSONEL_DATA || []).filter(p => p.aktif !== false).forEach(p => personelSet.add(p.ad));
+  const personeller = [...personelSet].sort((a,b) => a.localeCompare(b,'tr'));
+
+  if (!personeller.length) {
+    return `<div style="text-align:center;padding:60px;color:var(--text-soft)">Henüz personel kaydı yok</div>`;
+  }
+
+  const kartlar = personeller.map(p => {
+    const kayitlar = hareketler.filter(h => h.personel === p);
+    const toplamKayit = kayitlar.length;
+    const initials = p.split(' ').map(w => w[0]).filter(Boolean).slice(0,2).join('');
+    return `
+      <div onclick="stokPersonelDetay('${p.replace(/'/g,"\\'")}','${kategori}')"
+        style="background:#fff;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,0.08);
+               cursor:pointer;transition:all .2s;border:2px solid transparent;display:flex;align-items:center;gap:14px"
+        onmouseover="this.style.borderColor='${renk}';this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.borderColor='transparent';this.style.transform='translateY(0)'">
+        <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,${renk},${renk}99);
+                    color:#fff;display:flex;align-items:center;justify-content:center;font-weight:900;
+                    font-size:16px;flex-shrink:0">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:14px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p}</div>
+          <div style="font-size:12px;color:var(--text-soft);margin-top:3px">${toplamKayit} zimmet kaydı</div>
+        </div>
+        <div style="font-size:11px;color:${renk};font-weight:700">›</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:13px;color:var(--text-soft)">${personeller.length} personel</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">
+      ${kartlar}
+    </div>
+
+    <!-- Detay modal -->
+    <div id="stok-personel-modal" onclick="if(event.target===this)this.style.display='none'"
+      style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;
+             align-items:center;justify-content:center;padding:16px">
+      <div style="background:#fff;border-radius:16px;width:100%;max-width:480px;
+                  max-height:85vh;display:flex;flex-direction:column;overflow:hidden;
+                  box-shadow:0 20px 60px rgba(0,0,0,.25)">
+        <div id="stok-personel-modal-head"
+          style="padding:18px 20px;color:#fff;background:linear-gradient(135deg,${renk},${renk}99)">
+          <div style="font-size:11px;opacity:.8;margin-bottom:4px">ZİMMET GEÇMİŞİ</div>
+          <div id="stok-personel-modal-isim" style="font-size:18px;font-weight:900"></div>
+          <div id="stok-personel-modal-ozet" style="font-size:12px;opacity:.85;margin-top:4px"></div>
+        </div>
+        <div id="stok-personel-modal-body" style="overflow-y:auto;flex:1;padding:16px"></div>
+        <div style="padding:12px 16px;border-top:1px solid #f0f0f0">
+          <button onclick="document.getElementById('stok-personel-modal').style.display='none'"
+            style="width:100%;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;
+                   background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
+            Kapat
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+
+function stokPersonelDetay(personel, kategori) {
+  const hareketler = (_stokData[kategori] || [])
+    .filter(h => h.tip === 'CIKAN' && h.personel === personel)
+    .sort((a,b) => {
+      const ta = a.tarih?.toDate ? a.tarih.toDate() : new Date(a.tarih||0);
+      const tb = b.tarih?.toDate ? b.tarih.toDate() : new Date(b.tarih||0);
+      return tb - ta;
+    });
+
+  const modal = document.getElementById('stok-personel-modal');
+  if (!modal) return;
+
+  document.getElementById('stok-personel-modal-isim').textContent = personel;
+  document.getElementById('stok-personel-modal-ozet').textContent =
+    `${hareketler.length} zimmet kaydı · toplam ${hareketler.reduce((s,h)=>s+Number(h.miktar||0),0)} adet/birim`;
+
+  const body = document.getElementById('stok-personel-modal-body');
+  if (!hareketler.length) {
+    body.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-soft)">Henüz zimmet kaydı yok</div>`;
+  } else {
+    body.innerHTML = hareketler.map(h => `
+      <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f4f4f4">
+        <div style="min-width:82px;font-size:11px;color:var(--text-soft)">${stokTarihTR(h.tarih)}</div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:13px;color:var(--text)">${h.malzeme}</div>
+          ${h.aciklama ? `<div style="font-size:11px;color:var(--text-soft);margin-top:2px">${h.aciklama}</div>` : ''}
+        </div>
+        <div style="font-weight:900;font-size:15px;color:#dc2626;white-space:nowrap">
+          ${stokFmt(h.miktar)} ${h.tur}
+        </div>
+      </div>`).join('');
+  }
+
+  modal.style.display = 'flex';
+}
+
+// ── SEKME: AYARLAR (sadece yetkili) ─────────────────────
+function stokAyarlarHTML(kategori) {
+  if (!stokYetkiVar()) {
+    return `<div style="text-align:center;padding:60px;color:var(--text-soft)">
+      <div style="font-size:48px;margin-bottom:12px">🔒</div>
+      <p>Bu alan sadece Depo Sorumlusu veya Yönetici içindir.</p>
+    </div>`;
+  }
+  const renk = kategori === 'temizlik' ? '#059669' : '#2563eb';
+  const malzemeler = STOK_MALZEMELER[kategori];
+
+  // Personel listesi
+  const personelSet = new Set();
+  (_stokData[kategori]||[]).filter(h=>h.tip==='CIKAN'&&h.personel).forEach(h=>personelSet.add(h.personel));
+  (window.PERSONEL_DATA||[]).filter(p=>p.aktif!==false).forEach(p=>personelSet.add(p.ad));
+  const personeller = [...personelSet].sort((a,b)=>a.localeCompare(b,'tr'));
+
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start">
+
+      <!-- Malzeme Yönetimi -->
+      <div class="table-card" style="padding:20px">
+        <div class="table-header" style="padding:0 0 14px;border:none;background:none">
+          <span class="table-title">📦 Malzeme Listesi</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input id="stok-ay-malzeme-ad" placeholder="Malzeme adı..."
+            style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none">
+          <input id="stok-ay-malzeme-tur" placeholder="Tür"
+            style="width:80px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none">
+          <button onclick="stokAyarlarMalzemeEkle('${kategori}')"
+            style="background:${renk};color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer">
+            ➕
+          </button>
+        </div>
+        <div style="max-height:340px;overflow-y:auto" id="stok-ay-malzeme-liste">
+          ${malzemeler.map((m,i) => `
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
+                        background:${i%2===0?'var(--bg-soft)':'#fff'};border-radius:7px;margin-bottom:4px">
+              <span style="flex:1;font-size:13px;font-weight:600">${m.ad}</span>
+              <span style="font-size:11px;color:var(--text-soft);background:#e5e7eb;padding:2px 8px;border-radius:10px">${m.tur}</span>
+              <button onclick="stokAyarlarMalzemeSil('${kategori}',${i})"
+                style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;
+                       padding:3px 8px;font-size:11px;cursor:pointer;flex-shrink:0">🗑️</button>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- Personel Yönetimi -->
+      <div class="table-card" style="padding:20px">
+        <div class="table-header" style="padding:0 0 14px;border:none;background:none">
+          <span class="table-title">👥 Personel Listesi</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input id="stok-ay-personel-ad" placeholder="Ad Soyad..."
+            style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none">
+          <button onclick="stokAyarlarPersonelEkle('${kategori}')"
+            style="background:${renk};color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer">
+            ➕
+          </button>
+        </div>
+        <div style="max-height:340px;overflow-y:auto" id="stok-ay-personel-liste">
+          ${personeller.map(p => {
+            const sayi = (_stokData[kategori]||[]).filter(h=>h.tip==='CIKAN'&&h.personel===p).length;
+            const initials = p.split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('');
+            return `
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;
+                        background:var(--bg-soft);border-radius:8px;margin-bottom:6px">
+              <div style="width:32px;height:32px;border-radius:50%;background:${renk};color:#fff;
+                          display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">${initials}</div>
+              <span style="flex:1;font-size:13px;font-weight:600">${p}</span>
+              <span style="font-size:11px;color:var(--text-soft)">${sayi} kayıt</span>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+    </div>`;
+}
+
+async function stokAyarlarMalzemeEkle(kategori) {
+  const adEl  = document.getElementById('stok-ay-malzeme-ad');
+  const turEl = document.getElementById('stok-ay-malzeme-tur');
+  const ad  = adEl?.value?.trim();
+  const tur = turEl?.value?.trim() || 'Adet';
+  if (!ad) { showToast('⚠️ Malzeme adı girin'); return; }
+  if (STOK_MALZEMELER[kategori].find(m => m.ad.toLowerCase() === ad.toLowerCase())) {
+    showToast('⚠️ Bu malzeme zaten mevcut'); return;
+  }
+  STOK_MALZEMELER[kategori].push({ ad, tur });
+  STOK_MALZEMELER[kategori].sort((a,b) => a.ad.localeCompare(b.ad,'tr'));
+  if (adEl) adEl.value = '';
+  if (turEl) turEl.value = '';
+  showToast(`✅ "${ad}" eklendi`);
+  stokRenderIc(kategori);
+}
+
+function stokAyarlarMalzemeSil(kategori, idx) {
+  const m = STOK_MALZEMELER[kategori][idx];
+  if (!m) return;
+  if (!confirm(`"${m.ad}" malzemesini listeden kaldırmak istiyor musunuz?`)) return;
+  STOK_MALZEMELER[kategori].splice(idx, 1);
+  showToast(`🗑️ "${m.ad}" kaldırıldı`);
+  stokRenderIc(kategori);
+}
+
+async function stokAyarlarPersonelEkle(kategori) {
+  const adEl = document.getElementById('stok-ay-personel-ad');
+  const ad = adEl?.value?.trim().toUpperCase();
+  if (!ad) { showToast('⚠️ Ad Soyad girin'); return; }
+  try {
+    await firebase.firestore().collection('personeller').add({
+      ad: ad.charAt(0) + ad.slice(1).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
+      hizmet: 'TEMİZLİK',
+      aktif: true,
+    });
+    if (adEl) adEl.value = '';
+    showToast('✅ Personel eklendi');
+    await personelYukle();
     stokRenderIc(kategori);
   } catch(e) {
     showToast('❌ Hata: ' + e.message);
@@ -1098,12 +1332,16 @@ async function stokSeedYukle() {
 window.stokSeedYukle = stokSeedYukle;
 
 // Global olarak aç
-window.stokRender             = stokRender;
-window.stokSekme              = stokSekme;
-window.stokHareketlerFiltrele = stokHareketlerFiltrele;
-window.stokGelenMalzemeSecildi= stokGelenMalzemeSecildi;
-window.stokGelenKaydet        = stokGelenKaydet;
+window.stokRender              = stokRender;
+window.stokSekme               = stokSekme;
+window.stokHareketlerFiltrele  = stokHareketlerFiltrele;
+window.stokGelenMalzemeSecildi = stokGelenMalzemeSecildi;
+window.stokGelenKaydet         = stokGelenKaydet;
 window.stokZimmetMalzemeSecildi= stokZimmetMalzemeSecildi;
-window.stokZimmetKaydet       = stokZimmetKaydet;
-window.stokSil                = stokSil;
-window.stokExcelIndir         = stokExcelIndir;
+window.stokZimmetKaydet        = stokZimmetKaydet;
+window.stokSil                 = stokSil;
+window.stokExcelIndir          = stokExcelIndir;
+window.stokPersonelDetay       = stokPersonelDetay;
+window.stokAyarlarMalzemeEkle  = stokAyarlarMalzemeEkle;
+window.stokAyarlarMalzemeSil   = stokAyarlarMalzemeSil;
+window.stokAyarlarPersonelEkle = stokAyarlarPersonelEkle;
