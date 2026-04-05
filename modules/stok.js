@@ -79,8 +79,17 @@ function stokDepoAdi() {
 
 // Firestore'dan yüklenen hareketler (her kategori için ayrı)
 const _stokData = { temizlik: [], medikal: [] };
+// Firestore'dan yüklenen malzeme listesi (kalıcı)
+const _stokMalzemeler = { temizlik: [], medikal: [] };
 let _stokAktifKategori = 'temizlik';
-let _stokAktifSekme = 'ozet'; // 'ozet' | 'hareketler' | 'gelen' | 'zimmet'
+let _stokAktifSekme = 'ozet';
+
+// Aktif malzeme listesini döndür (Firestore yüklüyse onu, yoksa STOK_MALZEMELER seed'ini)
+function stokMalzemeListesi(kategori) {
+  return _stokMalzemeler[kategori].length
+    ? _stokMalzemeler[kategori]
+    : STOK_MALZEMELER[kategori];
+}
 
 // ── Yardımcılar ──────────────────────────────────────────
 function stokFmt(n) { return (n ?? 0).toLocaleString('tr-TR'); }
@@ -94,15 +103,14 @@ function stokTodayISO() { return new Date().toISOString().split('T')[0]; }
 
 // Malzeme listesinden tür bul
 function stokTurBul(kategori, malzemeAd) {
-  return (STOK_MALZEMELER[kategori] || []).find(m => m.ad === malzemeAd)?.tur || 'Adet';
+  return stokMalzemeListesi(kategori).find(m => m.ad === malzemeAd)?.tur || 'Adet';
 }
 
-// Kalan stok hesapla (MALZEME KALAN mantığı: başlangıç + gelen - çıkan)
+// Kalan stok hesapla
 function stokHesaplaKalan(kategori) {
   const hareketler = _stokData[kategori] || [];
   const kalan = {};
-  STOK_MALZEMELER[kategori].forEach(m => { kalan[m.ad] = 0; });
-
+  stokMalzemeListesi(kategori).forEach(m => { kalan[m.ad] = 0; });
   hareketler.forEach(h => {
     if (!kalan.hasOwnProperty(h.malzeme)) kalan[h.malzeme] = 0;
     if (h.tip === 'GELEN')  kalan[h.malzeme] += Number(h.miktar) || 0;
@@ -112,6 +120,40 @@ function stokHesaplaKalan(kategori) {
 }
 
 // ── Firestore yükle ───────────────────────────────────────
+async function stokMalzemeListesiYukle(kategori) {
+  try {
+    const snap = await firebase.firestore()
+      .collection('stok_malzemeler')
+      .where('kategori', '==', kategori)
+      .get();
+    if (!snap.empty) {
+      const liste = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+      liste.sort((a,b) => a.ad.localeCompare(b.ad, 'tr'));
+      _stokMalzemeler[kategori] = liste;
+    } else {
+      // Firestore boşsa seed'i yükle
+      _stokMalzemeler[kategori] = [];
+      const b = firebase.firestore().batch();
+      STOK_MALZEMELER[kategori].forEach(m => {
+        const ref = firebase.firestore().collection('stok_malzemeler').doc();
+        b.set(ref, { ad: m.ad, tur: m.tur, kategori });
+      });
+      await b.commit();
+      // Tekrar yükle
+      const snap2 = await firebase.firestore()
+        .collection('stok_malzemeler')
+        .where('kategori', '==', kategori)
+        .get();
+      const liste2 = snap2.docs.map(d => ({ _id: d.id, ...d.data() }));
+      liste2.sort((a,b) => a.ad.localeCompare(b.ad,'tr'));
+      _stokMalzemeler[kategori] = liste2;
+    }
+  } catch(e) {
+    console.warn('Malzeme listesi yüklenemedi:', e);
+    _stokMalzemeler[kategori] = [];
+  }
+}
+
 async function stokFirestoreYukle(kategori) {
   try {
     const snap = await firebase.firestore()
@@ -119,7 +161,6 @@ async function stokFirestoreYukle(kategori) {
       .where('kategori', '==', kategori)
       .get();
     const docs = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
-    // JS tarafında tarihe göre sırala (desc)
     docs.sort((a, b) => {
       const ta = a.tarih?.toDate ? a.tarih.toDate() : new Date(a.tarih || 0);
       const tb = b.tarih?.toDate ? b.tarih.toDate() : new Date(b.tarih || 0);
@@ -140,7 +181,10 @@ async function stokRender(kategori) {
   if (!root) return;
 
   root.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-soft)">⏳ Yükleniyor...</div>`;
-  await stokFirestoreYukle(kategori);
+  await Promise.all([
+    stokFirestoreYukle(kategori),
+    stokMalzemeListesiYukle(kategori),
+  ]);
   _stokAktifSekme = 'ozet';
   stokRenderIc(kategori);
 }
@@ -765,7 +809,7 @@ function stokAyarlarHTML(kategori) {
     </div>`;
   }
   const renk = kategori === 'temizlik' ? '#059669' : '#2563eb';
-  const malzemeler = STOK_MALZEMELER[kategori];
+  const malzemeler = stokMalzemeListesi(kategori);
 
   // Personel listesi
   const personelSet = new Set();
@@ -780,24 +824,25 @@ function stokAyarlarHTML(kategori) {
       <div class="table-card" style="padding:20px">
         <div class="table-header" style="padding:0 0 14px;border:none;background:none">
           <span class="table-title">📦 Malzeme Listesi</span>
+          <span style="font-size:11px;color:var(--text-soft)">${malzemeler.length} malzeme</span>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:14px">
           <input id="stok-ay-malzeme-ad" placeholder="Malzeme adı..."
             style="flex:1;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none">
           <input id="stok-ay-malzeme-tur" placeholder="Tür"
-            style="width:80px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none">
+            style="width:75px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none">
           <button onclick="stokAyarlarMalzemeEkle('${kategori}')"
             style="background:${renk};color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:800;cursor:pointer">
             ➕
           </button>
         </div>
-        <div style="max-height:340px;overflow-y:auto" id="stok-ay-malzeme-liste">
+        <div style="max-height:380px;overflow-y:auto">
           ${malzemeler.map((m,i) => `
             <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
                         background:${i%2===0?'var(--bg-soft)':'#fff'};border-radius:7px;margin-bottom:4px">
               <span style="flex:1;font-size:13px;font-weight:600">${m.ad}</span>
               <span style="font-size:11px;color:var(--text-soft);background:#e5e7eb;padding:2px 8px;border-radius:10px">${m.tur}</span>
-              <button onclick="stokAyarlarMalzemeSil('${kategori}',${i})"
+              <button onclick="stokAyarlarMalzemeSil('${kategori}','${m._id}','${m.ad.replace(/'/g,"\\'")}')"
                 style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;
                        padding:3px 8px;font-size:11px;cursor:pointer;flex-shrink:0">🗑️</button>
             </div>`).join('')}
@@ -808,6 +853,7 @@ function stokAyarlarHTML(kategori) {
       <div class="table-card" style="padding:20px">
         <div class="table-header" style="padding:0 0 14px;border:none;background:none">
           <span class="table-title">👥 Personel Listesi</span>
+          <span style="font-size:11px;color:var(--text-soft)">${personeller.length} personel</span>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:14px">
           <input id="stok-ay-personel-ad" placeholder="Ad Soyad..."
@@ -817,7 +863,7 @@ function stokAyarlarHTML(kategori) {
             ➕
           </button>
         </div>
-        <div style="max-height:340px;overflow-y:auto" id="stok-ay-personel-liste">
+        <div style="max-height:380px;overflow-y:auto">
           ${personeller.map(p => {
             const sayi = (_stokData[kategori]||[]).filter(h=>h.tip==='CIKAN'&&h.personel===p).length;
             const initials = p.split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('');
@@ -837,41 +883,49 @@ function stokAyarlarHTML(kategori) {
 }
 
 async function stokAyarlarMalzemeEkle(kategori) {
+  if (!stokYetkiVar()) return;
   const adEl  = document.getElementById('stok-ay-malzeme-ad');
   const turEl = document.getElementById('stok-ay-malzeme-tur');
   const ad  = adEl?.value?.trim();
   const tur = turEl?.value?.trim() || 'Adet';
   if (!ad) { showToast('⚠️ Malzeme adı girin'); return; }
-  if (STOK_MALZEMELER[kategori].find(m => m.ad.toLowerCase() === ad.toLowerCase())) {
+  if (stokMalzemeListesi(kategori).find(m => m.ad.toLowerCase() === ad.toLowerCase())) {
     showToast('⚠️ Bu malzeme zaten mevcut'); return;
   }
-  STOK_MALZEMELER[kategori].push({ ad, tur });
-  STOK_MALZEMELER[kategori].sort((a,b) => a.ad.localeCompare(b.ad,'tr'));
-  if (adEl) adEl.value = '';
-  if (turEl) turEl.value = '';
-  showToast(`✅ "${ad}" eklendi`);
-  stokRenderIc(kategori);
+  try {
+    const ref = await firebase.firestore().collection('stok_malzemeler').add({ ad, tur, kategori });
+    _stokMalzemeler[kategori].push({ _id: ref.id, ad, tur, kategori });
+    _stokMalzemeler[kategori].sort((a,b) => a.ad.localeCompare(b.ad,'tr'));
+    if (adEl) adEl.value = '';
+    if (turEl) turEl.value = '';
+    showToast(`✅ "${ad}" eklendi`);
+    stokRenderIc(kategori);
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
 }
 
-function stokAyarlarMalzemeSil(kategori, idx) {
-  const m = STOK_MALZEMELER[kategori][idx];
-  if (!m) return;
-  if (!confirm(`"${m.ad}" malzemesini listeden kaldırmak istiyor musunuz?`)) return;
-  STOK_MALZEMELER[kategori].splice(idx, 1);
-  showToast(`🗑️ "${m.ad}" kaldırıldı`);
-  stokRenderIc(kategori);
+async function stokAyarlarMalzemeSil(kategori, fbId, ad) {
+  if (!stokYetkiVar()) return;
+  if (!confirm(`"${ad}" malzemesini listeden kalıcı olarak kaldırmak istiyor musunuz?`)) return;
+  try {
+    await firebase.firestore().collection('stok_malzemeler').doc(fbId).delete();
+    _stokMalzemeler[kategori] = _stokMalzemeler[kategori].filter(m => m._id !== fbId);
+    showToast(`🗑️ "${ad}" kaldırıldı`);
+    stokRenderIc(kategori);
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
 }
 
 async function stokAyarlarPersonelEkle(kategori) {
+  if (!stokYetkiVar()) return;
   const adEl = document.getElementById('stok-ay-personel-ad');
-  const ad = adEl?.value?.trim().toUpperCase();
-  if (!ad) { showToast('⚠️ Ad Soyad girin'); return; }
+  const ham  = adEl?.value?.trim();
+  if (!ham) { showToast('⚠️ Ad Soyad girin'); return; }
+  const ad = ham.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
   try {
-    await firebase.firestore().collection('personeller').add({
-      ad: ad.charAt(0) + ad.slice(1).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()),
-      hizmet: 'TEMİZLİK',
-      aktif: true,
-    });
+    await firebase.firestore().collection('personeller').add({ ad, hizmet: 'TEMİZLİK', aktif: true });
     if (adEl) adEl.value = '';
     showToast('✅ Personel eklendi');
     await personelYukle();
