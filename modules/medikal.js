@@ -32,6 +32,10 @@ const _mData = {
 let _mSekme = 'ozet'; // ozet | teslim | alinan | ayarlar
 
 // ── Yardımcılar ──────────────────────────────────────────
+function mIsAdmin() {
+  const u = firebase.auth().currentUser;
+  return u && u.email === 'ozan.ersin@kusadasi.bel.tr';
+}
 function mFmt(n) { return (n ?? 0).toLocaleString('tr-TR'); }
 function mBugün() { return new Date().toISOString().split('T')[0]; }
 function mTarihTR(d) {
@@ -207,20 +211,24 @@ function mOzetHTML() {
               <th style="padding:10px 8px;text-align:center">Tür</th>
               <th style="padding:10px 8px;text-align:center">📤 Teslimde</th>
               <th style="padding:10px 8px;text-align:center">📥 İade Alınan</th>
+              <th style="padding:10px 8px;text-align:center">🏬 Depoda</th>
               <th style="padding:10px 8px;text-align:center">Durum</th>
             </tr>
           </thead>
           <tbody>
             ${rows.map((r,i) => {
               const bg = i%2===0?'':'rgba(0,0,0,0.02)';
+              const stokMiktar = (r.stok||0) - r.teslimde;
               const durum = r.teslimde > 0
                 ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800">📤 Teslimde (${r.teslimde})</span>`
                 : `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;padding:2px 10px;font-size:11px;font-weight:800">✅ Depoda</span>`;
+              const depodaRenk = stokMiktar > 0 ? '#16a34a' : stokMiktar < 0 ? '#dc2626' : '#94a3b8';
               return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
                 <td style="padding:10px 14px;font-weight:700">${r.ad}</td>
                 <td style="padding:10px 8px;text-align:center;font-size:11px;color:var(--text-soft)">${r.tur}</td>
                 <td style="padding:10px 8px;text-align:center;font-weight:900;color:${r.teslimde>0?'#dc2626':'#ccc'}">${r.teslimde>0?r.teslimde:'—'}</td>
                 <td style="padding:10px 8px;text-align:center;font-weight:700;color:#16a34a">${r.iadede>0?r.iadede:'—'}</td>
+                <td style="padding:10px 8px;text-align:center;font-weight:900;color:${depodaRenk}">${(r.stok||0) > 0 ? stokMiktar : '—'}</td>
                 <td style="padding:10px 8px;text-align:center">${durum}</td>
               </tr>`;
             }).join('')}
@@ -316,6 +324,7 @@ function mTeslimHTML() {
               <th style="padding:10px 8px;text-align:left">Tel</th>
               <th style="padding:10px 8px;text-align:left">Mahalle</th>
               <th style="padding:10px 10px;text-align:center">Durum</th>
+              ${mIsAdmin() ? `<th style="padding:10px 8px;text-align:center">🗑️</th>` : ''}
             </tr>
           </thead>
           <tbody id="m-t-body">
@@ -327,7 +336,9 @@ function mTeslimHTML() {
 }
 
 function mTeslimSatirlar(liste) {
-  if (!liste.length) return `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-soft)">Kayıt bulunamadı</td></tr>`;
+  const admin = mIsAdmin();
+  const colspan = admin ? 9 : 8;
+  if (!liste.length) return `<tr><td colspan="${colspan}" style="text-align:center;padding:40px;color:var(--text-soft)">Kayıt bulunamadı</td></tr>`;
   return liste.map((t,i) => {
     const bg = i%2===0?'':'rgba(0,0,0,0.02)';
     const iadeBadge = t.iade
@@ -337,6 +348,13 @@ function mTeslimSatirlar(liste) {
                   padding:4px 10px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap">
            📥 Teslim Alındı
          </button>`;
+    const silBtn = admin
+      ? `<td style="padding:9px 8px;text-align:center">
+           <button onclick="mTeslimSil('${t._id}')"
+             style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;
+                    padding:4px 8px;font-size:11px;cursor:pointer;font-weight:700">🗑️</button>
+         </td>`
+      : '';
     return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
       <td style="padding:9px 12px;font-size:12px;white-space:nowrap">${mTarihTR(t.tarih)}</td>
       <td style="padding:9px 12px;font-weight:700">${t.malzeme||'—'}</td>
@@ -346,6 +364,7 @@ function mTeslimSatirlar(liste) {
       <td style="padding:9px 8px;font-size:12px">${t.tel||'—'}</td>
       <td style="padding:9px 8px;font-size:12px">${t.mahalle||'—'}</td>
       <td style="padding:9px 10px;text-align:center">${iadeBadge}</td>
+      ${silBtn}
     </tr>`;
   }).join('');
 }
@@ -518,6 +537,7 @@ function mAlinanHTML() {
               <th style="padding:10px 8px;text-align:left">Telefon</th>
               <th style="padding:10px 8px;text-align:left">Mahalle</th>
               <th style="padding:10px 8px;text-align:left">İadeyi Alan</th>
+              ${mIsAdmin() ? `<th style="padding:10px 8px;text-align:center">🗑️</th>` : ''}
             </tr>
           </thead>
           <tbody id="m-a-body">
@@ -529,9 +549,18 @@ function mAlinanHTML() {
 }
 
 function mAlinanSatirlar(liste) {
-  if (!liste.length) return `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text-soft)">Henüz iade alınan kayıt yok</td></tr>`;
+  const admin = mIsAdmin();
+  const colspan = admin ? 8 : 7;
+  if (!liste.length) return `<tr><td colspan="${colspan}" style="text-align:center;padding:40px;color:var(--text-soft)">Henüz iade alınan kayıt yok</td></tr>`;
   return liste.map((a,i) => {
     const bg = i%2===0?'':'rgba(0,0,0,0.02)';
+    const silBtn = admin
+      ? `<td style="padding:9px 8px;text-align:center">
+           <button onclick="mAlinanSil('${a._id}')"
+             style="background:#fef2f2;border:1px solid #fca5a5;color:#dc2626;border-radius:6px;
+                    padding:4px 8px;font-size:11px;cursor:pointer;font-weight:700">🗑️</button>
+         </td>`
+      : '';
     return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
       <td style="padding:9px 12px;font-size:12px;white-space:nowrap">${mTarihTR(a.tarih)}</td>
       <td style="padding:9px 12px;font-weight:700">${a.malzeme||'—'}</td>
@@ -540,6 +569,7 @@ function mAlinanSatirlar(liste) {
       <td style="padding:9px 8px;font-size:12px">${a.tel||'—'}</td>
       <td style="padding:9px 8px;font-size:12px">${a.mahalle||'—'}</td>
       <td style="padding:9px 8px;font-size:12px;color:var(--text-soft)">${a.iadeAlan||'—'}</td>
+      ${silBtn}
     </tr>`;
   }).join('');
 }
@@ -565,6 +595,31 @@ function mAyarlarHTML() {
 
   return `
     <div style="display:flex;flex-direction:column;gap:20px">
+
+      <!-- Stok Miktarları -->
+      <div class="table-card" style="padding:20px">
+        <div class="table-header" style="padding:0 0 16px;border:none;background:none">
+          <span class="table-title">🏬 Elde Olan Malzeme Miktarları</span>
+          <span style="font-size:11px;color:var(--text-soft)">Depodaki toplam adet</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+          ${malzemeler.map(m => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+                        background:var(--bg-soft);border-radius:10px;border:1px solid var(--border)">
+              <span style="flex:1;font-size:13px;font-weight:700">${m.ad}</span>
+              <span style="font-size:11px;color:var(--text-soft);margin-right:4px">${m.tur}</span>
+              <input type="number" min="0" value="${m.stok||0}"
+                id="stok-${m._id}"
+                style="width:70px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;
+                       font-size:13px;font-weight:900;text-align:center;outline:none;color:#2563eb">
+              <button onclick="mStokGuncelle('${m._id}')"
+                style="background:#eff6ff;border:1px solid #bfdbfe;color:#2563eb;border-radius:8px;
+                       padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">
+                💾
+              </button>
+            </div>`).join('')}
+        </div>
+      </div>
 
       <!-- Malzeme Listesi -->
       <div class="table-card" style="padding:20px">
@@ -632,6 +687,53 @@ async function mMalzemeSil(fbId, ad) {
   }
 }
 
+// ── Stok güncelle ────────────────────────────────────────
+async function mStokGuncelle(fbId) {
+  const el = document.getElementById('stok-' + fbId);
+  const yeniStok = parseInt(el?.value);
+  if (isNaN(yeniStok) || yeniStok < 0) { showToast('⚠️ Geçerli bir miktar girin'); return; }
+  try {
+    await firebase.firestore().collection('medikal_malzemeler').doc(fbId).update({ stok: yeniStok });
+    const m = _mData.malzemeler.find(m => m._id === fbId);
+    if (m) m.stok = yeniStok;
+    showToast(`✅ Stok güncellendi: ${yeniStok} adet`);
+    // Özet sekmesini de güncelle
+    if (_mSekme === 'ozet') mRenderIc();
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
+}
+
+// ── Teslim kaydı sil (sadece admin) ──────────────────────
+async function mTeslimSil(fbId) {
+  if (!mIsAdmin()) { showToast('⛔ Yetkiniz yok'); return; }
+  const kayit = _mData.teslimler.find(t => t._id === fbId);
+  if (!confirm(`"${kayit?.malzeme||fbId}" teslim kaydını silmek istiyor musunuz?\nBu işlem geri alınamaz.`)) return;
+  try {
+    await firebase.firestore().collection('medikal_teslim').doc(fbId).delete();
+    _mData.teslimler = _mData.teslimler.filter(t => t._id !== fbId);
+    showToast(`🗑️ Teslim kaydı silindi`);
+    mRenderIc();
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
+}
+
+// ── İade kaydı sil (sadece admin) ────────────────────────
+async function mAlinanSil(fbId) {
+  if (!mIsAdmin()) { showToast('⛔ Yetkiniz yok'); return; }
+  const kayit = _mData.alinanlar.find(a => a._id === fbId);
+  if (!confirm(`"${kayit?.malzeme||fbId}" iade kaydını silmek istiyor musunuz?\nBu işlem geri alınamaz.`)) return;
+  try {
+    await firebase.firestore().collection('medikal_alinan').doc(fbId).delete();
+    _mData.alinanlar = _mData.alinanlar.filter(a => a._id !== fbId);
+    showToast(`🗑️ İade kaydı silindi`);
+    mRenderIc();
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
+}
+
 // ── Global ────────────────────────────────────────────────
 window.medikalRender      = medikalRender;
 window.mSekme             = mSekme;
@@ -642,3 +744,6 @@ window.mIadeKaydet        = mIadeKaydet;
 window.mAlinanFiltrele    = mAlinanFiltrele;
 window.mMalzemeEkle       = mMalzemeEkle;
 window.mMalzemeSil        = mMalzemeSil;
+window.mStokGuncelle      = mStokGuncelle;
+window.mTeslimSil         = mTeslimSil;
+window.mAlinanSil         = mAlinanSil;

@@ -274,7 +274,7 @@ function stokSekmeIcerik(kategori, sekme) {
 function stokOzetHTML(kategori) {
   const hareketler = _stokData[kategori] || [];
   const renk  = kategori === 'temizlik' ? '#059669' : '#2563eb';
-  const malzemeler = STOK_MALZEMELER[kategori];
+  const malzemeler = stokMalzemeListesi(kategori);
 
   // Her malzeme için başlangıç (ilk GELEN ile "Başlangıç sayımı" aciklamasi), sonraki gelenler, çıkanlar
   const rows = malzemeler.map(m => {
@@ -455,7 +455,7 @@ function stokHareketlerFiltrele(kategori) {
 // ── SEKME 3: GELEN KAYIT FORMU ───────────────────────────
 function stokGelenFormHTML(kategori) {
   const renk = kategori === 'temizlik' ? '#059669' : '#2563eb';
-  const malzemeler = STOK_MALZEMELER[kategori];
+  const malzemeler = stokMalzemeListesi(kategori);
   const son3 = (_stokData[kategori] || []).filter(h => h.tip === 'GELEN').slice(0, 5);
 
   return `
@@ -569,7 +569,7 @@ async function stokGelenKaydet(kategori) {
 function stokZimmetFormHTML(kategori) {
   const renk = kategori === 'temizlik' ? '#059669' : '#2563eb';
   const kalan = stokHesaplaKalan(kategori);
-  const malzemeler = STOK_MALZEMELER[kategori];
+  const malzemeler = stokMalzemeListesi(kategori);
   const son3 = (_stokData[kategori] || []).filter(h => h.tip === 'CIKAN').slice(0, 5);
 
   return `
@@ -1074,7 +1074,7 @@ async function stokExcelIndir(kategori) {
     return tb - ta;
   });
   const kalan   = stokHesaplaKalan(kategori);
-  const malzemeler = STOK_MALZEMELER[kategori];
+  const malzemeler = stokMalzemeListesi(kategori);
   const baslik  = kategori === 'temizlik' ? 'TEMİZLİK MALZEMESİ STOK RAPORU' : 'MEDİKAL MALZEME STOK RAPORU';
   const renk    = kategori === 'temizlik' ? 'FF059669' : 'FF2563EB';
   const bugun   = new Date().toLocaleDateString('tr-TR', {day:'2-digit',month:'2-digit',year:'numeric'});
