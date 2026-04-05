@@ -203,7 +203,7 @@ function stokRenderIc(kategori) {
     { id: 'personel',   ikon: '👥', ad: 'Personel'       },
     { id: 'gelen',      ikon: '📥', ad: 'Gelen Kayıt'   },
     { id: 'zimmet',     ikon: '📤', ad: 'Zimmet / Çıkış'},
-    ...(stokYetkiVar() ? [{ id: 'ayarlar', ikon: '⚙️', ad: 'Ayarlar' }] : []),
+    { id: 'ayarlar',    ikon: '⚙️', ad: 'Ayarlar'        },
   ];
 
   root.innerHTML = `
