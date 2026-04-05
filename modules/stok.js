@@ -62,6 +62,21 @@ const STOK_MALZEMELER = {
   ],
 };
 
+// ── Yetki ─────────────────────────────────────────────────
+// Ozan Ersin: ana admin (her şeyi yapabilir)
+// Ayşegül: depo sorumlusu (stok işlemleri yapabilir)
+// Diğerleri: sadece görüntüleyebilir
+const STOK_ADMIN_UID   = 'SBIyovehB5RAkSkhc05bIm88PJs2'; // Ozan Ersin DOĞAN
+const STOK_DEPO_UID    = 'LBntADGnP2MHVecmn4jAnFRPW222'; // Ayşegül TULĞAN
+
+function stokYetkiVar() {
+  const uid = window.currentUser?.uid;
+  return uid === STOK_ADMIN_UID || uid === STOK_DEPO_UID;
+}
+function stokDepoAdi() {
+  return window.currentUser?.ad || 'Ayşegül TULĞAN';
+}
+
 // Firestore'dan yüklenen hareketler (her kategori için ayrı)
 const _stokData = { temizlik: [], medikal: [] };
 let _stokAktifKategori = 'temizlik';
@@ -370,7 +385,7 @@ function stokGelenFormHTML(kategori) {
           </div>
           <div>
             <label style="font-size:11px;font-weight:800;color:var(--text-soft);display:block;margin-bottom:4px">TESLİM ALAN / KAYDEDEN</label>
-            <input id="stok-g-personel" readonly value="Ayşegül Tulğan"
+            <input id="stok-g-personel" readonly value="${stokDepoAdi()}"
               style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-soft);color:var(--text-soft)">
           </div>
           <div>
@@ -415,6 +430,7 @@ function stokGelenMalzemeSecildi(kategori) {
 }
 
 async function stokGelenKaydet(kategori) {
+  if (!stokYetkiVar()) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   const malzeme = document.getElementById('stok-g-malzeme')?.value?.trim();
   const tur     = document.getElementById('stok-g-tur')?.value?.trim();
   const miktar  = parseInt(document.getElementById('stok-g-miktar')?.value);
@@ -500,7 +516,7 @@ function stokZimmetFormHTML(kategori) {
           </div>
           <div>
             <label style="font-size:11px;font-weight:800;color:var(--text-soft);display:block;margin-bottom:4px">ZIMMET YAPAN (Depo Sorumlusu)</label>
-            <input id="stok-z-zimmetpersonel" readonly value="Ayşegül Tulğan"
+            <input id="stok-z-zimmetpersonel" readonly value="${stokDepoAdi()}"
               style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg-soft);color:var(--text-soft)">
           </div>
           <div>
@@ -554,6 +570,7 @@ function stokZimmetMalzemeSecildi(kategori) {
 }
 
 async function stokZimmetKaydet(kategori) {
+  if (!stokYetkiVar()) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   const malzeme      = document.getElementById('stok-z-malzeme')?.value?.trim();
   const tur          = document.getElementById('stok-z-tur')?.value?.trim();
   const miktar       = parseInt(document.getElementById('stok-z-miktar')?.value);
@@ -596,6 +613,7 @@ async function stokZimmetKaydet(kategori) {
 
 // ── SİL ──────────────────────────────────────────────────
 async function stokSil(id, kategori) {
+  if (!stokYetkiVar()) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   if (!confirm('Bu hareketi silmek istediğinizden emin misiniz?')) return;
   try {
     await firebase.firestore().collection('stok_hareketler').doc(id).delete();
@@ -1026,6 +1044,7 @@ const STOK_SEED_HAREKETLER = [
 
 // Seed yükleyici — konsoldan veya Ayarlar'dan çalıştırılır
 async function stokSeedYukle() {
+  if (window.currentUser?.uid !== STOK_ADMIN_UID) { showToast('⛔ Bu işlem sadece Ozan Ersin tarafından yapılabilir'); return; }
   const db = firebase.firestore();
   // Zaten kayıt var mı kontrol et
   const mevcut = await db.collection('stok_hareketler').where('kategori','==','temizlik').limit(1).get();
