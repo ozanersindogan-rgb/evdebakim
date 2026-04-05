@@ -1045,11 +1045,17 @@ const STOK_SEED_HAREKETLER = [
 // Seed yükleyici — konsoldan veya Ayarlar'dan çalıştırılır
 async function stokSeedYukle() {
   const db = firebase.firestore();
-  // Zaten kayıt var mı kontrol et
-  const mevcut = await db.collection('stok_hareketler').where('kategori','==','temizlik').limit(1).get();
+  // Tüm koleksiyonu kontrol et (kategori fark etmeksizin)
+  const mevcut = await db.collection('stok_hareketler').limit(1).get();
   if (!mevcut.empty) {
-    showToast('⚠️ Stok veritabanı zaten dolu — seed atlandı');
-    return;
+    const devamEt = confirm('⚠️ Stok veritabanında kayıt var.\n\nMevcut kayıtları SİLİP Excel verilerini yeniden yüklemek ister misiniz?');
+    if (!devamEt) return;
+    // Mevcut tüm kayıtları sil
+    showToast('🗑️ Eski kayıtlar temizleniyor...');
+    const tumKayitlar = await db.collection('stok_hareketler').get();
+    const silBatch = db.batch();
+    tumKayitlar.docs.forEach(d => silBatch.delete(d.ref));
+    await silBatch.commit();
   }
   showToast('⏳ Excel verileri yükleniyor...');
   const batch = db.batch();
