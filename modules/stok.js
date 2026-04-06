@@ -277,10 +277,11 @@ function stokOzetHTML(kategori) {
     const tumGelen  = hareketler.filter(h => h.tip === 'GELEN' && h.malzeme === m.ad);
     const tumCikan  = hareketler.filter(h => h.tip === 'CIKAN' && h.malzeme === m.ad);
 
-    // Başlangıç sayımı: "Başlangıç sayımı" açıklamalı kayıtlar
-    const baslangic = tumGelen
+    // Başlangıç: malzeme kaydındaki baslangic alanı VEYA "Başlangıç sayımı" açıklamalı hareket
+    const baslangicHareket = tumGelen
       .filter(h => (h.aciklama||'').includes('Başlangıç'))
       .reduce((s,h) => s + Number(h.miktar||0), 0);
+    const baslangic = (m.baslangic && m.baslangic > 0) ? m.baslangic : baslangicHareket;
 
     // Sonradan gelen (başlangıç sayımı hariç)
     const sonraGelen = tumGelen
@@ -881,6 +882,31 @@ function stokAyarlarHTML(kategori) {
 
   return `
   <div style="display:flex;flex-direction:column;gap:20px">
+
+    <!-- ── BAŞLANGIÇ / MEVCUT MİKTAR ── -->
+    <div class="table-card" style="padding:20px">
+      <div class="table-header" style="padding:0 0 16px;border:none;background:none">
+        <span class="table-title">🏬 Başlangıç / Mevcut Miktarlar</span>
+        <span style="font-size:11px;color:var(--text-soft)">Depodaki fiili miktar</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px">
+        ${stokMalzemeListesi(kategori).map(m => `
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+                      background:var(--bg-soft);border-radius:10px;border:1px solid var(--border)">
+            <span style="flex:1;font-size:13px;font-weight:700;color:var(--text)">${m.ad}</span>
+            <span style="font-size:11px;color:var(--text-soft);margin-right:4px">${m.tur}</span>
+            <input type="number" min="0" value="${m.baslangic||0}"
+              id="stok-bas-${m._id}"
+              style="width:75px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;
+                     font-size:13px;font-weight:900;text-align:center;outline:none;color:#059669">
+            <button onclick="stokBaslangicGuncelle('${m._id}','${kategori}')"
+              style="background:#f0fdf4;border:1px solid #bbf7d0;color:#059669;border-radius:8px;
+                     padding:6px 12px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap">
+              💾
+            </button>
+          </div>`).join('')}
+      </div>
+    </div>
 
     <!-- ── MALZEME YÖNETİMİ ── -->
     <div class="table-card" style="padding:20px">
@@ -1621,6 +1647,23 @@ async function stokDuplicateTemizle(kategori) {
   await stokMalzemeListesiYukle(kategori);
   stokRenderIc(kategori);
 }
+
+// ── Başlangıç miktarı güncelle ────────────────────────────
+async function stokBaslangicGuncelle(fbId, kategori) {
+  const el = document.getElementById('stok-bas-' + fbId);
+  const yeniMiktar = parseInt(el?.value);
+  if (isNaN(yeniMiktar) || yeniMiktar < 0) { showToast('⚠️ Geçerli bir miktar girin'); return; }
+  try {
+    await firebase.firestore().collection('stok_malzemeler').doc(fbId).update({ baslangic: yeniMiktar });
+    const m = _stokMalzemeler[kategori]?.find(m => m._id === fbId);
+    if (m) m.baslangic = yeniMiktar;
+    showToast(`✅ Başlangıç miktarı güncellendi: ${yeniMiktar}`);
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
+}
+window.stokBaslangicGuncelle = stokBaslangicGuncelle;
+
 window.stokDuplicateTemizle = stokDuplicateTemizle;
 
 window.stokSeedYukle = stokSeedYukle;
