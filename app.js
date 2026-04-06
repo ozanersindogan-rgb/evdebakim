@@ -760,3 +760,211 @@ async function tumKayitlaraIDVer() {
     showToast('❌ ID atama hatası: ' + err.message);
   }
 }
+
+// ══════════════════════════════════════════════════════════
+//  AKILLI ZİYARET PLANLAMASI
+//  allData'daki vatandaş kayıtlarından son ziyaret tarihini
+//  okur, periyota göre öncelik belirler ve plan-liste'ye yazar
+// ══════════════════════════════════════════════════════════
+
+function renderPlan() {
+  const hizmetFil   = document.getElementById('plan-hizmet-fil')?.value   || '';
+  const oncelikFil  = document.getElementById('plan-oncelik-fil')?.value  || '';
+  const liste       = document.getElementById('plan-liste');
+  const ozetGrid    = document.getElementById('plan-ozet-grid');
+  if (!liste) return;
+
+  // allData henüz yüklenmediyse bekle
+  if (typeof allData === 'undefined' || !allData.length) {
+    liste.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-soft)">⏳ Veriler yükleniyor...</div>`;
+    return;
+  }
+
+  const bugun = new Date();
+  bugun.setHours(0,0,0,0);
+
+  // Tarih parse — YYYY-MM-DD veya DD.MM.YYYY
+  function parseDate(val) {
+    if (!val) return null;
+    val = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return new Date(val);
+    if (/^\d{2}\.\d{2}\.\d{4}$/.test(val)) {
+      const [d,m,y] = val.split('.');
+      return new Date(`${y}-${m}-${d}`);
+    }
+    return null;
+  }
+
+  // Kuaför için son tarih: SAC1,SAC2,TIRNAK1,TIRNAK2,SAKAL1,SAKAL2 arasında en büyük
+  function sonZiyaretTarihi(r) {
+    const hizmet = r['HİZMET'];
+    let tarihler = [];
+    if (hizmet === 'KUAFÖR') {
+      ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'].forEach(k => {
+        const d = parseDate(r[k]);
+        if (d) tarihler.push(d);
+      });
+    } else {
+      ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'].forEach(k => {
+        const d = parseDate(r[k]);
+        if (d) tarihler.push(d);
+      });
+    }
+    if (!tarihler.length) return null;
+    return new Date(Math.max(...tarihler.map(d => d.getTime())));
+  }
+
+  // Hizmet başına periyot (gün)
+  const PERIYOT = {
+    'KUAFÖR':     30,
+    'KADIN BANYO': 15,
+    'ERKEK BANYO': 15,
+  };
+
+  // Sadece AKTİF vatandaşları al, hizmet filtresi uygula
+  const hizmetler = hizmetFil
+    ? [hizmetFil]
+    : ['KUAFÖR','KADIN BANYO','ERKEK BANYO'];
+
+  // Her vatandaşın en güncel ayını bul (aynı kişi birden fazla ayda olabilir)
+  const kisiMap = {};
+  allData.forEach(r => {
+    if (!hizmetler.includes(r['HİZMET'])) return;
+    if (r.DURUM && r.DURUM !== 'AKTİF') return;
+    const key = r._fbId || r.ISIM_SOYISIM;
+    const son = sonZiyaretTarihi(r);
+    if (!kisiMap[key] || (son && (!kisiMap[key].sonTarih || son > kisiMap[key].sonTarih))) {
+      kisiMap[key] = { ...r, sonTarih: son };
+    }
+  });
+
+  // Öncelik hesapla
+  const sonuclar = Object.values(kisiMap).map(r => {
+    const periyot = PERIYOT[r['HİZMET']] || 30;
+    const son = r.sonTarih;
+    let gecenGun = null;
+    let sonrakiTarih = null;
+    if (son) {
+      gecenGun = Math.floor((bugun - son) / 86400000);
+      sonrakiTarih = new Date(son.getTime() + periyot * 86400000);
+    }
+    const fark = sonrakiTarih ? Math.floor((sonrakiTarih - bugun) / 86400000) : null;
+
+    let oncelik;
+    if (!son) {
+      oncelik = 'acil'; // Hiç gidilmemiş
+    } else if (fark === null || fark < 0) {
+      oncelik = 'acil';      // Gecikmiş
+    } else if (fark <= 7) {
+      oncelik = 'bu-hafta';  // Bu hafta
+    } else {
+      oncelik = 'gelecek';   // Gelecek hafta+
+    }
+
+    return { ...r, gecenGun, sonrakiTarih, fark, oncelik };
+  });
+
+  // Öncelik filtresi
+  const filtrelendi = oncelikFil
+    ? sonuclar.filter(r => r.oncelik === oncelikFil)
+    : sonuclar;
+
+  // Sırala: önce gecikmiş, sonra bu hafta, sonra diğer; içinde gecen gün azalan
+  const oncelikSira = { acil: 0, 'bu-hafta': 1, gelecek: 2 };
+  filtrelendi.sort((a, b) => {
+    const os = oncelikSira[a.oncelik] - oncelikSira[b.oncelik];
+    if (os !== 0) return os;
+    return (b.gecenGun || 0) - (a.gecenGun || 0);
+  });
+
+  // Özet kartlar
+  const acilSayisi    = sonuclar.filter(r => r.oncelik === 'acil').length;
+  const buHaftaSayisi = sonuclar.filter(r => r.oncelik === 'bu-hafta').length;
+  const gelecekSayisi = sonuclar.filter(r => r.oncelik === 'gelecek').length;
+
+  if (ozetGrid) {
+    ozetGrid.innerHTML = `
+      <div class="table-card" style="padding:16px;text-align:center;border-color:#fca5a5;cursor:pointer"
+           onclick="document.getElementById('plan-oncelik-fil').value='acil';renderPlan()">
+        <div style="font-size:28px;font-weight:900;color:#dc2626">${acilSayisi}</div>
+        <div style="font-size:12px;color:var(--text-soft);margin-top:4px">🔴 Gecikmiş</div>
+      </div>
+      <div class="table-card" style="padding:16px;text-align:center;border-color:#fde68a;cursor:pointer"
+           onclick="document.getElementById('plan-oncelik-fil').value='bu-hafta';renderPlan()">
+        <div style="font-size:28px;font-weight:900;color:#d97706">${buHaftaSayisi}</div>
+        <div style="font-size:12px;color:var(--text-soft);margin-top:4px">🟡 Bu Hafta</div>
+      </div>
+      <div class="table-card" style="padding:16px;text-align:center;border-color:#bbf7d0;cursor:pointer"
+           onclick="document.getElementById('plan-oncelik-fil').value='gelecek';renderPlan()">
+        <div style="font-size:28px;font-weight:900;color:#16a34a">${gelecekSayisi}</div>
+        <div style="font-size:12px;color:var(--text-soft);margin-top:4px">🟢 Gelecek Hafta+</div>
+      </div>`;
+  }
+
+  // Tablo
+  if (!filtrelendi.length) {
+    liste.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-soft)">Bu kriterde vatandaş bulunamadı</div>`;
+    return;
+  }
+
+  const fmt = d => d ? d.toLocaleDateString('tr-TR', {day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
+
+  const satirlar = filtrelendi.map((r, i) => {
+    const bg = i % 2 === 0 ? '' : 'rgba(0,0,0,0.02)';
+    const { oncelik, gecenGun, sonrakiTarih, sonTarih } = r;
+
+    const badge = oncelik === 'acil'
+      ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:800">🔴 ${sonTarih ? 'Gecikmiş' : 'Hiç Gidilmedi'}</span>`
+      : oncelik === 'bu-hafta'
+      ? `<span style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:800">🟡 Bu Hafta</span>`
+      : `<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:800">🟢 ${r.fark} gün sonra</span>`;
+
+    const hizmetTag = r['HİZMET'] === 'KUAFÖR'
+      ? `<span class="hizmet-tag tag-kuafor">KF</span>`
+      : r['HİZMET'] === 'KADIN BANYO'
+      ? `<span class="hizmet-tag tag-kadin">KB</span>`
+      : `<span class="hizmet-tag tag-erkek">EB</span>`;
+
+    const gecenGunYazi = gecenGun !== null
+      ? `<span style="font-size:11px;color:${gecenGun>30?'#dc2626':gecenGun>15?'#d97706':'#64748b'};font-weight:700">${gecenGun} gün önce</span>`
+      : `<span style="font-size:11px;color:#94a3b8">—</span>`;
+
+    return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
+      <td style="padding:10px 12px;font-weight:700">${r.ISIM_SOYISIM || '—'} ${hizmetTag}</td>
+      <td style="padding:10px 8px;font-size:12px;color:var(--text-soft)">${r.MAHALLE || '—'}</td>
+      <td style="padding:10px 8px;text-align:center;font-size:12px">${fmt(sonTarih)}</td>
+      <td style="padding:10px 8px;text-align:center">${gecenGunYazi}</td>
+      <td style="padding:10px 8px;text-align:center;font-size:12px">${fmt(sonrakiTarih)}</td>
+      <td style="padding:10px 10px;text-align:center">${badge}</td>
+    </tr>`;
+  }).join('');
+
+  liste.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button onclick="document.getElementById('plan-oncelik-fil').value='';renderPlan()"
+        style="font-size:11px;padding:5px 12px;border:1px solid var(--border);border-radius:8px;
+               background:var(--bg-soft);cursor:pointer;color:var(--text-soft);font-weight:700">
+        Filtreyi Temizle
+      </button>
+    </div>
+    <div class="scroll-table">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:linear-gradient(135deg,#7c3aed,#9333ea);color:#fff">
+            <th style="padding:10px 12px;text-align:left">Ad Soyad</th>
+            <th style="padding:10px 8px;text-align:left">Mahalle</th>
+            <th style="padding:10px 8px;text-align:center;white-space:nowrap">Son Ziyaret</th>
+            <th style="padding:10px 8px;text-align:center;white-space:nowrap">Geçen Süre</th>
+            <th style="padding:10px 8px;text-align:center;white-space:nowrap">Sonraki Tarih</th>
+            <th style="padding:10px 10px;text-align:center">Öncelik</th>
+          </tr>
+        </thead>
+        <tbody>${satirlar}</tbody>
+      </table>
+    </div>
+    <div style="padding:10px 12px;font-size:11px;color:var(--text-soft);text-align:right">
+      ${filtrelendi.length} vatandaş · Kuaför 30 gün, Banyo 15 gün periyot
+    </div>`;
+}
+
+window.renderPlan = renderPlan;

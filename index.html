@@ -252,7 +252,7 @@
 
       <div class="topbar-right">
         <span class="date-badge" id="current-date"></span>
-        <button class="btn btn-sm" onclick="navTo('plan',null)" style="background:linear-gradient(135deg,#7c3aed,#9333ea);color:#fff;font-size:11px">🤖 Akıllı Plan</button>
+        <button class="btn btn-sm" onclick="navTo('plan',null);setTimeout(renderPlan,100)" style="background:linear-gradient(135deg,#7c3aed,#9333ea);color:#fff;font-size:11px">🤖 Akıllı Plan</button>
         <button class="btn btn-primary btn-sm" onclick="navTo('yeni-vatandas',null)">+ Yeni Vatandaş</button>
         <button onclick="navTo('araclar',null)" title="Araçlar" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:5px 9px;font-size:15px;cursor:pointer;line-height:1;display:flex;align-items:center">🔑</button>
         <div id="user-badge" style="display:none;align-items:center;gap:8px;margin-left:2px">
