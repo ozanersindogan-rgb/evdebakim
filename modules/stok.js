@@ -373,16 +373,32 @@ function stokHareketlerHTML(kategori) {
     return `<div style="text-align:center;padding:60px;color:var(--text-soft)">Henüz hareket kaydı yok</div>`;
   }
 
+  // Benzersiz yılları çıkar
+  const yillar = [...new Set(hareketler.map(h => {
+    const t = h.tarih?.toDate ? h.tarih.toDate() : new Date(h.tarih || 0);
+    return t.getFullYear();
+  }).filter(y => y > 2000))].sort((a,b) => b - a);
+
   // Arama + filtre
   return `
-    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
       <input id="stok-h-ara" placeholder="🔍 Malzeme veya personel ara..." oninput="stokHareketlerFiltrele('${kategori}')"
-        style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;flex:1;min-width:180px">
+        style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;flex:1;min-width:160px">
       <select id="stok-h-tip" onchange="stokHareketlerFiltrele('${kategori}')"
         style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
         <option value="">Tüm Hareketler</option>
         <option value="GELEN">📥 Gelen</option>
         <option value="CIKAN">📤 Çıkan / Zimmet</option>
+      </select>
+      <select id="stok-h-yil" onchange="stokHareketlerFiltrele('${kategori}')"
+        style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+        <option value="">Tüm Yıllar</option>
+        ${yillar.map(y => `<option value="${y}">${y}</option>`).join('')}
+      </select>
+      <select id="stok-h-siralama" onchange="stokHareketlerFiltrele('${kategori}')"
+        style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px">
+        <option value="yeni">↓ Yeniden Eskiye</option>
+        <option value="eski">↑ Eskiden Yeniye</option>
       </select>
       <span id="stok-h-sayi" style="font-size:12px;color:var(--text-soft);font-weight:700">${hareketler.length} kayıt</span>
     </div>
@@ -434,14 +450,29 @@ function stokHareketlerSatirlar(hareketler) {
 }
 
 function stokHareketlerFiltrele(kategori) {
-  const ara = (document.getElementById('stok-h-ara')?.value || '').toLowerCase();
-  const tip = document.getElementById('stok-h-tip')?.value || '';
-  let h = _stokData[kategori] || [];
+  const ara      = (document.getElementById('stok-h-ara')?.value || '').toLowerCase();
+  const tip      = document.getElementById('stok-h-tip')?.value || '';
+  const yil      = document.getElementById('stok-h-yil')?.value || '';
+  const siralama = document.getElementById('stok-h-siralama')?.value || 'yeni';
+  let h = [...(_stokData[kategori] || [])];
+
   if (tip) h = h.filter(r => r.tip === tip);
+  if (yil) h = h.filter(r => {
+    const t = r.tarih?.toDate ? r.tarih.toDate() : new Date(r.tarih || 0);
+    return String(t.getFullYear()) === yil;
+  });
   if (ara) h = h.filter(r =>
     (r.malzeme||'').toLowerCase().includes(ara) ||
     (r.personel||'').toLowerCase().includes(ara)
   );
+
+  // Sıralama
+  h.sort((a, b) => {
+    const ta = a.tarih?.toDate ? a.tarih.toDate() : new Date(a.tarih || 0);
+    const tb = b.tarih?.toDate ? b.tarih.toDate() : new Date(b.tarih || 0);
+    return siralama === 'eski' ? ta - tb : tb - ta;
+  });
+
   const body = document.getElementById('stok-h-body');
   if (body) body.innerHTML = stokHareketlerSatirlar(h);
   const sayi = document.getElementById('stok-h-sayi');
