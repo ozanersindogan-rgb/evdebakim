@@ -290,9 +290,12 @@ function stokOzetHTML(kategori) {
 
     const toplam_gelen = baslangic + sonraGelen;
     const cikan  = tumCikan.reduce((s,h) => s + Number(h.miktar||0), 0);
-    const kalan  = toplam_gelen - cikan;
-    const durum  = kalan <= 0 ? 'kritik' : kalan <= 10 ? 'az' : 'ok';
-    return { ...m, baslangic, sonraGelen, toplam_gelen, cikan, kalan, durum };
+    const kalanHesap = toplam_gelen - cikan;
+    // kalan_override varsa onu kullan (manuel düzeltme)
+    const kalanGercek = (m.kalan_override !== undefined && m.kalan_override !== null)
+      ? m.kalan_override : kalanHesap;
+    const durum  = kalanGercek <= 0 ? 'kritik' : kalanGercek <= 10 ? 'az' : 'ok';
+    return { ...m, baslangic, sonraGelen, toplam_gelen, cikan, kalan: kalanHesap, kalan_override: m.kalan_override, durum };
   }).sort((a, b) => a.kalan - b.kalan);
 
   const toplamMalzeme = malzemeler.length;
@@ -349,13 +352,28 @@ function stokOzetHTML(kategori) {
                 : r.durum==='az'
                 ? '<span style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:800">🟡 Az</span>'
                 : '<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:800">🟢 Yeterli</span>';
+              const isAdmin = stokCurrentUser()?.uid === STOK_ADMIN_UID;
+              const kalanGercek = r.kalan_override !== undefined && r.kalan_override !== null
+                ? r.kalan_override : r.kalan;
+              const kalanRenk = kalanGercek <= 0 ? '#dc2626' : kalanGercek <= 10 ? '#d97706' : '#16a34a';
+              const kalanHucre = isAdmin
+                ? `<td style="padding:6px 8px;text-align:center">
+                     <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                       <span id="kalan-val-${r._id}" style="font-size:18px;font-weight:900;color:${kalanRenk}">${stokFmt(kalanGercek)}</span>
+                       <button onclick="stokKalanDuzenle('${r._id}','${r.ad}',${kalanGercek},'${kategori}')"
+                         title="Kalan miktarı düzenle"
+                         style="background:#f1f5f9;border:1px solid #e2e8f0;color:#64748b;border-radius:6px;
+                                padding:2px 7px;font-size:11px;cursor:pointer;line-height:1">✏️</button>
+                     </div>
+                   </td>`
+                : `<td style="padding:9px 10px;text-align:center;font-size:18px;font-weight:900;color:${kalanRenk}">${stokFmt(kalanGercek)}</td>`;
               return `<tr style="background:${bg};border-bottom:1px solid var(--border)">
                 <td style="padding:9px 12px;font-weight:600">${r.ad}</td>
                 <td style="padding:9px 8px;text-align:center;font-size:11px;color:var(--text-soft)">${r.tur}</td>
                 <td style="padding:9px 8px;text-align:center;color:#6366f1;font-weight:700">${r.baslangic > 0 ? stokFmt(r.baslangic) : '<span style="color:#ccc">—</span>'}</td>
                 <td style="padding:9px 8px;text-align:center;color:#059669;font-weight:700">${r.sonraGelen > 0 ? '+'+stokFmt(r.sonraGelen) : '<span style="color:#ccc">—</span>'}</td>
                 <td style="padding:9px 8px;text-align:center;color:#dc2626;font-weight:700">${r.cikan > 0 ? '−'+stokFmt(r.cikan) : '<span style="color:#ccc">—</span>'}</td>
-                <td style="padding:9px 10px;text-align:center;font-size:18px;font-weight:900;color:${renkK}">${stokFmt(r.kalan)}</td>
+                ${kalanHucre}
                 <td style="padding:9px 8px;text-align:center">${badge}</td>
               </tr>`;
             }).join('')}
@@ -1663,6 +1681,101 @@ async function stokBaslangicGuncelle(fbId, kategori) {
   }
 }
 window.stokBaslangicGuncelle = stokBaslangicGuncelle;
+
+// ── Kalan miktarı düzenle (sadece admin) ─────────────────
+function stokKalanDuzenle(fbId, ad, mevcutKalan, kategori) {
+  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) { showToast('⛔ Yetkiniz yok'); return; }
+
+  document.getElementById('stok-kalan-modal')?.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'stok-kalan-modal';
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px';
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;width:100%;max-width:380px;
+                box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
+      <div style="background:linear-gradient(135deg,#059669,#16a34a);padding:18px 20px;color:#fff">
+        <div style="font-size:11px;opacity:.8;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Kalan Miktarı Düzenle</div>
+        <div style="font-size:17px;font-weight:900">${ad}</div>
+        <div style="font-size:12px;opacity:.85;margin-top:4px">Hesaplanan kalan: ${mevcutKalan}</div>
+      </div>
+      <div style="padding:20px">
+        <label style="font-size:12px;font-weight:800;color:#64748b;display:block;margin-bottom:6px">
+          GERÇEK KALAN MİKTAR
+        </label>
+        <input id="stok-kalan-input" type="number" min="0" value="${mevcutKalan}"
+          style="width:100%;padding:12px;border:2px solid #059669;border-radius:10px;
+                 font-size:22px;font-weight:900;text-align:center;outline:none;
+                 color:#059669;box-sizing:border-box;margin-bottom:8px">
+        <p style="font-size:11px;color:#94a3b8;margin:0 0 16px">
+          Bu değer kalıcı olarak kaydedilir ve hesaplanan kalanın önüne geçer.
+          Sıfırlamak için boş bırak.
+        </p>
+        <div style="display:flex;gap:10px">
+          <button onclick="document.getElementById('stok-kalan-modal').remove()"
+            style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:8px;
+                   background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
+            İptal
+          </button>
+          <button onclick="stokKalanKaydet('${fbId}','${kategori}')"
+            style="flex:2;padding:10px;border:none;border-radius:8px;
+                   background:#059669;color:#fff;font-size:13px;font-weight:800;cursor:pointer">
+            💾 Kaydet
+          </button>
+        </div>
+        <div style="margin-top:10px;text-align:center">
+          <button onclick="stokKalanSifirla('${fbId}','${kategori}')"
+            style="background:none;border:none;color:#94a3b8;font-size:11px;
+                   cursor:pointer;text-decoration:underline">
+            Manuel düzeltmeyi kaldır (hesaplanan değere dön)
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+  setTimeout(() => document.getElementById('stok-kalan-input')?.select(), 50);
+}
+
+async function stokKalanKaydet(fbId, kategori) {
+  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) return;
+  const val = document.getElementById('stok-kalan-input')?.value;
+  if (val === '' || val === null) { stokKalanSifirla(fbId, kategori); return; }
+  const miktar = parseInt(val);
+  if (isNaN(miktar) || miktar < 0) { showToast('⚠️ Geçerli bir miktar girin'); return; }
+  try {
+    await firebase.firestore().collection('stok_malzemeler').doc(fbId)
+      .update({ kalan_override: miktar });
+    const m = _stokMalzemeler[kategori]?.find(x => x._id === fbId);
+    if (m) m.kalan_override = miktar;
+    document.getElementById('stok-kalan-modal')?.remove();
+    showToast(`✅ Kalan güncellendi: ${miktar}`);
+    stokRenderIc(kategori);
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
+}
+
+async function stokKalanSifirla(fbId, kategori) {
+  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) return;
+  try {
+    await firebase.firestore().collection('stok_malzemeler').doc(fbId)
+      .update({ kalan_override: firebase.firestore.FieldValue.delete() });
+    const m = _stokMalzemeler[kategori]?.find(x => x._id === fbId);
+    if (m) delete m.kalan_override;
+    document.getElementById('stok-kalan-modal')?.remove();
+    showToast('↩️ Manuel düzeltme kaldırıldı');
+    stokRenderIc(kategori);
+  } catch(e) {
+    showToast('❌ Hata: ' + e.message);
+  }
+}
+window.stokKalanDuzenle  = stokKalanDuzenle;
+window.stokKalanKaydet   = stokKalanKaydet;
+window.stokKalanSifirla  = stokKalanSifirla;
+
 
 window.stokDuplicateTemizle = stokDuplicateTemizle;
 
