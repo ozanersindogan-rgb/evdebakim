@@ -975,6 +975,8 @@ async function saveRec(){
   const telAktif=document.getElementById('f-tel-aktif')?.value||'1';
   const adres=(document.getElementById('f-adres')?.value||'').trim();
   const dogumRaw=(document.getElementById('f-dogum')?.value||'').trim();
+  const engel=document.getElementById('f-engel')?.value||'Yok';
+  const engelAc=(document.getElementById('f-engelac')?.value||'').trim();
   let dogum=dogumRaw;
   if(/^\d{4}-\d{2}-\d{2}$/.test(dogumRaw)){const[y,m,d]=dogumRaw.split('-');dogum=`${d}.${m}.${y}`;}
 
@@ -988,6 +990,7 @@ async function saveRec(){
       SAC1:'',SAC2:'',TIRNAK1:'',TIRNAK2:'',SAKAL1:'',SAKAL2:'',
       NOT1:not1, NOT2:not2, NOT3:'',
       TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
+      ENGEL:engel, ENGEL_ACIKLAMA:engelAc,
     };
     allData.push(rec);
     newRecs.push(rec);
@@ -1025,7 +1028,8 @@ async function saveRec(){
   }
 }
 function clearForm(){
-  ['f-isim','f-onay','f-dogum','f-tel','f-tel2','f-adres','f-not1','f-not2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-isim','f-onay','f-dogum','f-tel','f-tel2','f-adres','f-not1','f-not2','f-engelac'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const fe=document.getElementById('f-engel');if(fe)fe.value='Yok';;
   ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
   const ta=document.getElementById('f-tel-aktif');if(ta)ta.value='1';
   fvCopyReset();
@@ -1255,6 +1259,7 @@ function renderVat() {
     ${isKuafor?'<th style="'+_th+'">Saç</th><th style="'+_th+'">Tırnak</th><th style="'+_th+'">Sakal</th>':'<th style="'+_th+'">Tarihler</th>'}
     <th style="${_th}">Yaş</th>
     <th style="${_th}">Notlar</th>
+    <th style="${_th}">Engel</th>
     <th style="${_th}">Telefon</th>
     <th style="${_th}">Adres</th>
     <th style="${_th}">
@@ -1306,6 +1311,7 @@ function renderVat() {
       `:`<td>${getBanyolar(r)}</td>`}
       <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
       <td style="font-size:11px;color:var(--text-soft);max-width:160px">${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')||'—'}</td>
+      <td style="text-align:center">${(()=>{const _eng=r.ENGEL||"";return _eng==="Var"?'<span style="color:#dc2626;font-weight:700;font-size:11px" title="'+( r.ENGEL_ACIKLAMA||"" )+'">⚠️ Var</span>':"<span style=\"color:#16a34a;font-size:11px\">✓ Yok</span>";})()}</td>
       <td style="font-size:11px;white-space:nowrap;color:#0369a1">${(()=>{const aktTel=(r.TELEFON_AKTIF==='2'&&r.TELEFON2)?r.TELEFON2:(r.TELEFON||kbilgi.tel||'');return aktTel?`<a href="tel:${aktTel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${aktTel}</a>`:'—';})()}</td>
       <td style="font-size:11px;color:var(--text-soft);max-width:180px">${r.ADRES||kbilgi.adres||'—'}</td>
       <td>${durBadge(r.DURUM)}</td>

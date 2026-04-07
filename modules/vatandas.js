@@ -387,6 +387,7 @@ function showDetail(isim, hizmet, ay) {
     </div>`:''}
     ${(r.NOT1||r.NOT2||r.NOT3)?`<div style="background:#FFFDE7;border:1px solid #FDD835;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#795548">
       Not: ${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')}</div>`:''}
+    ${(r.ENGEL==='Var')?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px"><span style="font-size:18px">⚠️</span><div><span style="font-size:11px;font-weight:700;color:#94a3b8">ENGEL DURUMU</span><br><span style="font-size:13px;color:#b91c1c;font-weight:700">Engelli${r.ENGEL_ACIKLAMA?' — '+r.ENGEL_ACIKLAMA:''}</span></div></div>`:''}
     ${(r.DOGUM_TARIHI||adresBilgi.dogum)?`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
       <div><span style="font-size:11px;font-weight:700;color:#94a3b8">DOGUM TARIHI</span><br>
       <span style="font-size:13px;color:#374151;font-weight:600">${r.DOGUM_TARIHI||adresBilgi.dogum||''}</span></div>
