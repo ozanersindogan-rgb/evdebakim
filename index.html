@@ -36,6 +36,8 @@
     <div class="nav-item" onclick="navTo('vatandaslar',this)"><span class="icon">👥</span>Vatandaşlar</div>
 
     <!-- ── GÜNLÜK İŞLEMLER ─────────────────────── -->
+    <div class="nav-section">🏥 Klinik</div>
+    <div class="nav-item" onclick="navTo('hemsire-takip',this)"><span class="icon">🏥</span>Hemşire Takip</div>
     <div class="nav-section">📝 Günlük İşlemler</div>
     <div class="nav-item" onclick="navTo('gunluk-kayit',this)"><span class="icon">📝</span>Hizmet Kaydı</div>
     <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
@@ -528,7 +530,249 @@
       </div>
 
       <!-- ─── GÜNLÜK HİZMET KAYDI ─── -->
-      <div class="page" id="page-gunluk-kayit">
+      <!-- ─── HEMŞİRE TAKİP SAYFASI ─── -->
+      <div class="page" id="page-hemsire-takip">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+
+          <!-- SOL: Form -->
+          <div class="form-section">
+            <h3 id="hm-form-baslik">📋 Yeni Ziyaret Formu</h3>
+
+            <!-- Vatandaş Seçimi -->
+            <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px">
+              <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:10px">Vatandaş Seçimi</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Hizmet Türü *</label>
+                  <select class="form-select" id="hm-hizmet" onchange="hmHizmetSecildi()">
+                    <option value="">— Hizmet Seçin —</option>
+                    <option value="KADIN BANYO">Kadın Banyo</option>
+                    <option value="ERKEK BANYO">Erkek Banyo</option>
+                    <option value="KUAFÖR">Kuaför</option>
+                    <option value="TEMİZLİK">Temizlik</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Vatandaş *</label>
+                  <select class="form-select" id="hm-vatandas" onchange="hmVatandasSecildi()">
+                    <option value="">— Önce hizmet seçin —</option>
+                  </select>
+                </div>
+              </div>
+              <div id="hm-vatandas-bilgi"></div>
+            </div>
+
+            <!-- Ziyaret Bilgileri -->
+            <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px">
+              <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:10px">Ziyaret Bilgileri</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Ziyaret Tarihi *</label>
+                  <input type="date" class="form-input" id="hm-tarih">
+                </div>
+                <div class="form-group">
+                  <label>Saat</label>
+                  <input type="time" class="form-input" id="hm-saat">
+                </div>
+                <div class="form-group">
+                  <label>Ziyaret Türü</label>
+                  <select class="form-select" id="hm-tur">
+                    <option value="İlk Ziyaret">İlk Ziyaret</option>
+                    <option value="Kontrol Ziyareti">Kontrol Ziyareti</option>
+                    <option value="İzlem Ziyareti">İzlem Ziyareti</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Hemşire Adı *</label>
+                  <input type="text" class="form-input" id="hm-hemsire" placeholder="Ad soyad...">
+                </div>
+              </div>
+            </div>
+
+            <!-- Genel Durum Gözlemi -->
+            <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px">
+              <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:10px">Genel Durum Gözlemi</div>
+              <div class="form-row">
+
+                <div class="form-group">
+                  <label>Bilinç Durumu</label>
+                  <select class="form-select" id="hm-bilincDurumu">
+                    <option value="">— Seçin —</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Uykulu">Uykulu</option>
+                    <option value="Konfüze">Konfüze</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Açıklama</label>
+                  <input type="text" class="form-input" id="hm-bilincAciklama" placeholder="Not...">
+                </div>
+
+                <div class="form-group">
+                  <label>Ruhsal Durum</label>
+                  <select class="form-select" id="hm-ruhsal">
+                    <option value="">— Seçin —</option>
+                    <option value="Uygun">Uygun</option>
+                    <option value="Huzursuz">Huzursuz</option>
+                    <option value="Depresif">Depresif</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Açıklama</label>
+                  <input type="text" class="form-input" id="hm-ruhsalAciklama" placeholder="Not...">
+                </div>
+
+                <div class="form-group">
+                  <label>Beslenme Durumu</label>
+                  <select class="form-select" id="hm-beslenme">
+                    <option value="">— Seçin —</option>
+                    <option value="Yeterli">Yeterli</option>
+                    <option value="Yetersiz">Yetersiz</option>
+                    <option value="Riskli">Riskli</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Açıklama</label>
+                  <input type="text" class="form-input" id="hm-beslenmeAciklama" placeholder="Not...">
+                </div>
+
+                <div class="form-group">
+                  <label>Hareket Kabiliyeti</label>
+                  <select class="form-select" id="hm-hareket">
+                    <option value="">— Seçin —</option>
+                    <option value="Bağımsız">Bağımsız</option>
+                    <option value="Yardımla">Yardımla</option>
+                    <option value="Yatak bağımlı">Yatak bağımlı</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Açıklama</label>
+                  <input type="text" class="form-input" id="hm-hareketAciklama" placeholder="Not...">
+                </div>
+
+                <div class="form-group">
+                  <label>Cilt Durumu</label>
+                  <select class="form-select" id="hm-cilt">
+                    <option value="">— Seçin —</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Kızarıklık">Kızarıklık</option>
+                    <option value="Yaralar mevcut">Yaralar mevcut</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Açıklama</label>
+                  <input type="text" class="form-input" id="hm-ciltAciklama" placeholder="Not...">
+                </div>
+
+                <div class="form-group">
+                  <label>Ev Hijyeni</label>
+                  <select class="form-select" id="hm-evHijyeni">
+                    <option value="">— Seçin —</option>
+                    <option value="İyi">İyi</option>
+                    <option value="Orta">Orta</option>
+                    <option value="Kötü">Kötü</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Açıklama</label>
+                  <input type="text" class="form-input" id="hm-evHijyeniAciklama" placeholder="Not...">
+                </div>
+
+                <div class="form-group">
+                  <label>Banyo/Temizlik İhtiyacı</label>
+                  <select class="form-select" id="hm-banyoIhtiyac">
+                    <option value="">— Seçin —</option>
+                    <option value="Var">Var</option>
+                    <option value="Yok">Yok</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label>Kuaför Hizmet İhtiyacı</label>
+                  <select class="form-select" id="hm-kuaforIhtiyac">
+                    <option value="">— Seçin —</option>
+                    <option value="Var">Var</option>
+                    <option value="Yok">Yok</option>
+                  </select>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Aile / Değerlendirme -->
+            <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px">
+              <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:10px">Aile Görüşmesi & Değerlendirme</div>
+              <div class="form-group full">
+                <label>Aile / Yakın Görüşmesi</label>
+                <textarea class="form-input" id="hm-aileNotu" rows="3" placeholder="Aile bireylerinden alınan bilgiler..." style="resize:vertical;min-height:70px"></textarea>
+              </div>
+              <div class="form-group full" style="margin-top:10px">
+                <label>Genel Gözlem Sonucu & Öneriler</label>
+                <textarea class="form-input" id="hm-degerlendirme" rows="3" placeholder="Genel değerlendirme..." style="resize:vertical;min-height:70px"></textarea>
+              </div>
+            </div>
+
+            <!-- Yönlendirmeler -->
+            <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px">
+              <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:10px">Gerekli Yönlendirmeler</div>
+              <div id="hm-yonlendirmeler" style="display:flex;flex-direction:column;gap:8px">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                  <input type="checkbox" value="Aile Hekimine bilgi verildi"> Aile Hekimine bilgi verildi
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                  <input type="checkbox" value="Sosyal Hizmet Birimine yönlendirildi"> Sosyal Hizmet Birimine yönlendirildi
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                  <input type="checkbox" value="Evde Temizlik / Banyo hizmeti planlandı"> Evde Temizlik / Banyo hizmeti planlandı
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
+                  <input type="checkbox" value="Acil müdahale gerekti"> Acil müdahale gerekti
+                </label>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:9px">
+              <button class="btn btn-primary" id="hm-kaydet-btn" onclick="hmKaydet()">💾 Ziyareti Kaydet</button>
+              <button class="btn btn-cancel" onclick="hmFormTemizle()">Temizle</button>
+            </div>
+          </div>
+
+          <!-- SAĞ: Ziyaret Listesi -->
+          <div class="table-card">
+            <div class="table-header">
+              <span class="table-title">📋 Ziyaret Kayıtları</span>
+              <span class="page-info" id="hm-liste-count">0 kayıt</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px 0">
+              <input type="text" placeholder="🔍 İsim ara..." id="hm-fil-ara" oninput="hmListeRender()"
+                style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;min-width:140px">
+              <select id="hm-fil-hizmet" onchange="hmListeRender()"
+                style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px">
+                <option value="">Tüm Hizmetler</option>
+                <option value="KADIN BANYO">Kadın Banyo</option>
+                <option value="ERKEK BANYO">Erkek Banyo</option>
+                <option value="KUAFÖR">Kuaför</option>
+                <option value="TEMİZLİK">Temizlik</option>
+              </select>
+              <select id="hm-fil-tur" onchange="hmListeRender()"
+                style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px">
+                <option value="">Tüm Türler</option>
+                <option value="İlk Ziyaret">İlk Ziyaret</option>
+                <option value="Kontrol Ziyareti">Kontrol Ziyareti</option>
+                <option value="İzlem Ziyareti">İzlem Ziyareti</option>
+              </select>
+            </div>
+            <div class="scroll-table" style="margin-top:8px">
+              <table id="hm-liste-table" style="width:100%;border-collapse:collapse;font-size:12px">
+                <tr><td class="no-data">Yükleniyor...</td></tr>
+              </table>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+            <div class="page" id="page-gunluk-kayit">
         <div class="form-section">
           <h3>📝 Günlük Hizmet Kaydı</h3>
           <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Mevcut vatandaşa bugünkü hizmet tarihini ekleyin.</p>
@@ -721,15 +965,6 @@
             </div>
             <div class="form-group full"><label>Not 1</label><input type="text" id="f-not1" placeholder="Not..."></div>
             <div class="form-group full"><label>Not 2</label><input type="text" id="f-not2" placeholder="..."></div>
-            <div class="form-group"><label>♿ Engel Durumu</label>
-              <select class="form-select" id="f-engel">
-                <option value="Yok">Yok</option>
-                <option value="Var">Var</option>
-              </select>
-            </div>
-            <div class="form-group full"><label>Engel Açıklaması</label>
-              <input type="text" id="f-engelac" placeholder="Engel türü / açıklaması...">
-            </div>
           </div>
           <div style="display:flex;gap:9px;margin-top:6px">
             <button class="btn btn-primary" onclick="saveRec()">💾 Kaydet</button>
@@ -1566,6 +1801,20 @@
 </div>
 
 <!-- TOAST -->
+<!-- HEMŞİRE ZİYARET DETAY MODAL -->
+<div id="hm-detay-modal" onclick="if(event.target===this)hmDetayKapat()"
+  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;overflow-y:auto;padding:20px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:560px;margin:0 auto;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
+    <div id="hm-detay-header" style="padding:16px 20px;position:relative">
+      <button onclick="hmDetayKapat()" style="position:absolute;top:12px;right:12px;background:rgba(255,255,255,.2);border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px;color:#fff">✕</button>
+      <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Hemşire Ziyaret Detayı</div>
+      <div id="hm-detay-isim" style="font-size:18px;font-weight:900;color:#fff"></div>
+      <div id="hm-detay-alt" style="font-size:12px;color:rgba(255,255,255,.85);margin-top:2px"></div>
+    </div>
+    <div id="hm-detay-body" style="padding:20px;max-height:70vh;overflow-y:auto"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="./firebase-config.js"></script>
@@ -1584,6 +1833,7 @@
 <script src="./modules/analiz.js?v=1775069935"></script>
 <script src="./modules/stok.js?v=1775069935"></script>
 <script src="./modules/medikal.js?v=1775069935"></script>
+<script src="./modules/hemsire.js?v=1775069935"></script>
 <script src="./app.js?v=1775069935"></script>
 
 <!-- ADRES DÜZENLE MODAL -->
