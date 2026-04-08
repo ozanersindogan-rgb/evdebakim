@@ -407,6 +407,17 @@ function hmDetayAc(fbId) {
       ${satir('Banyo İhtiyacı', gd.banyoIhtiyac, '')}
       ${satir('Kuaför İhtiyacı', gd.kuaforIhtiyac, '')}
     </div>
+    ${(z.engel && z.engel !== 'Yok') ? `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:8px;text-transform:uppercase">Engel Durumu</div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-weight:700;color:#dc2626">Var</span>
+        ${z.engel_yuzde ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:8px;padding:2px 10px;font-size:12px;font-weight:800">%${z.engel_yuzde}</span>` : ''}
+        ${z.engel_aciklama ? `<span style="color:#64748b;font-size:12px">— ${z.engel_aciklama}</span>` : ''}
+      </div>
+    </div>` : (z.engel === 'Yok' ? `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:8px;text-transform:uppercase">Engel Durumu</div>
+      <span style="font-weight:700;color:#16a34a">Yok</span>
+    </div>` : '')}
     ${z.aile_notu ? `<div style="margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase">Aile / Yakın Notu</div>
       <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:13px;color:#374151">${z.aile_notu}</div>
