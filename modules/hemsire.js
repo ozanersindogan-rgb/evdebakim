@@ -23,6 +23,20 @@ async function hmYukle() {
   }
 }
 
+// ── Engel durumu değişince yüzde/açıklama göster/gizle ─────────
+function hmEngelDurumDegisti() {
+  const val = document.getElementById('hm-engel')?.value;
+  const extra = document.getElementById('hm-engel-extra');
+  if (!extra) return;
+  extra.style.display = val === 'Var' ? '' : 'none';
+  if (val !== 'Var') {
+    const yuzde = document.getElementById('hm-engel-yuzde');
+    const ac = document.getElementById('hm-engel-aciklama');
+    if (yuzde) yuzde.value = '';
+    if (ac) ac.value = '';
+  }
+}
+
 // ── Hemşire adını USERS_MAP'ten otomatik seç ──────────────────
 function hmHemsireAdiniDoldur() {
   const sel = document.getElementById('hm-hemsire');
@@ -176,6 +190,8 @@ function hmFormTemizle() {
     if (el) el.value = '';
   });
   document.querySelectorAll('#hm-yonlendirmeler input[type=checkbox]').forEach(cb => cb.checked = false);
+  const extra = document.getElementById('hm-engel-extra');
+  if (extra) extra.style.display = 'none';
   hmSecilenVatandas = null;
   hmDuzenleId = null;
   document.getElementById('hm-form-baslik').textContent = '📋 Yeni Ziyaret Formu';
@@ -425,13 +441,22 @@ function hmDuzenle(fbId) {
   // Forma git
   navTo('hemsire-takip', null);
 
-  // Hizmet ve vatandaş doldur
+  // Hizmet ve vatandaş doldur — düzenleme modunda direkt set et
   document.getElementById('hm-hizmet').value = z.hizmet;
   hmHizmetSecildi();
+  // hmHizmetSecildi listeyi dolduruyor, ardından vatandaşı seç
   setTimeout(() => {
-    document.getElementById('hm-vatandas').value = z.vatandas;
+    const sel = document.getElementById('hm-vatandas');
+    // Vatandaş listede yoksa (arama filtresi vs) manuel option ekle
+    if (![...sel.options].some(o => o.value === z.vatandas)) {
+      const opt = document.createElement('option');
+      opt.value = z.vatandas;
+      opt.textContent = z.vatandas;
+      sel.appendChild(opt);
+    }
+    sel.value = z.vatandas;
     hmVatandasSecildi();
-  }, 100);
+  }, 150);
 
   document.getElementById('hm-tarih').value = z.ziyaret_tarihi || '';
   document.getElementById('hm-saat').value = z.ziyaret_saati || '';
@@ -460,6 +485,7 @@ function hmDuzenle(fbId) {
   setVal('hm-engel', z.engel);
   setVal('hm-engel-yuzde', z.engel_yuzde);
   setVal('hm-engel-aciklama', z.engel_aciklama);
+  hmEngelDurumDegisti(); // extra alanların görünürlüğünü güncelle
   document.querySelectorAll('#hm-yonlendirmeler input[type=checkbox]').forEach(cb => {
     cb.checked = (z.yonlendirmeler || []).includes(cb.value);
   });
