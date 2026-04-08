@@ -192,6 +192,11 @@ function hmFormTemizle() {
   document.querySelectorAll('#hm-yonlendirmeler input[type=checkbox]').forEach(cb => cb.checked = false);
   const extra = document.getElementById('hm-engel-extra');
   if (extra) extra.style.display = 'none';
+
+  // Düzenleme banner'ını gizle
+  const banner = document.getElementById('hm-duzenle-banner');
+  if (banner) banner.style.display = 'none';
+
   hmSecilenVatandas = null;
   hmDuzenleId = null;
   document.getElementById('hm-form-baslik').textContent = '📋 Yeni Ziyaret Formu';
@@ -493,8 +498,15 @@ function hmDuzenle(fbId) {
   hmDuzenleId = fbId;
   document.getElementById('hm-form-baslik').textContent = '✏️ Ziyaret Düzenle';
   document.getElementById('hm-kaydet-btn').textContent = '💾 Güncelle';
+
+  // Düzenleme banner'ını göster
+  const banner = document.getElementById('hm-duzenle-banner');
+  const bannerIsim = document.getElementById('hm-duzenle-banner-isim');
+  if (banner) { banner.style.display = 'flex'; }
+  if (bannerIsim) { bannerIsim.textContent = z.vatandas + ' — ' + z.ziyaret_tarihi; }
+
   // Forma scroll
-  document.getElementById('hm-form-baslik').scrollIntoView({ behavior: 'smooth' });
+  document.getElementById('hm-duzenle-banner')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ── Sil ────────────────────────────────────────────────────────
