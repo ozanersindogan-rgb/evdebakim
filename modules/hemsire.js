@@ -17,9 +17,31 @@ async function hmYukle() {
     snap.forEach(d => hmZiyaretler.push({ _fbId: d.id, ...d.data() }));
     hmListeRender();
     hmFormHizmetDoldur();
+    hmHemsireAdiniDoldur();
   } catch (e) {
     showToast('❌ Hemşire verileri yüklenemedi: ' + e.message);
   }
+}
+
+// ── Hemşire adını USERS_MAP'ten otomatik seç ──────────────────
+function hmHemsireAdiniDoldur() {
+  const sel = document.getElementById('hm-hemsire');
+  if (!sel) return;
+
+  // USERS_MAP'ten hemşire rolündeki kullanıcıları bul
+  const hemsireler = Object.values(window.USERS_MAP || {})
+    .filter(u => u.rol === 'Hemşire' || (u.rol || '').toLowerCase().includes('hemşire'));
+
+  if (!hemsireler.length) return;
+
+  // Şu an giriş yapan kullanıcı hemşire mi?
+  const mevcutKullanici = window.currentUser;
+  const aktifHemsire = mevcutKullanici && (mevcutKullanici.rol === 'Hemşire')
+    ? mevcutKullanici.ad
+    : hemsireler[0].ad;
+
+  // select yerine input — otomatik doldur + değiştirilebilir bırak
+  sel.value = aktifHemsire;
 }
 
 // ── Hizmet select doldurucu ────────────────────────────────────
@@ -46,8 +68,24 @@ function hmHizmetSecildi() {
       .map(r => [r.ISIM_SOYISIM, r])
   ).values()].sort((a, b) => a.ISIM_SOYISIM.localeCompare(b.ISIM_SOYISIM, 'tr'));
 
+  // Tüm aktif vatandaşları data olarak sakla, arama ile filtrele
+  sel._tumAktifler = aktifler;
+  hmVatandasListeFiltrele();
+}
+
+// ── Vatandaş listesini isim aramasına göre filtrele ────────────
+function hmVatandasListeFiltrele() {
+  const sel = document.getElementById('hm-vatandas');
+  const araEl = document.getElementById('hm-vatandas-ara');
+  const araStr = araEl ? araEl.value.toLowerCase() : '';
+  const tumAktifler = sel._tumAktifler || [];
+
+  const filtreli = araStr
+    ? tumAktifler.filter(r => r.ISIM_SOYISIM.toLowerCase().includes(araStr))
+    : tumAktifler;
+
   sel.innerHTML = '<option value="">— Vatandaş Seçin —</option>' +
-    aktifler.map(r => `<option value="${r.ISIM_SOYISIM}">${r.ISIM_SOYISIM} — ${r.MAHALLE}</option>`).join('');
+    filtreli.map(r => `<option value="${r.ISIM_SOYISIM}">${r.ISIM_SOYISIM} — ${r.MAHALLE}</option>`).join('');
 }
 
 // ── Vatandaş seçilince bilgileri otomatik doldur ──────────────
@@ -134,6 +172,7 @@ function hmFormTemizle() {
   hmDuzenleId = null;
   document.getElementById('hm-form-baslik').textContent = '📋 Yeni Ziyaret Formu';
   document.getElementById('hm-kaydet-btn').textContent = '💾 Ziyareti Kaydet';
+  hmHemsireAdiniDoldur();
 }
 
 // ── Kaydet ────────────────────────────────────────────────────
@@ -404,7 +443,36 @@ async function hmSil(fbId) {
 // KİŞİ KARTI — Hemşire Takip Bölümü
 // showDetail içinden çağrılır
 // ══════════════════════════════════════════════════════════════
+
+// Uygulama başlarken hemşire verilerini arka planda yükle
+async function hmZiyaretlerYukle() {
+  if (hmZiyaretler.length > 0) return; // zaten yüklüyse geçme
+  try {
+    const snap = await firebase.firestore().collection('hemsire_ziyaret')
+      .orderBy('ziyaret_tarihi', 'desc').limit(500).get();
+    hmZiyaretler = [];
+    snap.forEach(d => hmZiyaretler.push({ _fbId: d.id, ...d.data() }));
+  } catch (e) { /* sessizce geç */ }
+}
+
 function hmKartBolumu(isim, hizmet) {
+  // Eğer henüz yüklenmemişse arka planda yükle ve placeholder göster
+  if (hmZiyaretler.length === 0) {
+    hmZiyaretlerYukle().then(() => {
+      // Kart hâlâ açıksa bölümü güncelle
+      const el = document.getElementById('hm-kart-bolumu-' + CSS.escape(isim));
+      if (el) el.outerHTML = hmKartBolumuHTML(isim, hizmet);
+    });
+    return `<div id="hm-kart-bolumu-${isim.replace(/[^a-zA-Z0-9]/g,'-')}"
+      style="background:#f8fafc;border-radius:10px;padding:12px 14px;margin-top:14px;border:1px solid #e2e8f0">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:6px">🏥 Hemşire Takip</div>
+      <div style="font-size:12px;color:#94a3b8;text-align:center;padding:8px 0">⏳ Yükleniyor...</div>
+    </div>`;
+  }
+  return hmKartBolumuHTML(isim, hizmet);
+}
+
+function hmKartBolumuHTML(isim, hizmet) {
   const ziyaretler = hmZiyaretler.filter(z =>
     (z.vatandas || '').toUpperCase() === (isim || '').toUpperCase() &&
     (!hizmet || z.hizmet === hizmet)
