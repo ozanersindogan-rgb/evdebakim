@@ -107,6 +107,8 @@ firebase.auth().onAuthStateChanged( user => {
     const _na = document.getElementById('nav-ayarlar');
     if(_na) _na.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
     waitForModulesAndInit();
+    // Hemşire ziyaretlerini arka planda yükle (kişi kartları için)
+    setTimeout(() => { if(typeof hmZiyaretlerYukle==='function') hmZiyaretlerYukle(); }, 3000);
   } else {
     currentUser = null;
     _initStarted = false;
@@ -617,13 +619,6 @@ function openEditModal(idx) {
     <div class="form-group full"><label>🏠 Adres</label><input class="form-input" id="ed-adres" type="text" value="${esc(r.ADRES)}"></div>
     <div class="form-group full"><label>Not 1</label><input class="form-input" id="ed-not1" type="text" value="${esc(r.NOT1)}"></div>
     <div class="form-group full"><label>Not 2</label><input class="form-input" id="ed-not2" type="text" value="${esc(r.NOT2)}"></div>
-    <div class="form-group"><label>♿ Engel Durumu</label>
-      <select class="form-select" id="ed-engel">
-        <option value="Yok"${(r.ENGEL||'Yok')==='Yok'?' selected':''}>Yok</option>
-        <option value="Var"${r.ENGEL==='Var'?' selected':''}>Var</option>
-      </select>
-    </div>
-    <div class="form-group full"><label>Engel Açıklaması</label><input class="form-input" id="ed-engelac" type="text" value="${esc(r.ENGEL_ACIKLAMA||'')}"></div>
     ${r['HİZMET']==='KADIN BANYO' ? (() => {
       const pList = typeof personelListesi === 'function' ? personelListesi('KADIN BANYO') : [];
       const pOpts = p => `<option value=""${!p?' selected':''}>— Seçilmedi —</option>` + pList.map(x=>`<option value="${x.ad}"${x.ad===p?' selected':''}>${x.ad}</option>`).join('');
@@ -681,8 +676,6 @@ async function saveEdit() {
   r.ADRES         = getV('ed-adres').trim();
   r.NOT1          = getV('ed-not1');
   r.NOT2          = getV('ed-not2');
-  r.ENGEL          = getV('ed-engel') || 'Yok';
-  r.ENGEL_ACIKLAMA = getV('ed-engelac').trim();
   if (r['HİZMET'] === 'KADIN BANYO') {
     r.PERSONEL1 = getV('ed-personel1');
     r.PERSONEL2 = getV('ed-personel2');

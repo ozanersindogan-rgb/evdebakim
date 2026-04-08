@@ -554,7 +554,11 @@
                 </div>
                 <div class="form-group">
                   <label>Vatandaş *</label>
-                  <select class="form-select" id="hm-vatandas" onchange="hmVatandasSecildi()">
+                  <input type="text" id="hm-vatandas-ara" class="form-input"
+                    placeholder="🔍 İsim ara..." oninput="hmVatandasListeFiltrele()"
+                    style="margin-bottom:6px">
+                  <select class="form-select" id="hm-vatandas" onchange="hmVatandasSecildi()" size="5"
+                    style="height:auto;min-height:100px">
                     <option value="">— Önce hizmet seçin —</option>
                   </select>
                 </div>
@@ -584,7 +588,8 @@
                 </div>
                 <div class="form-group">
                   <label>Hemşire Adı *</label>
-                  <input type="text" class="form-input" id="hm-hemsire" placeholder="Ad soyad...">
+                  <input type="text" class="form-input" id="hm-hemsire" placeholder="Yükleniyor..."
+                    style="background:#f0fdf4;color:#166534;font-weight:700">
                 </div>
               </div>
             </div>
