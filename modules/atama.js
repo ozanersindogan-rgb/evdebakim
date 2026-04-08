@@ -901,6 +901,7 @@ window.atamaModalKapat = atamaModalKapat;
 
 // ─── Render: Mahalleye Göre ───
 let _seciliMahalle = '';
+let _seciliGun = '';  // '' = tümü
 
 function atamaRenderMahalle() {
   const container = document.getElementById('atama-liste');
@@ -1005,11 +1006,62 @@ function atamaRenderMahalle() {
   }).join('');
 
   // ── Seçili mahallenin detayı ──
-  const seciliKisiler = mahalleMap[_seciliMahalle] || [];
+  const mahKisilerTum = mahalleMap[_seciliMahalle] || [];
+
+  // Gün chip'leri için bu mahalledeki tüm periyotları say
+  const mahPeriyotSayac = {};
+  mahKisilerTum.forEach(v => {
+    const g = v.gun || 'Periyot Atanmamış';
+    mahPeriyotSayac[g] = (mahPeriyotSayac[g] || 0) + 1;
+  });
+
+  // Gün filtresi uygula
+  const seciliKisiler = _seciliGun
+    ? mahKisilerTum.filter(v => (v.gun || 'Periyot Atanmamış') === _seciliGun)
+    : mahKisilerTum;
+
   const toplam = seciliKisiler.length;
   const atanamayan = seciliKisiler.filter(v => !v.personeller.length).length;
 
-  // Periyot dağılımı
+  // ── Gün chip'leri (mahalle seçildikten sonra gün seçimi) ──
+  const gunSirasi = [...PERIYOT_SIRASI.filter(p => mahPeriyotSayac[p]),
+    ...(mahPeriyotSayac['Periyot Atanmamış'] ? ['Periyot Atanmamış'] : [])];
+
+  const gunChipler = [
+    // "Tümü" chip'i
+    `<div onclick="atamaGunSec('')"
+      style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;
+             cursor:pointer;border:2px solid ${!_seciliGun ? renk : '#e2e8f0'};
+             background:${!_seciliGun ? renk : '#f8fafc'};
+             color:${!_seciliGun ? '#fff' : '#64748b'};
+             font-weight:800;font-size:11px;user-select:none">
+      Tümü
+      <span style="background:${!_seciliGun ? 'rgba(255,255,255,.3)' : '#e2e8f0'};
+                   color:${!_seciliGun ? '#fff' : '#64748b'};
+                   border-radius:5px;padding:0 6px;font-size:10px">${mahKisilerTum.length}</span>
+    </div>`,
+    ...gunSirasi.map(g => {
+      const secili = g === _seciliGun;
+      const sayi = mahPeriyotSayac[g] || 0;
+      const atsz = mahKisilerTum.filter(v => (v.gun||'Periyot Atanmamış')===g && !v.personeller.length).length;
+      const label = g === 'Periyot Atanmamış' ? '⬜ Atanmamış' : _periyotGunEtiketi(g)+' '+_periyotLabel(g);
+      const gEsc = g.replace(/'/g,"\'");
+      return `<div onclick="atamaGunSec('${gEsc}')"
+        style="display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:8px;
+               cursor:pointer;border:2px solid ${secili ? renk : '#e2e8f0'};
+               background:${secili ? renk : '#f8fafc'};
+               color:${secili ? '#fff' : '#334155'};
+               font-weight:800;font-size:11px;user-select:none">
+        <span>${label}</span>
+        <span style="background:${secili ? 'rgba(255,255,255,.3)' : renk+'22'};
+                     color:${secili ? '#fff' : renk};
+                     border-radius:5px;padding:0 6px;font-size:10px;font-weight:900">${sayi}</span>
+        ${atsz ? `<span style="background:#fef2f2;color:#ef4444;border-radius:4px;padding:0 4px;font-size:9px;font-weight:900">⚠${atsz}</span>` : ''}
+      </div>`;
+    })
+  ].join('');
+
+  // Periyot dağılımı (seçili kişiler üzerinden — başlık satırı olarak kullanılmayacak, gün chip'leri onu karşılıyor)
   const periyotDagilim = {};
   seciliKisiler.forEach(v => {
     const p = v.gun || 'Periyot Atanmamış';
@@ -1017,12 +1069,7 @@ function atamaRenderMahalle() {
   });
   const siraliPeriyotlar = [...PERIYOT_SIRASI.filter(p => periyotDagilim[p]),
     ...(periyotDagilim['Periyot Atanmamış'] ? ['Periyot Atanmamış'] : [])];
-  const periyotHtml = siraliPeriyotlar.map(p => {
-    const label = p === 'Periyot Atanmamış' ? '⬜ Atanmamış' : _periyotGunEtiketi(p)+' '+_periyotLabel(p);
-    const c = periyotDagilim[p];
-    return `<span style="background:${renk}12;border:1px solid ${renk}33;border-radius:6px;
-      padding:3px 10px;font-size:11px;color:${renk};font-weight:800">${label} <b>${c}</b></span>`;
-  }).join('');
+  const periyotHtml = ''; // artık gün chip'leri bu rolü üstlendi
 
   // Personel dağılımı bu mahallede
   const mahPersonelSayac = {};
@@ -1089,12 +1136,19 @@ function atamaRenderMahalle() {
       <div style="display:flex;flex-wrap:wrap;gap:6px">${mahChipler}</div>
     </div>
 
-    <!-- Seçili mahalle detayı -->
+    <!-- Gün seçimi -->
+    <div style="padding:10px 16px;border-bottom:1px solid #e2e8f0;background:#fafafa">
+      <div style="font-size:11px;font-weight:800;color:#94a3b8;margin-bottom:6px;text-transform:uppercase">Gün / Periyot Seç</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">${gunChipler}</div>
+    </div>
+
+    <!-- Seçili mahalle + gün detayı -->
     <div style="padding:14px 16px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
         <div>
           <div style="font-weight:900;font-size:17px;color:#1e293b">📍 ${_seciliMahalle}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px">${toplam} vatandaş
+          <div style="font-size:12px;color:#64748b;margin-top:2px">
+            ${_seciliGun ? `<span style="color:${renk};font-weight:800">${_periyotGunEtiketi(_seciliGun)||''} ${_periyotLabel(_seciliGun)||_seciliGun}</span> · ` : ''}${toplam} vatandaş
             ${atanamayan ? ` · <span style="color:#ef4444;font-weight:700">${atanamayan} atanmamış</span>` : ''}
           </div>
         </div>
@@ -1104,7 +1158,6 @@ function atamaRenderMahalle() {
         </div>
       </div>
 
-      ${periyotHtml ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">${periyotHtml}</div>` : ''}
       ${personelHtml ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${personelHtml}</div>` : ''}
       ${oneriHtml ? `<div style="margin-bottom:12px">${oneriHtml}</div>` : ''}
 
@@ -1117,6 +1170,13 @@ function atamaRenderMahalle() {
 
 function atamaMahalleSec(mah) {
   _seciliMahalle = mah;
+  _seciliGun = '';   // mahalle değişince gün seçimi sıfırla
   atamaRenderMahalle();
 }
 window.atamaMahalleSec = atamaMahalleSec;
+
+function atamaGunSec(gun) {
+  _seciliGun = gun;
+  atamaRenderMahalle();
+}
+window.atamaGunSec = atamaGunSec;
