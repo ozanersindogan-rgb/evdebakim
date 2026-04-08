@@ -387,7 +387,6 @@ function showDetail(isim, hizmet, ay) {
     </div>`:''}
     ${(r.NOT1||r.NOT2||r.NOT3)?`<div style="background:#FFFDE7;border:1px solid #FDD835;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#795548">
       Not: ${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')}</div>`:''}
-    ${(r.ENGEL==='Var')?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px"><span style="font-size:18px">⚠️</span><div><span style="font-size:11px;font-weight:700;color:#94a3b8">ENGEL DURUMU</span><br><span style="font-size:13px;color:#b91c1c;font-weight:700">Engelli${r.ENGEL_ACIKLAMA?' — '+r.ENGEL_ACIKLAMA:''}</span></div></div>`:''}
     ${(r.DOGUM_TARIHI||adresBilgi.dogum)?`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
       <div><span style="font-size:11px;font-weight:700;color:#94a3b8">DOGUM TARIHI</span><br>
       <span style="font-size:13px;color:#374151;font-weight:600">${r.DOGUM_TARIHI||adresBilgi.dogum||''}</span></div>
@@ -398,6 +397,7 @@ function showDetail(isim, hizmet, ay) {
       ${tarihler.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#f8fafc;border-radius:7px;margin-bottom:4px;font-size:12px">
         <span style="color:#475569;font-weight:600">${t.tip}</span><span style="font-weight:700;color:#1e40af">${fmt(t.tarih)}</span></div>`).join('')}
     </div>`:'<div style="text-align:center;color:#94a3b8;font-size:13px;padding:8px 0">Henuz kayit yok</div>'}
+    ${(typeof hmKartBolumu === 'function') ? hmKartBolumu(r.ISIM_SOYISIM, hz) : ''}
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0">
       ${r._fbId ? `<button onclick="vkKapat();openEditModal(${allData.indexOf(r)})"
         style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:9px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;color:#475569">Duzenle</button>` : ''}

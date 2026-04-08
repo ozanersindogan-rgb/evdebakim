@@ -359,6 +359,7 @@ async function tpSaveEdit() {
 
 // ── navTo ─────────────────────────────────────────────────
 const PAGE_TITLES = {
+  'hemsire-takip':'🏥 Hemşire Takip',
   dashboard:'Ana Sayfa',gunluk:'Günlük Liste',vatandaslar:'Vatandaşlar',
   mahalle:'Mahalle Raporu','gunluk-kayit':'Günlük Hizmet Kaydı',
   'yeni-vatandas':'Yeni Vatandaş Kaydı',durum:'Durum Güncelle',
@@ -389,6 +390,7 @@ function navTo(id, el) {
   if(id==='analiz')         if(typeof analizRender==='function')analizRender();
   if(id==='stok-temizlik')  if(typeof stokRender==='function')stokRender('temizlik');
   if(id==='stok-medikal')   if(typeof stokRender==='function')stokRender('medikal');
+  if(id==='hemsire-takip') if(typeof hmYukle==='function')hmYukle();
   if(typeof mobMenuKapat==='function')mobMenuKapat();
   const mbnMap={dashboard:'mbn-dashboard',gunluk:'mbn-gunluk','gunluk-kayit':'mbn-gunluk-kayit',vatandaslar:'mbn-vatandaslar'};
   if(mbnMap[id]){document.querySelectorAll('.mbn-item').forEach(b=>b.classList.remove('active'));document.getElementById(mbnMap[id])?.classList.add('active');}
