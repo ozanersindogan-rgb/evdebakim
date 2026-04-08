@@ -28,20 +28,22 @@ function hmHemsireAdiniDoldur() {
   const sel = document.getElementById('hm-hemsire');
   if (!sel) return;
 
-  // USERS_MAP'ten hemşire rolündeki kullanıcıları bul
-  const hemsireler = Object.values(window.USERS_MAP || {})
-    .filter(u => u.rol === 'Hemşire' || (u.rol || '').toLowerCase().includes('hemşire'));
+  // Önce giriş yapmış kullanıcıya bak (currentUser app.js'de tanımlı, global scope)
+  try {
+    if (typeof currentUser !== 'undefined' && currentUser && currentUser.ad) {
+      sel.value = currentUser.ad;
+      return;
+    }
+  } catch(e) {}
 
-  if (!hemsireler.length) return;
-
-  // Şu an giriş yapan kullanıcı hemşire mi?
-  const mevcutKullanici = window.currentUser;
-  const aktifHemsire = mevcutKullanici && (mevcutKullanici.rol === 'Hemşire')
-    ? mevcutKullanici.ad
-    : hemsireler[0].ad;
-
-  // select yerine input — otomatik doldur + değiştirilebilir bırak
-  sel.value = aktifHemsire;
+  // currentUser yoksa USERS_MAP'ten hemşire rolünü bul
+  try {
+    const map = typeof USERS_MAP !== 'undefined' ? USERS_MAP : {};
+    const hemsireler = Object.values(map).filter(u =>
+      u.rol === 'Hemşire' || (u.rol || '').toLowerCase().includes('hemşire')
+    );
+    if (hemsireler.length) sel.value = hemsireler[0].ad;
+  } catch(e) {}
 }
 
 // ── Hizmet select doldurucu ────────────────────────────────────
@@ -110,6 +112,7 @@ function hmVatandasSecildi() {
   const adres = r?.ADRES || kb.ADRES || '';
   const engel = r?.ENGEL || kb.ENGEL || 'Yok';
   const engelAc = r?.ENGEL_ACIKLAMA || kb.ENGEL_ACIKLAMA || '';
+  const engelYuzde = r?.ENGEL_YUZDE || kb.ENGEL_YUZDE || '';
   const tc = r?.TC || kb.TC || '';
   const dogum = r?.DOGUM_TARIHI || kb.DOGUM_TARIHI || '';
 
@@ -125,10 +128,15 @@ function hmVatandasSecildi() {
         ${tel ? `<div><span style="color:#94a3b8;font-weight:700">TELEFON</span><br><b>${tel}</b></div>` : ''}
         <div><span style="color:#94a3b8;font-weight:700">MAHALLE</span><br><b>${r?.MAHALLE || ''}</b></div>
         ${adres ? `<div><span style="color:#94a3b8;font-weight:700">ADRES</span><br><b>${adres}</b></div>` : ''}
-        <div><span style="color:#94a3b8;font-weight:700">ENGEL</span><br>
+        <div style="grid-column:1/-1">
+          <span style="color:#94a3b8;font-weight:700;font-size:11px">ENGEL DURUMU</span><br>
           ${engel === 'Var'
-            ? `<b style="color:#dc2626">⚠️ Var${engelAc ? ' — ' + engelAc : ''}</b>`
-            : `<b style="color:#16a34a">✓ Yok</b>`}
+            ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;align-items:center">
+                <b style="color:#dc2626;font-size:13px">⚠️ Engelli</b>
+                ${engelYuzde ? `<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;border-radius:8px;padding:2px 10px;font-size:12px;font-weight:800">%${engelYuzde}</span>` : ''}
+                ${engelAc ? `<span style="color:#64748b;font-size:12px">— ${engelAc}</span>` : ''}
+              </div>`
+            : `<b style="color:#16a34a">✓ Engel Yok</b>`}
         </div>
       </div>
     </div>`;
@@ -158,12 +166,12 @@ function hmFormTemizle() {
   document.getElementById('hm-hemsire').value = '';
 
   // Genel durum seçimleri sıfırla
-  ['hm-bilincDurumu', 'hm-ruhsal', 'hm-beslenme', 'hm-hareket', 'hm-cilt', 'hm-evHijyeni', 'hm-banyoIhtiyac', 'hm-kuaforIhtiyac'].forEach(id => {
+  ['hm-bilincDurumu', 'hm-ruhsal', 'hm-beslenme', 'hm-hareket', 'hm-cilt', 'hm-evHijyeni', 'hm-banyoIhtiyac', 'hm-kuaforIhtiyac', 'hm-engel'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   ['hm-bilincAciklama','hm-ruhsalAciklama','hm-beslenmeAciklama','hm-hareketAciklama',
-   'hm-ciltAciklama','hm-evHijyeniAciklama','hm-aileNotu','hm-degerlendirme'].forEach(id => {
+   'hm-ciltAciklama','hm-evHijyeniAciklama','hm-aileNotu','hm-degerlendirme','hm-engel-yuzde','hm-engel-aciklama'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -218,6 +226,9 @@ async function hmKaydet() {
     aile_notu: getText('hm-aileNotu'),
     degerlendirme: getText('hm-degerlendirme'),
     yonlendirmeler,
+    engel:          getVal('hm-engel'),
+    engel_yuzde:    getVal('hm-engel-yuzde'),
+    engel_aciklama: getText('hm-engel-aciklama'),
     olusturma_tarihi: new Date().toISOString(),
   };
 
@@ -232,6 +243,39 @@ async function hmKaydet() {
       hmZiyaretler.unshift({ _fbId: ref.id, ...veri });
       showToast(`✅ Ziyaret kaydedildi`);
     }
+    // Engel bilgisi girildiyse vatandaslar + vatandaslar_bilgi koleksiyonlarını güncelle
+    const engelGirildi = veri.engel && veri.engel !== '';
+    if (engelGirildi) {
+      const engelChanges = {
+        ENGEL:          veri.engel,
+        ENGEL_YUZDE:    veri.engel_yuzde || '',
+        ENGEL_ACIKLAMA: veri.engel_aciklama || '',
+      };
+      // allData içindeki tüm eşleşen kayıtları güncelle
+      const eslesenler = (Array.isArray(allData) ? allData : [])
+        .map((rec, idx) => ({ rec, idx }))
+        .filter(({ rec }) => (rec.ISIM_SOYISIM || '').toUpperCase() === vatandas.toUpperCase());
+
+      await Promise.all(eslesenler.map(({ rec, idx }) => {
+        Object.assign(rec, engelChanges);
+        return fbUpdateDoc(idx, engelChanges);
+      }));
+
+      // vatandaslar_bilgi koleksiyonunu da güncelle
+      try {
+        const kbSnap = await firebase.firestore().collection('vatandaslar_bilgi')
+          .where('AD_SOYAD', '==', vatandas).get();
+        await Promise.all(kbSnap.docs.map(d => d.ref.update(engelChanges)));
+        // kbData bellekte de güncelle
+        if (typeof kbData !== 'undefined') {
+          kbData.filter(k => (k.AD_SOYAD || '').toUpperCase() === vatandas.toUpperCase())
+            .forEach(k => Object.assign(k, engelChanges));
+        }
+      } catch(e2) { /* vatandaslar_bilgi yoksa sessizce geç */ }
+
+      showToast(`✅ Ziyaret kaydedildi — Engel bilgisi güncellendi`);
+    }
+
     hmFormTemizle();
     hmListeRender();
   } catch (e) {
@@ -413,6 +457,9 @@ function hmDuzenle(fbId) {
   setVal('hm-aileNotu', z.aile_notu);
   setVal('hm-degerlendirme', z.degerlendirme);
 
+  setVal('hm-engel', z.engel);
+  setVal('hm-engel-yuzde', z.engel_yuzde);
+  setVal('hm-engel-aciklama', z.engel_aciklama);
   document.querySelectorAll('#hm-yonlendirmeler input[type=checkbox]').forEach(cb => {
     cb.checked = (z.yonlendirmeler || []).includes(cb.value);
   });

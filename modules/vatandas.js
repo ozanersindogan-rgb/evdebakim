@@ -589,7 +589,7 @@ function kbRender() {
         </td>
         <td style="text-align:center">
           ${r.ENGEL === 'Var'
-            ? `<span style="color:${engelRenk};font-weight:700;font-size:11px" title="${r.ENGEL_ACIKLAMA || ''}">⚠️ Var<br><span style="font-size:10px;color:#64748b">${r.ENGEL_ACIKLAMA || ''}</span></span>`
+            ? `<span style="color:${engelRenk};font-weight:700;font-size:11px" title="${r.ENGEL_ACIKLAMA || ''}">⚠️ Var${r.ENGEL_YUZDE?' %'+r.ENGEL_YUZDE:''}<br><span style="font-size:10px;color:#64748b">${r.ENGEL_ACIKLAMA || ''}</span></span>`
             : `<span style="color:${engelRenk};font-weight:700;font-size:11px">✓ Yok</span>`}
         </td>
         <td style="text-align:center;white-space:nowrap">
@@ -634,6 +634,7 @@ function kbDuzenle(fbId) {
         <option value="Var"${r.ENGEL==='Var'?' selected':''}>Var</option>
       </select>
     </div>
+    <div class="form-group"><label>Engel Yüzdesi (%)</label><input class="form-input" id="kbe-engelyuzde" type="number" min="0" max="100" value="${r.ENGEL_YUZDE||''}" placeholder="0-100"></div>
     <div class="form-group full"><label>Engel Açıklaması</label><input class="form-input" id="kbe-engelac" type="text" value="${(r.ENGEL_ACIKLAMA||'').replace(/"/g,'&quot;')}"></div>
   `;
   document.getElementById('kb-modal').classList.add('open');
@@ -651,11 +652,29 @@ async function kbKaydet() {
     ADRES:          document.getElementById('kbe-adres')?.value.trim() || r.ADRES,
     DOGUM_TARIHI:   document.getElementById('kbe-dogum')?.value || r.DOGUM_TARIHI,
     ENGEL:          document.getElementById('kbe-engel')?.value || r.ENGEL,
+    ENGEL_YUZDE:    document.getElementById('kbe-engelyuzde')?.value || r.ENGEL_YUZDE || '',
     ENGEL_ACIKLAMA: document.getElementById('kbe-engelac')?.value.trim() || r.ENGEL_ACIKLAMA,
   };
   try {
     await firebase.firestore().collection('vatandaslar_bilgi').doc(kbEditId).update(changes);
     Object.assign(r, changes);
+
+    // vatandaslar koleksiyonundaki tüm eşleşen kayıtları da güncelle
+    const isim = r.AD_SOYAD || '';
+    const engelChanges = {
+      ENGEL:          changes.ENGEL,
+      ENGEL_YUZDE:    changes.ENGEL_YUZDE,
+      ENGEL_ACIKLAMA: changes.ENGEL_ACIKLAMA,
+    };
+    const eslesenler = allData
+      .map((rec, idx) => ({ rec, idx }))
+      .filter(({ rec }) => (rec.ISIM_SOYISIM || '').toUpperCase() === isim.toUpperCase());
+
+    await Promise.all(eslesenler.map(({ rec, idx }) => {
+      Object.assign(rec, engelChanges);
+      return fbUpdateDoc(idx, engelChanges);
+    }));
+
     kbCloseModal();
     kbRender();
     showToast('✅ Kişi bilgisi güncellendi');
