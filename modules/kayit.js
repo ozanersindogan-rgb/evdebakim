@@ -372,15 +372,7 @@ function setVatHizmet(h,el) {
 }
 
 function buildAyTabs() {
-  // Sadece aktif aya (son aya) kadar olan ayları göster
-  const tumMevcut = getMevcutAylar();
-  const sonAy = getSonAy();
-  const sonAyIdx = sonAy ? AY_LISTESI.indexOf(sonAy) : -1;
-  // Verideki aylardan yalnızca aktif ay ve öncesini al
-  const filtreliAylar = tumMevcut.filter(a => AY_LISTESI.indexOf(a) <= sonAyIdx);
-  const aylar = ['', ...filtreliAylar];
-  // İlk yüklemede vatAy boşsa aktif aya otomatik seç
-  if (!vatAy && sonAy) { vatAy = sonAy; }
+  const aylar = ['', ...getMevcutAylar()];
   document.getElementById('ay-tab-vat').innerHTML = aylar.map(a=>
     `<button class="ay-btn${a===vatAy?' active':''}" data-ay="${a}" onclick="setAy('${a}',this)">${a?AY_LABELS[a]:'Tümü'}</button>`
   ).join('');
@@ -836,14 +828,13 @@ function buildFormMah() {
   const sel=document.getElementById('f-mah');
   sel.innerHTML='<option value="">Seçin...</option>';
   mahs.forEach(m=>{const o=document.createElement('option');o.value=o.textContent=m;sel.appendChild(o);});
-  // f-ay'ı dinamik doldur: sadece aktif aya (son aya) kadar göster
+  // f-ay'ı dinamik doldur: mevcut aylar + tüm 12 ay (yeni ay eklenebilsin)
   const fAy = document.getElementById('f-ay');
   if(fAy) {
-    const sonAy = getSonAy(); // veridaki en son (aktif) ay
-    const sonAyIdx = sonAy ? AY_LISTESI.indexOf(sonAy) : AY_LISTESI.length - 1;
-    const izinliAylar = AY_LISTESI.slice(0, sonAyIdx + 1);
-    fAy.innerHTML = izinliAylar.map(a=>
-      `<option value="${a}"${a===sonAy?' selected':''}>${AY_LABELS[a]}</option>`
+    // Şu anki gerçek takvim ayını seç
+    const bugunAy = AY_LISTESI[new Date().getMonth()]; // 0=OCAK, 11=ARALIK
+    fAy.innerHTML = AY_LISTESI.map(a=>
+      `<option value="${a}"${a===bugunAy?' selected':''}>${AY_LABELS[a]}</option>`
     ).join('');
   }
   fvCopyReset();
