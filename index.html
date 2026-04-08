@@ -723,18 +723,20 @@
               <div class="form-row">
                 <div class="form-group">
                   <label>Engel Durumu</label>
-                  <select class="form-select" id="hm-engel">
+                  <select class="form-select" id="hm-engel" onchange="hmEngelDurumDegisti()">
                     <option value="">— Seçin —</option>
                     <option value="Yok">Yok</option>
                     <option value="Var">Var</option>
                   </select>
                 </div>
+              </div>
+              <div id="hm-engel-extra" style="display:none" class="form-row">
                 <div class="form-group">
-                  <label>Engel Yüzdesi (%)</label>
+                  <label>Engel Yüzdesi (%) *</label>
                   <input type="number" class="form-input" id="hm-engel-yuzde" min="0" max="100" placeholder="0-100">
                 </div>
                 <div class="form-group full">
-                  <label>Engel Açıklaması</label>
+                  <label>Engel Açıklaması *</label>
                   <input type="text" class="form-input" id="hm-engel-aciklama" placeholder="Engel türü, tanısı...">
                 </div>
               </div>
