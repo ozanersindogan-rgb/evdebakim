@@ -1136,14 +1136,14 @@ function vatSortBy(col) {
 }
 
 function filterVat() {
-  const srch=document.getElementById('vat-search').value.toLowerCase();
+  const srch=document.getElementById('vat-search').value.toLocaleLowerCase('tr-TR');
   const mah=document.getElementById('vat-mah').value;
   const dur=document.getElementById('vat-durum').value;
   const kbFiltre = window._kbPersonelFiltre || '';
   vatFiltered=allData.filter(r=>{
     const hOk=!vatHizmet||r['HİZMET']===vatHizmet;
     const aOk=!vatAy||r.AY===vatAy;
-    const sOk=!srch||r.ISIM_SOYISIM.toLowerCase().includes(srch)||r.MAHALLE.toLowerCase().includes(srch);
+    const sOk=!srch||(r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch)||(r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
     const mOk=!mah||r.MAHALLE===mah;
     const dOk=!dur||r.DURUM===dur;
     // Kolon dropdown filtreleri

@@ -469,8 +469,8 @@ async function kbYukle() {
     kbData = [];
     snap.forEach(d => kbData.push({ _fbId: d.id, ...d.data() }));
     if (kbData.length===0 && allData.length>0) { await kbAllDatadanDoldur(); return; }
-    const mevcut=new Set(kbData.map(r=>(r.AD_SOYAD||'').toUpperCase()));
-    const eksik=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))].filter(n=>!mevcut.has(n.toUpperCase()));
+    const mevcut=new Set(kbData.map(r=>(r.AD_SOYAD||'').toLocaleUpperCase("tr-TR")));
+    const eksik=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))].filter(n=>!mevcut.has(n.toLocaleUpperCase("tr-TR")));
     for (const isim of eksik) {
       const o=allData.find(r=>r.ISIM_SOYISIM===isim);
       const y={AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
@@ -506,14 +506,14 @@ function kbYas(dogum) {
 }
 
 function kbRender() {
-  const ara     = (document.getElementById('kb-ara')?.value || '').toLowerCase();
+  const ara     = (document.getElementById('kb-ara')?.value || '').toLocaleLowerCase('tr-TR');
   const hizmet  = document.getElementById('kb-hizmet')?.value || '';
   const engel   = document.getElementById('kb-engel')?.value || '';
   const mahalle = document.getElementById('kb-mahalle-fil')?.value || '';
   const siralama = document.getElementById('kb-siralama')?.value || 'ad-asc';
 
   let filtered = kbData.filter(r => {
-    if (ara && !(r.AD_SOYAD || '').toLowerCase().includes(ara)) return false;
+    if (ara && !(r.AD_SOYAD || '').toLocaleLowerCase("tr-TR").includes(ara)) return false;
     if (hizmet) {
       const hizmetler = Array.isArray(r.HIZMETLER) ? r.HIZMETLER : (r.HIZMET ? [r.HIZMET] : []);
       if (!hizmetler.includes(hizmet)) return false;
@@ -668,7 +668,7 @@ async function kbKaydet() {
     };
     const eslesenler = allData
       .map((rec, idx) => ({ rec, idx }))
-      .filter(({ rec }) => (rec.ISIM_SOYISIM || '').toUpperCase() === isim.toUpperCase());
+      .filter(({ rec }) => (rec.ISIM_SOYISIM || '').toLocaleUpperCase("tr-TR") === isim.toLocaleUpperCase("tr-TR"));
 
     await Promise.all(eslesenler.map(({ rec, idx }) => {
       Object.assign(rec, engelChanges);
@@ -716,14 +716,14 @@ function kbFiltreTemizle() {
 
 // ── Excel İndir ──
 async function kbExcelIndir() {
-  const ara     = (document.getElementById('kb-ara')?.value || '').toLowerCase();
+  const ara     = (document.getElementById('kb-ara')?.value || '').toLocaleLowerCase("tr-TR");
   const hizmet  = document.getElementById('kb-hizmet')?.value || '';
   const engel   = document.getElementById('kb-engel')?.value || '';
   const mahalle = document.getElementById('kb-mahalle-fil')?.value || '';
   const siralama = document.getElementById('kb-siralama')?.value || 'ad-asc';
 
   let filtered = kbData.filter(r => {
-    if (ara && !(r.AD_SOYAD || '').toLowerCase().includes(ara)) return false;
+    if (ara && !(r.AD_SOYAD || '').toLocaleLowerCase("tr-TR").includes(ara)) return false;
     if (hizmet) {
       const hizmetler = Array.isArray(r.HIZMETLER) ? r.HIZMETLER : (r.HIZMET ? [r.HIZMET] : []);
       if (!hizmetler.includes(hizmet)) return false;
