@@ -713,41 +713,17 @@ function gkVerilemediKaydet() {
   try {
     if (rec) {
       rec.NOT1 = rec.NOT1 ? rec.NOT1 + ' | ' + notMetin : notMetin;
-      // Tarihi tarih alanına yaz — günlük listede ve takvimde görünsün (DD.MM.YYYY olarak)
-      if (hizmet === 'KUAFÖR') {
-        if (!rec.SAC1) rec.SAC1 = tarihDB; else rec.SAC2 = tarihDB;
-      } else {
-        const fields = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-        const empty = fields.find(f=>!rec[f]);
-        if (empty) {
-          rec[empty] = tarihDB;
-        } else {
-          // En eski alanı bul
-          const enEski = fields.reduce((prev, f) => {
-            const parseT = t => t && t.includes('-') ? new Date(t) : t ? new Date(t.split('.').reverse().join('-')) : new Date(0);
-            return parseT(rec[f]) < parseT(rec[prev]) ? f : prev;
-          }, fields[0]);
-          rec[enEski] = tarihDB;
-        }
-      }
-      // Temizlik planını güncelle
+      // Temizlik planını güncelle (sadece not, tarih değil)
       if (rec._tpRef && rec._tpFbId) {
         const tp = TP_DATA.find(t=>t._fbId===rec._tpFbId);
-        if (tp) { tp.not_ = rec.NOT1; tp.sonGidilme = tarihDB; }
+        if (tp) { tp.not_ = rec.NOT1; }
         firebase.firestore().collection('temizlik_plan').doc(rec._tpFbId)
-          .update({ not_: rec.NOT1, sonGidilme: tarihDB }).catch(e=>console.warn(e));
+          .update({ not_: rec.NOT1 }).catch(e=>console.warn(e));
         tpRender();
       }
-      // Sadece değişen alanları Firestore'a yaz
+      // Sadece NOT1 alanını Firestore'a yaz — tarih alanı değişmez
       if (rec._fbId) {
-        const degisen = { NOT1: rec.NOT1 };
-        if (hizmet === 'KUAFÖR') {
-          if (rec.SAC1 === tarihDB) degisen.SAC1 = tarihDB;
-          if (rec.SAC2 === tarihDB) degisen.SAC2 = tarihDB;
-        } else {
-          ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'].forEach(f => { if (rec[f] === tarihDB) degisen[f] = tarihDB; });
-        }
-        fbUpdateDoc(allData.indexOf(rec), degisen);
+        fbUpdateDoc(allData.indexOf(rec), { NOT1: rec.NOT1 });
       }
     }
   } finally {
