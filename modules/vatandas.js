@@ -451,7 +451,6 @@ async function silVatandas(globalIdx) {
 // Ayrıca kbFiltreTemizle ve kbExcelIndir fonksiyonları YENİDİR — ekleyin.
 
 let kbData = [];
-window.kbData = kbData;
 let kbEditId = null;
 
 // ── Mahalle listesini doldur (kbYukle içinden çağrılır) ──
@@ -468,14 +467,13 @@ async function kbYukle() {
   try {
     const snap = await firebase.firestore().collection('vatandaslar_bilgi').get();
     kbData = [];
-    snap.forEach(d => kbData.push(normalizeRecord({ _fbId: d.id, ...d.data(), AD_SOYAD: (d.data().AD_SOYAD || d.data().ISIM_SOYISIM || '') })));
-    window.kbData = kbData;
+    snap.forEach(d => kbData.push({ _fbId: d.id, ...d.data() }));
     if (kbData.length===0 && allData.length>0) { await kbAllDatadanDoldur(); return; }
     const mevcut=new Set(kbData.map(r=>(r.AD_SOYAD||'').toLocaleUpperCase("tr-TR")));
     const eksik=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))].filter(n=>!mevcut.has(n.toLocaleUpperCase("tr-TR")));
     for (const isim of eksik) {
       const o=allData.find(r=>r.ISIM_SOYISIM===isim);
-      const y={KISI_ID:o?.KISI_ID||kisiIdBelirle(o||{ISIM_SOYISIM:isim}),AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>(o?.KISI_ID && r.KISI_ID===o.KISI_ID) || r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
+      const y={AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
       const d=await firebase.firestore().collection('vatandaslar_bilgi').add(y);
       kbData.push({_fbId:d.id,...y});
     }
@@ -488,7 +486,7 @@ async function kbAllDatadanDoldur() {
     const tek=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))];
     for (const isim of tek) {
       const o=allData.find(r=>r.ISIM_SOYISIM===isim);
-      const y={KISI_ID:o?.KISI_ID||kisiIdBelirle(o||{ISIM_SOYISIM:isim}),AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>(o?.KISI_ID && r.KISI_ID===o.KISI_ID) || r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
+      const y={AD_SOYAD:isim,MAHALLE:o?.MAHALLE||'',TELEFON:o?.TELEFON||'',ADRES:o?.ADRES||'',DOGUM_TARIHI:o?.DOGUM_TARIHI||'',ENGEL:o?.ENGEL||'Yok',ENGEL_ACIKLAMA:o?.ENGEL_ACIKLAMA||'',TC:o?.TC||'',HIZMET:o?.['HİZMET']||'',HIZMETLER:[...new Set(allData.filter(r=>r.ISIM_SOYISIM===isim).map(r=>r['HİZMET']).filter(Boolean))]};
       const d=await firebase.firestore().collection('vatandaslar_bilgi').add(y);
       kbData.push({_fbId:d.id,...y});
     }
@@ -554,13 +552,12 @@ function kbRender() {
   if (cnt) cnt.textContent = filtered.length + ' kayıt';
 
   if (!filtered.length) {
-    tbl.innerHTML = '<tr><td colspan="10" class="no-data">Kayıt bulunamadı</td></tr>';
+    tbl.innerHTML = '<tr><td colspan="9" class="no-data">Kayıt bulunamadı</td></tr>';
     return;
   }
 
   tbl.innerHTML = `
     <thead><tr>
-      <th>Sicil</th>
       <th>Ad Soyad</th>
       <th>Hizmet</th>
       <th>Telefon</th>
@@ -578,7 +575,6 @@ function kbRender() {
       const dogumStr = r.DOGUM_TARIHI ? fmt(r.DOGUM_TARIHI) : '—';
       const engelRenk = r.ENGEL === 'Var' ? '#dc2626' : '#16a34a';
       return `<tr>
-        <td style="font-family:monospace;font-size:11px;white-space:nowrap;color:#1d4ed8;font-weight:800">${r.KISI_ID || '—'}</td>
         <td class="name-cell">${r.AD_SOYAD || '—'}</td>
         <td style="font-size:11px;font-weight:700">${hizmetler.map(h =>
           `<span style="display:inline-flex;align-items:center;gap:3px;margin:1px 0">
@@ -626,7 +622,6 @@ function kbDuzenle(fbId) {
   kbEditId = fbId;
   document.getElementById('kb-modal-title').textContent = '✏️ Kişi Bilgisi Düzenle';
   document.getElementById('kb-modal-body').innerHTML = `
-    <div class="form-group"><label>Kişi Sicil No</label><input class="form-input" type="text" value="${r.KISI_ID||''}" disabled></div>
     <div class="form-group"><label>Ad Soyad</label><input class="form-input" id="kbe-ad" type="text" value="${(r.AD_SOYAD||'').replace(/"/g,'&quot;')}"></div>
     <div class="form-group"><label>TC Kimlik No</label><input class="form-input" id="kbe-tc" type="text" value="${r.TC||''}"></div>
     <div class="form-group"><label>Telefon</label><input class="form-input" id="kbe-tel" type="tel" value="${r.TELEFON||''}"></div>
@@ -666,20 +661,14 @@ async function kbKaydet() {
 
     // vatandaslar koleksiyonundaki tüm eşleşen kayıtları da güncelle
     const isim = r.AD_SOYAD || '';
-    const kisiId = r.KISI_ID || '';
     const engelChanges = {
       ENGEL:          changes.ENGEL,
       ENGEL_YUZDE:    changes.ENGEL_YUZDE,
       ENGEL_ACIKLAMA: changes.ENGEL_ACIKLAMA,
-      ...(changes.TELEFON ? { TELEFON: changes.TELEFON } : {}),
-      ...(changes.MAHALLE ? { MAHALLE: changes.MAHALLE } : {}),
-      ...(changes.ADRES ? { ADRES: changes.ADRES } : {}),
-      ...(changes.DOGUM_TARIHI ? { DOGUM_TARIHI: changes.DOGUM_TARIHI } : {}),
-      ...(kisiId ? { KISI_ID: kisiId } : {})
     };
     const eslesenler = allData
       .map((rec, idx) => ({ rec, idx }))
-      .filter(({ rec }) => (kisiId && rec.KISI_ID === kisiId) || (!kisiId && (rec.ISIM_SOYISIM || '').toLocaleUpperCase("tr-TR") === isim.toLocaleUpperCase("tr-TR")));
+      .filter(({ rec }) => (rec.ISIM_SOYISIM || '').toLocaleUpperCase("tr-TR") === isim.toLocaleUpperCase("tr-TR"));
 
     await Promise.all(eslesenler.map(({ rec, idx }) => {
       Object.assign(rec, engelChanges);
@@ -854,13 +843,5 @@ window.openVatandasCard = function(isim){
   } catch(e){
     console.error(e);
     alert('Kart açılırken hata oluştu');
-  }
-}
-
-async function kbSicilAltyapiKur() {
-  const ok = await kisiAltyapiKur();
-  if (ok) {
-    await kbYukle();
-    refreshAll();
   }
 }
