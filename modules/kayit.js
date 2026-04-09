@@ -831,9 +831,10 @@ function buildFormMah() {
   // f-ay'ı dinamik doldur: mevcut aylar + tüm 12 ay (yeni ay eklenebilsin)
   const fAy = document.getElementById('f-ay');
   if(fAy) {
-    // Şu anki gerçek takvim ayını seç
-    const bugunAy = AY_LISTESI[new Date().getMonth()]; // 0=OCAK, 11=ARALIK
-    fAy.innerHTML = AY_LISTESI.map(a=>
+    // Şu anki gerçek takvim ayını seç; ileriki ayları gösterme
+    const bugunAyIdx = new Date().getMonth(); // 0=OCAK, 11=ARALIK
+    const bugunAy = AY_LISTESI[bugunAyIdx];
+    fAy.innerHTML = AY_LISTESI.slice(0, bugunAyIdx + 1).map(a=>
       `<option value="${a}"${a===bugunAy?' selected':''}>${AY_LABELS[a]}</option>`
     ).join('');
   }
@@ -1337,3 +1338,64 @@ function renderVat() {
     <button class="page-btn" onclick="goPage(${vatPage+1})" ${vatPage===tp?'disabled':''}>›</button>`;
 }
 function goPage(p){const tp=Math.ceil(vatFiltered.length/PER);if(p<1||p>tp)return;vatPage=p;renderVat();}
+
+// ── VATANDAŞLAR EXCEL İNDİR ──
+async function vatExcelIndir() {
+  if (!vatFiltered || !vatFiltered.length) { showToast('⚠️ İndirilecek kayıt yok'); return; }
+  showToast('⏳ Excel hazırlanıyor...');
+
+  const colorDefs = [
+    { bg: '1A237E', fg: 'FFFFFF', bold: true, sz: 11, align: 'center' },  // 1: header
+    { bg: 'E3F2FD', fg: '1565C0', bold: false, align: 'left' },            // 2: bant1
+    { bg: 'FFFFFF', fg: '212121', bold: false, align: 'left' },             // 3: bant2
+    { bg: 'FFF9C4', fg: '795548', bold: true,  align: 'center' },           // 4: ay
+    { bg: 'C8E6C9', fg: '1B5E20', bold: true,  align: 'center' },           // 5: aktif
+    { bg: 'FFCDD2', fg: 'B71C1C', bold: true,  align: 'center' },           // 6: iptal/vefat
+  ];
+  const SI = { HDR: 1, B1: 2, B2: 3, AY: 4, AKT: 5, PAS: 6 };
+
+  const HEADERS = ['Hizmet', 'İsim Soyisim', 'Mahalle', 'Ay', 'Durum', '1. Telefon', '2. Telefon', 'Adres', 'Notlar'];
+  const WIDTHS  = [18, 28, 18, 12, 12, 16, 16, 36, 30];
+
+  const rows = [{ cells: HEADERS.map(h => ({ v: h, s: SI.HDR })) }];
+
+  vatFiltered.forEach((r, i) => {
+    const bs = i % 2 === 0 ? SI.B1 : SI.B2;
+    const dur = (r.DURUM || '').toUpperCase();
+    const durS = dur === 'AKTİF' ? SI.AKT : (dur === 'İPTAL' || dur === 'VEFAT' ? SI.PAS : bs);
+    rows.push({ cells: [
+      { v: r['HİZMET']       || '', s: bs },
+      { v: r.ISIM_SOYISIM    || '', s: bs },
+      { v: r.MAHALLE         || '', s: bs },
+      { v: r.AY              || '', s: SI.AY },
+      { v: r.DURUM           || '', s: durS },
+      { v: r['1. TELEFON']   || r.TELEFON || '', s: bs },
+      { v: r['2. TELEFON']   || '', s: bs },
+      { v: r.ADRES           || '', s: bs },
+      { v: r.NOT || r.NOTLAR || '', s: bs },
+    ]});
+  });
+
+  const enc = s => new TextEncoder().encode(s);
+  const stylesXml = buildStyles(colorDefs);
+  const sheetXml  = buildSheet(rows, HEADERS.map((_, i) => i), WIDTHS);
+
+  const zip = await buildZip([
+    ['[Content_Types].xml',        enc(CONTENT_TYPES), true],
+    ['_rels/.rels',                enc(RELS),          true],
+    ['xl/workbook.xml',            enc(WORKBOOK),      false],
+    ['xl/_rels/workbook.xml.rels', enc(WB_RELS),       true],
+    ['xl/worksheets/sheet1.xml',   enc(sheetXml),      false],
+    ['xl/styles.xml',              enc(stylesXml),     false],
+  ]);
+
+  const blob = new Blob([zip], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `vatandaslar_${new Date().toISOString().split('T')[0]}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`✅ ${vatFiltered.length} kayıt Excel olarak indirildi`);
+}
+window.vatExcelIndir = vatExcelIndir;
