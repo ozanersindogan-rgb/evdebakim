@@ -64,6 +64,29 @@
   #loadingMsg { text-align: center; padding: 40px; color: #64748b; }
   .error-msg { color: #ef4444; font-size: .85rem; margin-top: 8px; }
 
+  /* TABS */
+  .tab-bar { display: flex; gap: 0; margin-bottom: 16px; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  .tab-btn { flex: 1; padding: 14px 20px; border:none; background:transparent; font-size:.9rem; font-weight:600; color:#64748b; cursor:pointer; border-bottom:3px solid transparent; transition:all .2s; }
+  .tab-btn.active { color:#3b82f6; border-bottom:3px solid #3b82f6; background:#f0f7ff; }
+  .tab-btn:hover:not(.active) { background:#f8fafc; }
+  .tab-panel { display:none; }
+  .tab-panel.active { display:block; }
+
+  /* TARİH DÜZELT */
+  .duzelt-table { width:100%; border-collapse:collapse; font-size:.83rem; }
+  .duzelt-table th { background:#f8fafc; padding:9px 12px; text-align:left; font-weight:600; color:#475569; border-bottom:1.5px solid #e2e8f0; }
+  .duzelt-table td { padding:8px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  .duzelt-table tr:hover td { background:#f8fafc; }
+  .tarih-pill { display:inline-block; padding:2px 8px; border-radius:12px; font-size:.75rem; font-weight:600; margin:1px; }
+  .tarih-yanlis { background:#fee2e2; color:#dc2626; }
+  .tarih-dogru-ay { background:#fef3c7; color:#d97706; }
+  .btn-duzelt-tek { padding:4px 12px; font-size:.78rem; border:none; border-radius:6px; cursor:pointer; background:#6366f1; color:#fff; font-weight:600; }
+  .btn-duzelt-tek:hover { opacity:.85; }
+  .duzelt-info { font-size:.8rem; color:#64748b; }
+  #duzeltLoadingMsg { text-align:center; padding:30px; color:#64748b; }
+  .duzelt-bulk-bar { background:#6366f1; color:#fff; padding:12px 20px; border-radius:10px; margin-bottom:12px; display:none; justify-content:space-between; align-items:center; }
+  .duzelt-bulk-bar.show { display:flex; }
+
   /* TOPLU IŞLEME MODAL */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
   .modal-overlay.show { display: flex; }
@@ -93,6 +116,15 @@
 
 <!-- ANA İÇERİK -->
 <div class="container" id="mainSection" style="display:none">
+
+  <!-- SEKME ÇUBUĞU -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('karsilastirma')">📊 Excel / Firestore Karşılaştırma</button>
+    <button class="tab-btn" onclick="switchTab('tarihduzelt')">🔄 Tarih Düzelt (Yanlış Ay)</button>
+  </div>
+
+  <!-- SEKME: KARŞILAŞTIRMA -->
+  <div class="tab-panel active" id="tab-karsilastirma">
   <div class="filters">
     <div>
       <label>Hizmet</label>
@@ -163,9 +195,85 @@
       <tbody id="tableBody"></tbody>
     </table>
   </div>
-</div>
+</div><!-- /tab-karsilastirma -->
 
-<!-- TOPLU İŞLEM MODAL -->
+<!-- SEKME: TARİH DÜZELT -->
+<div class="tab-panel" id="tab-tarihduzelt">
+  <div class="filters">
+    <div>
+      <label>Hizmet</label>
+      <select id="duzeltFilterHizmet" onchange="applyDuzeltFilters()">
+        <option value="">Tümü</option>
+        <option value="TEMİZLİK">Temizlik</option>
+        <option value="KADIN BANYO">Kadın Banyo</option>
+        <option value="ERKEK BANYO">Erkek Banyo</option>
+        <option value="KUAFÖR">Kuaför</option>
+      </select>
+    </div>
+    <div>
+      <label>Kayıt Ayı (Sistemde Kayıtlı)</label>
+      <select id="duzeltFilterAy" onchange="applyDuzeltFilters()">
+        <option value="">Tümü</option>
+        <option value="OCAK">Ocak</option>
+        <option value="ŞUBAT">Şubat</option>
+        <option value="MART">Mart</option>
+        <option value="NİSAN">Nisan</option>
+        <option value="MAYIS">Mayıs</option>
+        <option value="HAZİRAN">Haziran</option>
+      </select>
+    </div>
+    <div>
+      <label>İsim Ara</label>
+      <input type="text" id="duzeltFilterIsim" placeholder="İsim..." style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.9rem;background:#f8fafc" oninput="applyDuzeltFilters()">
+    </div>
+    <button class="btn btn-primary" onclick="scanWrongDates()">🔍 Yanlış Tarihleri Tara</button>
+  </div>
+
+  <div class="bulk-bar duzelt-bulk-bar" id="duzeltBulkBar">
+    <span id="duzeltBulkCount">0 seçili</span>
+    <button class="btn btn-success btn-sm" onclick="showDuzeltModal()">✅ Seçilileri Düzelt</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <h3>Sistemdeki Yanlış Aylara Girilen Tarihler</h3>
+      <label style="font-size:.82rem;color:#64748b;cursor:pointer">
+        <input type="checkbox" id="duzeltSelectAll" onchange="toggleDuzeltSelectAll()"> Tümünü Seç
+      </label>
+    </div>
+    <div id="duzeltLoadingMsg" style="text-align:center;padding:30px;color:#64748b">🔍 "Yanlış Tarihleri Tara" butonuna tıklayın</div>
+    <table id="duzeltTable" style="display:none" class="duzelt-table">
+      <thead>
+        <tr>
+          <th class="check-col">Seç</th>
+          <th>HİZMET</th>
+          <th>KAYITLI AY</th>
+          <th>İSİM</th>
+          <th>MAHALLE</th>
+          <th>YANLIŞ TARİH</th>
+          <th>DOĞRU AY</th>
+          <th>İŞLEM</th>
+        </tr>
+      </thead>
+      <tbody id="duzeltTableBody"></tbody>
+    </table>
+  </div>
+</div><!-- /tab-tarihduzelt -->
+
+</div><!-- /mainSection -->
+
+<!-- TARİH DÜZELT MODAL -->
+<div class="modal-overlay" id="duzeltModalOverlay">
+  <div class="modal">
+    <h3>🔄 Düzeltilecek Tarihler</h3>
+    <p style="font-size:.82rem;color:#64748b;margin-bottom:12px">Yanlış aylara girilen tarihler silinip doğru aylara taşınacak. Hedef ayda kayıt yoksa yeni kayıt oluşturulacak.</p>
+    <ul class="modal-list" id="duzeltModalList"></ul>
+    <div class="modal-actions">
+      <button class="btn" style="background:#f1f5f9;color:#475569" onclick="closeDuzeltModal()">İptal</button>
+      <button class="btn btn-success" id="duzeltConfirmBtn" onclick="duzeltBulkProcess()">Onayla ve Düzelt</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3>✅ Sisteme İşlenecek Kayıtlar</h3>
@@ -626,6 +734,271 @@ async function bulkProcess() {
   updateBulkBar();
   alert(`✅ ${ok} işlem tamamlandı, ${fail} başarısız.`);
   await loadFirestore();
+}
+</script>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// SEKME YÖNETİMİ
+// ─────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+// ─────────────────────────────────────────────────────────
+// TARİH DÜZELT MODÜLü
+// ─────────────────────────────────────────────────────────
+let duzeltRows = [];       // tüm yanlış tarih kayıtları
+let duzeltFiltered = [];   // filtrelenmiş
+let duzeltSelected = new Set();
+
+const AY_NO_MAP = {
+  'OCAK':'01','ŞUBAT':'02','MART':'03','NİSAN':'04',
+  'MAYIS':'05','HAZİRAN':'06','TEMMUZ':'07','AĞUSTOS':'08',
+  'EYLÜL':'09','EKİM':'10','KASIM':'11','ARALIK':'12'
+};
+const AY_FROM_NO = {'01':'OCAK','02':'ŞUBAT','03':'MART','04':'NİSAN',
+  '05':'MAYIS','06':'HAZİRAN','07':'TEMMUZ','08':'AĞUSTOS',
+  '09':'EYLÜL','10':'EKİM','11':'KASIM','12':'ARALIK'};
+
+function ayNoFromTarih(tarih) {
+  const m = String(tarih||'').trim().match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  return m ? m[2] : null;
+}
+
+function getTarihFields(rec, hizmet) {
+  if (hizmet === 'TEMİZLİK') return ['1. HİZMET','2. HİZMET'];
+  if (hizmet === 'KUAFÖR')   return ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'];
+  return ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+}
+
+function scanWrongDates() {
+  duzeltRows = [];
+  const msg = document.getElementById('duzeltLoadingMsg');
+  msg.style.display = 'block';
+  msg.textContent = '🔄 Taranıyor...';
+  document.getElementById('duzeltTable').style.display = 'none';
+
+  if (allFirestoreData.length === 0) {
+    msg.textContent = '⚠ Önce ana sekmede Firestore verisini yükleyin.';
+    return;
+  }
+
+  allFirestoreData.forEach(rec => {
+    const hizmet = rec['HİZMET'] || '';
+    const ay = (rec.AY || '').toLocaleUpperCase('tr-TR');
+    const kayitAyNo = AY_NO_MAP[ay];
+    if (!kayitAyNo) return;
+
+    const fields = getTarihFields(rec, hizmet);
+    fields.forEach(field => {
+      const tarih = normTarih(rec[field]);
+      if (!tarih) return;
+      const tarihAyNo = ayNoFromTarih(tarih);
+      if (!tarihAyNo) return;
+      if (tarihAyNo !== kayitAyNo) {
+        // Yanlış ay!
+        const dogruAy = AY_FROM_NO[tarihAyNo] || '?';
+        duzeltRows.push({
+          fbId: rec._fbId,
+          hizmet,
+          kayitAy: ay,
+          isim: rec.ISIM_SOYISIM || '',
+          mahalle: rec.MAHALLE || '',
+          yanlisTarih: tarih,
+          yanlisTarihAyNo: tarihAyNo,
+          dogruAy,
+          field,       // hangi field'dan silinecek
+          rec          // orijinal kayıt referansı
+        });
+      }
+    });
+  });
+
+  applyDuzeltFilters();
+  msg.style.display = 'none';
+  document.getElementById('duzeltTable').style.display = 'table';
+
+  if (duzeltRows.length === 0) {
+    msg.style.display = 'block';
+    msg.textContent = '✅ Yanlış aya girilen tarih bulunamadı!';
+    document.getElementById('duzeltTable').style.display = 'none';
+  }
+}
+
+function applyDuzeltFilters() {
+  const hizmet = document.getElementById('duzeltFilterHizmet').value;
+  const ay = document.getElementById('duzeltFilterAy').value;
+  const isim = document.getElementById('duzeltFilterIsim').value.toLocaleLowerCase('tr-TR');
+
+  duzeltFiltered = duzeltRows.filter(r => {
+    if (hizmet && r.hizmet !== hizmet) return false;
+    if (ay && r.kayitAy !== ay) return false;
+    if (isim && !r.isim.toLocaleLowerCase('tr-TR').includes(isim)) return false;
+    return true;
+  });
+
+  renderDuzeltTable();
+}
+
+function renderDuzeltTable() {
+  const tbody = document.getElementById('duzeltTableBody');
+  tbody.innerHTML = '';
+
+  if (duzeltFiltered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#64748b">Sonuç yok</td></tr>';
+    return;
+  }
+
+  const hizvetColors = {
+    'TEMİZLİK':'#0ea5e9','KADIN BANYO':'#ec4899',
+    'ERKEK BANYO':'#6366f1','KUAFÖR':'#f59e0b'
+  };
+
+  duzeltFiltered.forEach((row, i) => {
+    const checked = duzeltSelected.has(i) ? 'checked' : '';
+    const hRenk = hizvetColors[row.hizmet] || '#94a3b8';
+    tbody.innerHTML += `
+      <tr>
+        <td class="check-col"><input type="checkbox" ${checked} onchange="toggleDuzeltRow(${i}, this)"></td>
+        <td><span style="background:${hRenk};color:#fff;padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600">${row.hizmet}</span></td>
+        <td><span class="tarih-pill tarih-yanlis">${row.kayitAy}</span></td>
+        <td><strong>${row.isim}</strong></td>
+        <td style="color:#64748b;font-size:.82rem">${row.mahalle}</td>
+        <td><span class="tarih-pill tarih-yanlis">${row.yanlisTarih}</span><br><span class="duzelt-info">${row.field} alanında</span></td>
+        <td><span class="tarih-pill tarih-dogru-ay">→ ${row.dogruAy}</span></td>
+        <td><button class="btn-duzelt-tek" onclick="duzeltTek(${i})">Düzelt</button></td>
+      </tr>`;
+  });
+}
+
+function toggleDuzeltRow(i, cb) {
+  if (cb.checked) duzeltSelected.add(i);
+  else duzeltSelected.delete(i);
+  updateDuzeltBulkBar();
+}
+
+function toggleDuzeltSelectAll() {
+  const checked = document.getElementById('duzeltSelectAll').checked;
+  duzeltSelected = new Set();
+  if (checked) duzeltFiltered.forEach((_, i) => duzeltSelected.add(i));
+  updateDuzeltBulkBar();
+  renderDuzeltTable();
+}
+
+function updateDuzeltBulkBar() {
+  const bar = document.getElementById('duzeltBulkBar');
+  const cnt = duzeltSelected.size;
+  if (cnt > 0) {
+    bar.classList.add('show');
+    document.getElementById('duzeltBulkCount').textContent = cnt + ' kayıt seçili';
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+function showDuzeltModal() {
+  const list = document.getElementById('duzeltModalList');
+  list.innerHTML = '';
+  duzeltSelected.forEach(i => {
+    const r = duzeltFiltered[i];
+    list.innerHTML += `<li>
+      <span><strong>${r.isim}</strong> <small style="color:#64748b">${r.hizmet} / ${r.kayitAy}</small></span>
+      <span><span class="tarih-pill tarih-yanlis">${r.yanlisTarih}</span> → <span class="tarih-pill tarih-dogru-ay">${r.dogruAy}</span></span>
+    </li>`;
+  });
+  document.getElementById('duzeltModalOverlay').classList.add('show');
+}
+
+function closeDuzeltModal() {
+  document.getElementById('duzeltModalOverlay').classList.remove('show');
+}
+
+// Tek bir tarihi düzelt
+async function duzeltTek(i) {
+  const row = duzeltFiltered[i];
+  if (!confirm(`"${row.isim}" - ${row.yanlisTarih} tarihini ${row.kayitAy} kaydından silip ${row.dogruAy} ayına taşıyacaksınız. Onaylıyor musunuz?`)) return;
+  await _duzeltSingle(row);
+  alert('✅ Düzeltildi!');
+  await loadFirestore();
+  scanWrongDates();
+}
+
+async function duzeltBulkProcess() {
+  const btn = document.getElementById('duzeltConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ İşleniyor...';
+  let ok = 0, fail = 0;
+  const rows = [...duzeltSelected].map(i => duzeltFiltered[i]);
+  for (const row of rows) {
+    try {
+      await _duzeltSingle(row);
+      ok++;
+    } catch(e) {
+      console.error(e);
+      fail++;
+    }
+  }
+  closeDuzeltModal();
+  btn.disabled = false;
+  btn.textContent = 'Onayla ve Düzelt';
+  duzeltSelected = new Set();
+  updateDuzeltBulkBar();
+  alert(`✅ ${ok} tarih düzeltildi, ${fail} başarısız.`);
+  await loadFirestore();
+  scanWrongDates();
+}
+
+async function _duzeltSingle(row) {
+  // 1. Kaynak kayıttan tarihi sil (field'ı boşalt)
+  const srcRef = db.collection('vatandaslar').doc(row.fbId);
+  await srcRef.update({ [row.field]: '' });
+
+  // 2. Hedef ayda bu kişinin kaydını bul veya oluştur
+  const normIsimVal = normIsim(row.isim);
+  const hedefKayitlar = allFirestoreData.filter(r => {
+    return r['HİZMET'] === row.hizmet &&
+           (r.AY||'').toLocaleUpperCase('tr-TR') === row.dogruAy &&
+           normIsim(r.ISIM_SOYISIM) === normIsimVal;
+  });
+
+  const fields = getTarihFields(row.rec, row.hizmet);
+
+  if (hedefKayitlar.length > 0) {
+    // Mevcut kayda ekle: boş slot bul
+    const hedef = hedefKayitlar[0];
+    const hedefRef = db.collection('vatandaslar').doc(hedef._fbId);
+    const snap = await hedefRef.get();
+    const data = snap.data();
+    const bosSlot = fields.find(f => !data[f]);
+    if (bosSlot) {
+      await hedefRef.update({ [bosSlot]: row.yanlisTarih });
+    } else {
+      // Tüm slotlar dolu, güncelle (var olan tarihlerin sonuna, genel not olarak eklenemez - uyarı)
+      console.warn('Hedef kayıtta boş slot yok:', hedef._fbId);
+    }
+  } else {
+    // Yeni kayıt oluştur
+    const yil = row.yanlisTarih.split('.')[2] || '2026';
+    const yeniKayit = {
+      ISIM_SOYISIM: row.isim.toLocaleUpperCase('tr-TR'),
+      'HİZMET': row.hizmet,
+      AY: row.dogruAy,
+      YIL: yil,
+      MAHALLE: row.mahalle || '',
+      DURUM: 'AKTİF',
+      NOT1: '',
+      BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'',
+      SAC1:'', SAC2:'', TIRNAK1:'', TIRNAK2:'', SAKAL1:'', SAKAL2:'',
+      '1. HİZMET':'', '2. HİZMET':'',
+    };
+    // Tarihi uygun slota koy
+    if (fields[0]) yeniKayit[fields[0]] = row.yanlisTarih;
+    await db.collection('vatandaslar').add(yeniKayit);
+  }
 }
 </script>
 
