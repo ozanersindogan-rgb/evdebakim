@@ -4,10 +4,30 @@
 // ═══════════════════════════════════════════════════════════
 window._adresBilgi = {};
 
+function _adresEslesenKayitlar(isim, kisiId, hizmetler = []) {
+  return allData.filter(r => {
+    if (!r || !r._fbId) return false;
+    const hizmetOk = !hizmetler.length || hizmetler.includes(r['HİZMET']);
+    if (!hizmetOk) return false;
+    if (kisiId && r.KISI_ID === kisiId) return true;
+    return r.ISIM_SOYISIM === isim;
+  });
+}
+
 async function adresBilgiYukle() {
   try {
     const snap = await firebase.firestore().collection('adres_bilgi').get();
     window._adresBilgi = {};
+
+function _adresEslesenKayitlar(isim, kisiId, hizmetler = []) {
+  return allData.filter(r => {
+    if (!r || !r._fbId) return false;
+    const hizmetOk = !hizmetler.length || hizmetler.includes(r['HİZMET']);
+    if (!hizmetOk) return false;
+    if (kisiId && r.KISI_ID === kisiId) return true;
+    return r.ISIM_SOYISIM === isim;
+  });
+}
     snap.forEach(d => { window._adresBilgi[d.id] = d.data(); });
     if (snap.empty && typeof KUAFOR_BILGI !== 'undefined') {
       showToast('Adres verileri aktarılıyor...');
@@ -25,6 +45,16 @@ async function adresBilgiYukle() {
   } catch(e) {
     console.warn('adres_bilgi yuklenemedi:', e);
     window._adresBilgi = {};
+
+function _adresEslesenKayitlar(isim, kisiId, hizmetler = []) {
+  return allData.filter(r => {
+    if (!r || !r._fbId) return false;
+    const hizmetOk = !hizmetler.length || hizmetler.includes(r['HİZMET']);
+    if (!hizmetOk) return false;
+    if (kisiId && r.KISI_ID === kisiId) return true;
+    return r.ISIM_SOYISIM === isim;
+  });
+}
     if (typeof KUAFOR_BILGI !== 'undefined') {
       Object.entries(KUAFOR_BILGI).forEach(([isim,bilgi]) => {
         window._adresBilgi[isim] = {tel:bilgi.tel||'',adres:bilgi.adres||''};
@@ -66,9 +96,11 @@ async function adresManuelEkle() {
     await firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
     if(!window._adresBilgi)window._adresBilgi={};
     window._adresBilgi[isim]=bilgi;
+    const kisiRef = allData.find(r => r.ISIM_SOYISIM===isim);
+    const kisiId = kisiRef?.KISI_ID || '';
     // allData güncelle
     allData.forEach(r=>{
-      if(r.ISIM_SOYISIM===isim){
+      if((kisiId && r.KISI_ID===kisiId) || r.ISIM_SOYISIM===isim){
         if(tel) r.TELEFON=tel;
         if(tel2)r.TELEFON2=tel2;
         if(telAktif)r.TELEFON_AKTIF=telAktif;
@@ -87,7 +119,7 @@ async function adresManuelEkle() {
     if(dogum)   changes.DOGUM_TARIHI=dogum;
     if(Object.keys(changes).length){
       // Hizmet seçiliyse sadece o hizmetlerin kayıtlarını güncelle, değilse tümünü
-      const ilgili=allData.filter(r=>r.ISIM_SOYISIM===isim&&r._fbId&&(!hizmetler.length||hizmetler.includes(r['HİZMET'])));
+      const ilgili=_adresEslesenKayitlar(isim, kisiId, hizmetler);
       await Promise.all(ilgili.map(r=>firebase.firestore().collection('vatandaslar').doc(r._fbId).update(changes)));
     }
     ['am-isim','am-tel','am-tel2','am-adres','am-dogum'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -316,6 +348,16 @@ Vatandaş kayıtları tamamen silinmez; sadece adres, telefon, mahalle ve doğum
     }
 
     window._adresBilgi = {};
+
+function _adresEslesenKayitlar(isim, kisiId, hizmetler = []) {
+  return allData.filter(r => {
+    if (!r || !r._fbId) return false;
+    const hizmetOk = !hizmetler.length || hizmetler.includes(r['HİZMET']);
+    if (!hizmetOk) return false;
+    if (kisiId && r.KISI_ID === kisiId) return true;
+    return r.ISIM_SOYISIM === isim;
+  });
+}
     const vatTemizlenen = await _adresVatandasAlanlariniTemizle(durumEl);
     if(durumEl) durumEl.innerHTML = `<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;color:#991b1b;font-size:13px;font-weight:700">🧹 Tüm adres/telefon verileri temizlendi.<br><span style="font-weight:400;font-size:12px">🗑️ ${toplamAdres} adres kaydı silindi • 👥 ${vatTemizlenen} vatandaş kaydı temizlendi</span></div>`;
     showToast(`🧹 ${toplamAdres} adres kaydı silindi, ${vatTemizlenen} vatandaş kaydı temizlendi`);
@@ -405,10 +447,22 @@ async function adresEditKaydet() {
     // 1) adres_bilgi güncelle
     await firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
     if(!window._adresBilgi) window._adresBilgi = {};
+
+function _adresEslesenKayitlar(isim, kisiId, hizmetler = []) {
+  return allData.filter(r => {
+    if (!r || !r._fbId) return false;
+    const hizmetOk = !hizmetler.length || hizmetler.includes(r['HİZMET']);
+    if (!hizmetOk) return false;
+    if (kisiId && r.KISI_ID === kisiId) return true;
+    return r.ISIM_SOYISIM === isim;
+  });
+}
     window._adresBilgi[isim] = bilgi;
+    const kisiRef = allData.find(r => r.ISIM_SOYISIM === isim);
+    const kisiId = kisiRef?.KISI_ID || '';
     // 2) allData (bellek) güncelle
     allData.forEach(r => {
-      if(r.ISIM_SOYISIM !== isim) return;
+      if(!((kisiId && r.KISI_ID === kisiId) || r.ISIM_SOYISIM === isim)) return;
       if(tel)     r.TELEFON       = tel;
       if(tel2)    r.TELEFON2      = tel2;
       if(telAktif)r.TELEFON_AKTIF = telAktif;
@@ -425,7 +479,7 @@ async function adresEditKaydet() {
     if(mahalle) changes.MAHALLE       = mahalle;
     if(dogum)   changes.DOGUM_TARIHI  = dogum;
     if(Object.keys(changes).length) {
-      const ilgili = allData.filter(r => r.ISIM_SOYISIM === isim && r._fbId);
+      const ilgili = _adresEslesenKayitlar(isim, kisiId);
       await Promise.all(ilgili.map(r =>
         firebase.firestore().collection('vatandaslar').doc(r._fbId).update(changes)
       ));

@@ -943,6 +943,7 @@ async function saveRec(){
   const zatenOlanlar = seciliHizmetler.filter(h=>allData.some(r=>r.ISIM_SOYISIM&&r.ISIM_SOYISIM.toUpperCase()===isim&&r['HİZMET']===h&&(r.DURUM||'').toUpperCase()==='AKTİF'));
   if(zatenOlanlar.length){showToast(`⚠️ Zaten kayıtlı hizmet var: ${zatenOlanlar.join(', ')}`);return;}
   const ay=document.getElementById('f-ay').value;
+  const kisiId = kisiIdBelirle({ ISIM_SOYISIM: isim, TELEFON: tel, DOGUM_TARIHI: dogum, MAHALLE: mah });
   const cins=document.getElementById('f-cins').value;
   const onay=document.getElementById('f-onay').value||new Date().toISOString().split('T')[0];
   const not1=document.getElementById('f-not1').value;
@@ -958,6 +959,7 @@ async function saveRec(){
   const eklenenKayitlar = seciliHizmetler.map(hizmet => {
     const rec={
       ONAY_TARIHI:onay, IPTAL_NEDEN:'',
+      KISI_ID:kisiId,
       ISIM_SOYISIM:isim, MAHALLE:mah, AY:ay,
       'HİZMET':hizmet, CİNSİYET:cins, DURUM:'AKTİF',
       DOGUM_TARIHI:dogum,
