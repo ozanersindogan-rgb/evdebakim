@@ -212,6 +212,16 @@ let compareRows = [];      // birleştirilmiş karşılaştırma satırları
 let filteredRows = [];
 let selectedRows = new Set();
 
+// DD.MM.YYYY veya YYYY-MM-DD → DD.MM.YYYY
+function normTarih(v) {
+  if (!v) return null;
+  const s = String(v).trim();
+  const m1 = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m1) return `${m1[3]}.${m1[2]}.${m1[1]}`;
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return s;
+  return null;
+}
+
 function normIsim(v) {
   return String(v || '').trim().toLocaleUpperCase('tr-TR')
     .replace(/İ/g,'I').replace(/Ş/g,'S').replace(/Ğ/g,'G')
@@ -300,7 +310,8 @@ function buildCompareRows() {
           const r = fsKayitlar[0];
           fbIds = [r._fbId];
           [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,r['1. HİZMET'],r['2. HİZMET']].forEach(t => {
-            if (t && !sistemTarihler.includes(t)) sistemTarihler.push(t);
+            const nt = normTarih(t);
+            if (nt && !sistemTarihler.includes(nt)) sistemTarihler.push(nt);
           });
         }
 
