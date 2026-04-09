@@ -466,6 +466,37 @@ function gkIsimSecildi() {
     document.getElementById('gk-mah').value = rec.MAHALLE||'';
     document.getElementById('gk-durum-mevcut').value = rec.DURUM||'';
 
+    // TC otomatik doldur — allData içindeki herhangi bir kayıtta TC varsa al
+    const tcEl = document.getElementById('gk-tc');
+    if (tcEl) {
+      const mevcutTC = (rec.TC||'').trim();
+      if (mevcutTC) {
+        tcEl.value = mevcutTC;
+        tcEl.readOnly = true;
+        tcEl.style.background = 'var(--bg-soft)';
+        tcEl.style.color = 'var(--text-soft)';
+      } else {
+        // Aynı ismin diğer kayıtlarında TC var mı?
+        const digerTC = allData.find(r => (r.ISIM_SOYISIM||'').toUpperCase() === val && r.TC)?.TC || '';
+        tcEl.value = digerTC;
+        tcEl.readOnly = false;
+        tcEl.style.background = '';
+        tcEl.style.color = '';
+        tcEl.style.border = digerTC ? '' : '1.5px solid #f59e0b';
+      }
+    }
+
+    // Engel durumu otomatik doldur
+    const engelEl = document.getElementById('gk-engel');
+    const engelAcEl = document.getElementById('gk-engel-aciklama');
+    const engelWrap = document.getElementById('gk-engel-extra-wrap');
+    if (engelEl) {
+      const engelVal = rec.ENGEL || '';
+      engelEl.value = engelVal;
+      if (engelWrap) engelWrap.classList.toggle('hidden', engelVal !== 'Var');
+      if (engelAcEl) engelAcEl.value = rec.ENGEL_ACIKLAMA || '';
+    }
+
     // Son ziyaret tarihini göster
     const tarihler = hizmet === 'KUAFÖR'
       ? [rec.SAC1,rec.SAC2,rec.TIRNAK1,rec.TIRNAK2,rec.SAKAL1,rec.SAKAL2]
@@ -474,7 +505,6 @@ function gkIsimSecildi() {
     const el = document.getElementById('gk-son-ziyaret');
     if (el) {
       if (dolu.length) {
-        // En son tarihi bul (DD.MM.YYYY veya YYYY-MM-DD her ikisini destekle)
         const enSon = dolu.sort((a, b) => {
           const parse = t => t.includes('-')
             ? new Date(t)
@@ -489,6 +519,12 @@ function gkIsimSecildi() {
       }
     }
   }
+}
+
+function gkEngelDegisti() {
+  const v = document.getElementById('gk-engel')?.value;
+  const w = document.getElementById('gk-engel-extra-wrap');
+  if (w) w.classList.toggle('hidden', v !== 'Var');
 }
 
 function _gkKaydetBtn() {
@@ -535,8 +571,14 @@ async function gkKaydet() {
 
   const isim = (document.getElementById('gk-isim').value||document.getElementById('gk-isim-search')?.value||'').trim().toUpperCase();
   const tarih = document.getElementById('gk-tarih').value;
+  const tc = (document.getElementById('gk-tc')?.value||'').trim();
+  const engel = document.getElementById('gk-engel')?.value||'';
+  const engelAciklama = document.getElementById('gk-engel-aciklama')?.value.trim()||'';
+
   if (!isim) { _gkIslemDevam = false; showToast('Vatandas adi zorunlu'); return; }
   if (!tarih) { _gkIslemDevam = false; showToast('Tarih zorunlu'); return; }
+  if (!tc || tc.length !== 11) { _gkIslemDevam = false; showToast('❌ TC kimlik no zorunlu (11 hane)'); return; }
+  if (!engel) { _gkIslemDevam = false; showToast('❌ Engel durumu zorunlu'); return; }
 
   // İleri tarih kontrolü
   const bugunStr = new Date().toISOString().split('T')[0];
@@ -582,10 +624,37 @@ async function gkKaydet() {
 
     if (not) rec.NOT1 = rec.NOT1 ? rec.NOT1+' | '+not : not;
 
+    // TC ve Engel durumunu bu kayda işle
+    rec.TC = tc;
+    rec.ENGEL = engel;
+    if (engel === 'Var') rec.ENGEL_ACIKLAMA = engelAciklama;
+
     if (rec._fbId) {
       await _gkVatandasKaydet(rec);
     } else if (!rec._tpRef) {
       throw new Error('Bu kayıt Firebase’de bulunamadı');
+    }
+
+    // TC'yi aynı isme ait TÜM vatandaslar kayıtlarına yaz (batch)
+    const isimUpper = isim.trim().toUpperCase();
+    const tcGuncellenecek = allData.filter(r =>
+      (r.ISIM_SOYISIM||'').toUpperCase() === isimUpper &&
+      r._fbId && r._fbId !== rec._fbId &&
+      (r.TC||'').trim() !== tc
+    );
+    if (tcGuncellenecek.length > 0) {
+      try {
+        const BATCH_SIZE = 400;
+        for (let i = 0; i < tcGuncellenecek.length; i += BATCH_SIZE) {
+          const batch = firebase.firestore().batch();
+          tcGuncellenecek.slice(i, i + BATCH_SIZE).forEach(r => {
+            r.TC = tc;
+            batch.update(firebase.firestore().collection('vatandaslar').doc(r._fbId), { TC: tc });
+          });
+          await batch.commit();
+        }
+        showToast(`✅ TC, ${isimUpper} adına ait ${tcGuncellenecek.length + 1} kayda işlendi`);
+      } catch(e) { console.warn('TC toplu yazma hatası:', e); }
     }
 
     if (rec._tpRef && rec._tpFbId) {
@@ -761,12 +830,14 @@ function gkVerilemediKaydet() {
   }
 }
 function gkTemizle() {
-  ['gk-isim','gk-isim-search','gk-tarih','gk-not'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['gk-isim','gk-isim-search','gk-tarih','gk-not','gk-tc','gk-engel-aciklama'].forEach(id=>{const el=document.getElementById(id);if(el){el.value='';el.readOnly=false;el.style.background='';el.style.color='';el.style.border='';}});
   const sel=document.getElementById('gk-isim');if(sel)sel.style.display='none';
   document.getElementById('gk-mah').value='';
   document.getElementById('gk-durum-mevcut').value='';
   ['gk-tip-sac','gk-tip-tirnak','gk-tip-sakal'].forEach(id=>{const cb=document.getElementById(id);if(cb)cb.checked=false;});
   const sonEl=document.getElementById('gk-son-ziyaret');if(sonEl)sonEl.textContent='';
+  const ge=document.getElementById('gk-engel');if(ge)ge.value='';
+  const gew=document.getElementById('gk-engel-extra-wrap');if(gew)gew.classList.add('hidden');
 }
 function renderGkTable() {
   if (!window.gkRecs) window.gkRecs=[];
@@ -907,12 +978,32 @@ function fvCopySelect() {
   document.getElementById('f-not1').value = rec.NOT1 || '';
   document.getElementById('f-not2').value = rec.NOT2 || '';
 
+  // TC ve Engel otomatik doldur
+  const tcEl = document.getElementById('f-tc');
+  if (tcEl) tcEl.value = rec.TC || '';
+  const engelEl = document.getElementById('f-engel');
+  if (engelEl) {
+    engelEl.value = rec.ENGEL || '';
+    const ew = document.getElementById('f-engel-extra-wrap');
+    if (ew) ew.classList.toggle('hidden', rec.ENGEL !== 'Var');
+  }
+  const engelAcEl = document.getElementById('f-engel-aciklama');
+  if (engelAcEl) engelAcEl.value = rec.ENGEL_ACIKLAMA || '';
+
   const mevcutHizmetler = [...new Set(_findVatandasKayitlari(isim).filter(r=>(r.DURUM||'').toUpperCase()==='AKTİF').map(r=>r['HİZMET']).filter(Boolean))];
   fvCopyApplyExistingServices(mevcutHizmetler);
   const info=document.getElementById('f-copy-info');
   if(info) info.innerHTML = `<strong>${rec.ISIM_SOYISIM}</strong> kopyalandı. Mevcut hizmetler: ${mevcutHizmetler.length ? mevcutHizmetler.join(', ') : 'yok'}. Sadece eklenecek yeni hizmeti işaretleyin.`;
   showToast('✅ Vatandaş bilgileri forma kopyalandı');
 }
+function fEngelDegisti() {
+  const v = document.getElementById('f-engel')?.value;
+  const w = document.getElementById('f-engel-extra-wrap');
+  if (w) w.classList.toggle('hidden', v !== 'Var');
+}
+window.fEngelDegisti = fEngelDegisti;
+window.gkEngelDegisti = gkEngelDegisti;
+
 function fvCopyReset() {
   window._fvCopyIsimler = [];
   const hizmetEl=document.getElementById('f-copy-hizmet'); if(hizmetEl) hizmetEl.value='';
@@ -938,8 +1029,14 @@ async function saveRec(){
   const seciliHizmetler = ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik']
     .map(id=>document.getElementById(id))
     .filter(cb=>cb&&cb.checked).map(cb=>cb.value);
+  const tc = (document.getElementById('f-tc')?.value||'').trim();
+  const engel = document.getElementById('f-engel')?.value||'';
+  const engelAciklama = (document.getElementById('f-engel-aciklama')?.value||'').trim();
+
   if(!isim||!mah){showToast('⚠️ İsim ve mahalle zorunlu');return;}
   if(!seciliHizmetler.length){showToast('⚠️ En az bir hizmet seçin');return;}
+  if(!tc||tc.length!==11){showToast('❌ TC kimlik no zorunlu (11 hane)');return;}
+  if(!engel){showToast('❌ Engel durumu zorunlu');return;}
   const zatenOlanlar = seciliHizmetler.filter(h=>allData.some(r=>r.ISIM_SOYISIM&&r.ISIM_SOYISIM.toUpperCase()===isim&&r['HİZMET']===h&&(r.DURUM||'').toUpperCase()==='AKTİF'));
   if(zatenOlanlar.length){showToast(`⚠️ Zaten kayıtlı hizmet var: ${zatenOlanlar.join(', ')}`);return;}
   const ay=document.getElementById('f-ay').value;
@@ -965,6 +1062,7 @@ async function saveRec(){
       SAC1:'',SAC2:'',TIRNAK1:'',TIRNAK2:'',SAKAL1:'',SAKAL2:'',
       NOT1:not1, NOT2:not2, NOT3:'',
       TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
+      TC:tc, ENGEL:engel, ENGEL_ACIKLAMA: engel==='Var' ? engelAciklama : '',
     };
     allData.push(rec);
     newRecs.push(rec);
@@ -1002,9 +1100,11 @@ async function saveRec(){
   }
 }
 function clearForm(){
-  ['f-isim','f-onay','f-dogum','f-tel','f-tel2','f-adres','f-not1','f-not2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f-isim','f-onay','f-dogum','f-tel','f-tel2','f-adres','f-not1','f-not2','f-tc','f-engel-aciklama'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   ['fh-kadin','fh-erkek','fh-kuafor','fh-temizlik'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
   const ta=document.getElementById('f-tel-aktif');if(ta)ta.value='1';
+  const fe=document.getElementById('f-engel');if(fe)fe.value='';
+  const few=document.getElementById('f-engel-extra-wrap');if(few)few.classList.add('hidden');
   fvCopyReset();
 }
 function renderNewTable(){

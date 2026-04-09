@@ -130,6 +130,36 @@ function hmVatandasSecildi() {
   const tc = r?.TC || kb.TC || '';
   const dogum = r?.DOGUM_TARIHI || kb.DOGUM_TARIHI || '';
 
+  // TC alanını otomatik doldur
+  const tcEl = document.getElementById('hm-tc');
+  if (tcEl) {
+    if (tc) {
+      tcEl.value = tc;
+      tcEl.readOnly = true;
+      tcEl.style.background = '#f0fdf4';
+      tcEl.style.color = '#166534';
+      tcEl.style.border = '1.5px solid #86efac';
+    } else {
+      tcEl.value = '';
+      tcEl.readOnly = false;
+      tcEl.style.background = '';
+      tcEl.style.color = '';
+      tcEl.style.border = '1.5px solid #f59e0b';
+    }
+  }
+
+  // Engel alanını otomatik doldur
+  const engelEl = document.getElementById('hm-engel');
+  if (engelEl && engel) {
+    engelEl.value = engel;
+    const extra = document.getElementById('hm-engel-extra');
+    if (extra) extra.style.display = engel === 'Var' ? '' : 'none';
+  }
+  const engelYuzdeEl = document.getElementById('hm-engel-yuzde');
+  if (engelYuzdeEl && engelYuzde) engelYuzdeEl.value = engelYuzde;
+  const engelAcEl = document.getElementById('hm-engel-aciklama');
+  if (engelAcEl && engelAc) engelAcEl.value = engelAc;
+
   const HC = { 'KADIN BANYO': '#C2185B', 'ERKEK BANYO': '#1565C0', 'KUAFÖR': '#2E7D32', 'TEMİZLİK': '#E65100' };
   const renk = HC[hizmet] || '#1A237E';
 
@@ -179,6 +209,10 @@ function hmFormTemizle() {
   document.getElementById('hm-tur').value = 'İlk Ziyaret';
   document.getElementById('hm-hemsire').value = '';
 
+  // TC alanını sıfırla
+  const tcEl = document.getElementById('hm-tc');
+  if (tcEl) { tcEl.value = ''; tcEl.readOnly = false; tcEl.style.background = ''; tcEl.style.color = ''; tcEl.style.border = '1.5px solid #f59e0b'; }
+
   // Genel durum seçimleri sıfırla
   ['hm-bilincDurumu', 'hm-ruhsal', 'hm-beslenme', 'hm-hareket', 'hm-cilt', 'hm-evHijyeni', 'hm-banyoIhtiyac', 'hm-kuaforIhtiyac', 'hm-engel'].forEach(id => {
     const el = document.getElementById(id);
@@ -215,6 +249,11 @@ async function hmKaydet() {
   if (!tarih) { showToast('⚠️ Ziyaret tarihi giriniz'); return; }
   if (!hemsire) { showToast('⚠️ Hemşire adını giriniz'); return; }
 
+  const hmTc = (document.getElementById('hm-tc')?.value || '').trim();
+  const hmEngel = document.getElementById('hm-engel')?.value || '';
+  if (!hmTc || hmTc.length !== 11) { showToast('❌ TC kimlik no zorunlu (11 hane)'); return; }
+  if (!hmEngel) { showToast('❌ Engel durumu zorunlu'); return; }
+
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : ''; };
   const getText = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
 
@@ -250,6 +289,7 @@ async function hmKaydet() {
     engel:          getVal('hm-engel'),
     engel_yuzde:    getVal('hm-engel-yuzde'),
     engel_aciklama: getText('hm-engel-aciklama'),
+    tc:             hmTc,
     olusturma_tarihi: new Date().toISOString(),
   };
 
@@ -263,6 +303,28 @@ async function hmKaydet() {
       const ref = await firebase.firestore().collection('hemsire_ziyaret').add(veri);
       hmZiyaretler.unshift({ _fbId: ref.id, ...veri });
       showToast(`✅ Ziyaret kaydedildi`);
+    }
+
+    // TC'yi aynı isme ait TÜM vatandaslar kayıtlarına yaz (batch)
+    const isimUpper = vatandas.trim().toUpperCase();
+    const tcGuncellenecek = (typeof allData !== 'undefined' ? allData : []).filter(r =>
+      (r.ISIM_SOYISIM || '').toUpperCase() === isimUpper &&
+      r._fbId &&
+      (r.TC || '').trim() !== hmTc
+    );
+    if (tcGuncellenecek.length > 0) {
+      try {
+        const BATCH_SIZE = 400;
+        for (let i = 0; i < tcGuncellenecek.length; i += BATCH_SIZE) {
+          const batch = firebase.firestore().batch();
+          tcGuncellenecek.slice(i, i + BATCH_SIZE).forEach(r => {
+            r.TC = hmTc;
+            batch.update(firebase.firestore().collection('vatandaslar').doc(r._fbId), { TC: hmTc });
+          });
+          await batch.commit();
+        }
+        showToast(`✅ TC, ${isimUpper} adına ait ${tcGuncellenecek.length} kayda işlendi`);
+      } catch(e) { console.warn('TC toplu yazma hatası:', e); }
     }
     // Engel bilgisi girildiyse vatandaslar + vatandaslar_bilgi koleksiyonlarını güncelle
     const engelGirildi = veri.engel && veri.engel !== '';
