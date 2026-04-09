@@ -140,7 +140,7 @@
     <div class="table-header">
       <h3>Karşılaştırma Sonuçları</h3>
       <label style="font-size:.82rem;color:#64748b;cursor:pointer">
-        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Tümünü Seç (eksikler)
+        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Tümünü Seç (eksik + yok)
       </label>
     </div>
     <div id="loadingMsg">⏳ Firestore verisi yükleniyor...</div>
@@ -166,7 +166,7 @@
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3>✅ Sisteme İşlenecek Kayıtlar</h3>
-    <p style="font-size:.82rem;color:#64748b;margin-bottom:12px">Aşağıdaki kayıtlara Excel'deki tarihler eklenecek (mevcut tarihler korunur).</p>
+    <p style="font-size:.82rem;color:#64748b;margin-bottom:12px">Aşağıdaki kayıtlara Excel'deki tarihler eklenecek. <strong style="color:#f59e0b">⚠ Kayıt Yok</strong> olanlara yeni kayıt oluşturulacak.</p>
     <ul class="modal-list" id="modalList"></ul>
     <div class="modal-actions">
       <button class="btn" style="background:#f1f5f9;color:#475569" onclick="closeModal()">İptal</button>
@@ -385,7 +385,7 @@ function renderTable() {
 
   filteredRows.forEach((row, i) => {
     const isSelected = selectedRows.has(i);
-    const canSelect = (row.durum === 'eksik');
+    const canSelect = (row.durum === 'eksik' || row.durum === 'yok');
 
     const durumTag = row.durum === 'ok'
       ? '<span class="tag tag-ok">✓ Tamam</span>'
@@ -439,7 +439,7 @@ function toggleSelectAll() {
   const checked = document.getElementById('selectAll').checked;
   selectedRows = new Set();
   if (checked) {
-    filteredRows.forEach((r, i) => { if (r.durum === 'eksik') selectedRows.add(i); });
+    filteredRows.forEach((r, i) => { if (r.durum === 'eksik' || r.durum === 'yok') selectedRows.add(i); });
   }
   updateBulkBar();
   renderTable();
@@ -466,7 +466,9 @@ function showBulkModal() {
     const r = filteredRows[i];
     list.innerHTML += `
       <li>
-        <span>${r.isim} <small style="color:#64748b">${r.hizmet} / ${r.ay}</small></span>
+        <span>${r.isim} <small style="color:#64748b">${r.hizmet} / ${r.ay}</small>
+          ${r.durum === 'yok' ? '<span style="background:#fef3c7;color:#d97706;padding:1px 6px;border-radius:8px;font-size:.72rem;font-weight:700">YENİ KAYIT</span>' : ''}
+        </span>
         <span style="color:#ef4444;font-size:.75rem">${r.eksikTarihler.join(', ')}</span>
       </li>
     `;
@@ -486,38 +488,97 @@ async function bulkProcess() {
   const rows = [...selectedRows].map(i => filteredRows[i]);
   let ok = 0, fail = 0;
 
+  const AY_NO = { 'OCAK':'01','ŞUBAT':'02','MART':'03','NİSAN':'04','MAYIS':'05','HAZİRAN':'06',
+                  'TEMMUZ':'07','AĞUSTOS':'08','EYLÜL':'09','EKİM':'10','KASIM':'11','ARALIK':'12' };
+
   for (const row of rows) {
+
     try {
-      if (row.fbIds.length === 0) { fail++; continue; }
-      const fbId = row.fbIds[0];
-      const ref = db.collection('vatandaslar').doc(fbId);
-      const snap = await ref.get();
-      if (!snap.exists) { fail++; continue; }
-      const data = snap.data();
+      // ── MEVCUT KAYIT VAR: sadece eksik tarihleri ekle ──
+      if (row.durum === 'eksik' && row.fbIds.length > 0) {
+        const fbId = row.fbIds[0];
+        const ref = db.collection('vatandaslar').doc(fbId);
+        const snap = await ref.get();
+        if (!snap.exists) { fail++; continue; }
+        const data = snap.data();
 
-      // Mevcut tarih slotlarını bul
-      const banyo = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-      const temizlik = ['1. HİZMET','2. HİZMET'];
-      const slots = row.hizmet === 'TEMİZLİK' ? temizlik : banyo;
+        const banyo = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+        const temizlik = ['1. HİZMET','2. HİZMET'];
+        const slots = row.hizmet === 'TEMİZLİK' ? temizlik : banyo;
 
-      const dolular = slots.filter(s => data[s]);
-      const boslar = slots.filter(s => !data[s]);
+        const boslar = slots.filter(s => !data[s]);
+        const update = {};
+        let eklenecek = [...row.eksikTarihler];
 
-      const update = {};
-      let eklenecek = [...row.eksikTarihler];
+        for (const slot of boslar) {
+          if (eklenecek.length === 0) break;
+          update[slot] = eklenecek.shift();
+        }
 
-      for (const slot of boslar) {
-        if (eklenecek.length === 0) break;
-        update[slot] = eklenecek.shift();
+        if (Object.keys(update).length > 0) {
+          await ref.update(update);
+          // allFirestoreData'yı da güncelle
+          const localRec = allFirestoreData.find(r => r._fbId === fbId);
+          if (localRec) Object.assign(localRec, update);
+          ok++;
+        } else {
+          fail++;
+        }
       }
 
-      if (Object.keys(update).length > 0) {
-        await ref.update(update);
+      // ── YENİ KAYIT OLUŞTUR ──
+      else if (row.durum === 'yok') {
+        const tarihler = row.eksikTarihler; // exceldeki tüm tarihler
+
+        // Ay numarasını bul
+        const ayNo = AY_NO[row.ay] || '01';
+        // Yılı ilk tarihten al, yoksa 2026 varsay
+        let yil = '2026';
+        if (tarihler.length > 0) {
+          const parcalar = tarihler[0].split('.');
+          if (parcalar.length === 3) yil = parcalar[2];
+        }
+
+        // Hizmet türüne göre alan şeması
+        const yeniKayit = {
+          ISIM_SOYISIM: row.isim.toLocaleUpperCase('tr-TR'),
+          'HİZMET': row.hizmet,
+          AY: row.ay,
+          YIL: yil,
+          MAHALLE: row.mahalle || '',
+          DURUM: 'AKTİF',
+          NOT1: '',
+          BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'',
+          SAC1:'', SAC2:'', TIRNAK1:'', TIRNAK2:'', SAKAL1:'', SAKAL2:'',
+          '1. HİZMET':'', '2. HİZMET':'',
+        };
+
+        // Tarihleri uygun alanlara doldur
+        if (row.hizmet === 'TEMİZLİK') {
+          if (tarihler[0]) yeniKayit['1. HİZMET'] = tarihler[0];
+          if (tarihler[1]) yeniKayit['2. HİZMET'] = tarihler[1];
+        } else if (row.hizmet === 'KUAFÖR') {
+          // Kuaför için SAC alanlarına yaz (tüm tarihler saç olarak kabul)
+          if (tarihler[0]) yeniKayit['SAC1'] = tarihler[0];
+          if (tarihler[1]) yeniKayit['SAC2'] = tarihler[1];
+        } else {
+          // KADIN BANYO / ERKEK BANYO
+          const banyo = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+          tarihler.forEach((t, i) => { if (banyo[i]) yeniKayit[banyo[i]] = t; });
+        }
+
+        const docRef = await db.collection('vatandaslar').add(yeniKayit);
+        yeniKayit._fbId = docRef.id;
+        allFirestoreData.push(yeniKayit);
         ok++;
-      } else {
-        fail++; // yer yok
       }
+
+      else {
+        fail++;
+      }
+
     } catch(e) {
+      console.error('Hata:', row.isim, e);
       fail++;
     }
   }
@@ -527,7 +588,7 @@ async function bulkProcess() {
   btn.textContent = 'Onayla ve İşle';
   selectedRows = new Set();
   updateBulkBar();
-  alert(`✅ ${ok} kayıt güncellendi, ${fail} başarısız (yer yok veya hata).`);
+  alert(`✅ ${ok} işlem tamamlandı, ${fail} başarısız.`);
   await loadFirestore();
 }
 </script>
