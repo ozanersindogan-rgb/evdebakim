@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Veri Kalitesi Tarama — Evde Bakım</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+:root {
+  --bg:      #f0f4f8;
+  --card:    #ffffff;
+  --pr:      #1d4ed8;
+  --pr-l:    #dbeafe;
+  --ok:      #15803d;
+  --ok-l:    #dcfce7;
+  --warn:    #b45309;
+  --warn-l:  #fef9c3;
+  --err:     #dc2626;
+  --err-l:   #fee2e2;
+  --pur:     #7c3aed;
+  --pur-l:   #ede9fe;
+  --border:  #e2e8f0;
+  --text:    #0f172a;
+  --muted:   #64748b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:16px}
+
+.top-bar{max-width:1000px;margin:0 auto 16px;display:flex;align-items:center;gap:12px}
+.top-bar h1{font-size:20px;font-weight:900;color:var(--pr)}
+.top-bar p{font-size:12px;color:var(--muted);margin-top:2px}
+
+.card{background:var(--card);border-radius:12px;padding:18px;max-width:1000px;margin:0 auto 14px;box-shadow:0 1px 6px rgba(0,0,0,.06)}
+.card-title{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+
+/* Giriş */
+.form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.form-row label{font-size:11px;font-weight:700;color:var(--muted)}
+input[type=email],input[type=password]{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;outline:none}
+input:focus{border-color:var(--pr)}
+
+/* Butonlar */
+.btn{padding:10px 18px;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;transition:opacity .15s,transform .1s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover:not(:disabled){opacity:.85;transform:translateY(-1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-pr{background:var(--pr);color:#fff}
+.btn-ok{background:#16a34a;color:#fff}
+.btn-ghost{background:var(--bg);color:var(--text);border:1.5px solid var(--border)}
+.btn-sm{padding:4px 10px;font-size:11px;border-radius:6px}
+
+/* Progress */
+.prog-wrap{height:7px;background:var(--border);border-radius:4px;margin:10px 0;overflow:hidden}
+.prog-bar{height:100%;background:var(--pr);border-radius:4px;transition:width .2s}
+
+/* Özet kartları */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;margin-bottom:16px}
+.cat-card{border-radius:10px;padding:14px 12px;border:1.5px solid transparent;cursor:pointer;transition:all .18s;position:relative}
+.cat-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.cat-card.active{box-shadow:0 0 0 3px var(--pr)}
+.cat-card .cc-n{font-size:30px;font-weight:900;line-height:1}
+.cat-card .cc-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-top:4px;opacity:.8}
+.cat-card .cc-sub{font-size:10px;opacity:.65;margin-top:3px}
+
+.c-cift   {background:var(--err-l); border-color:#fca5a5; color:var(--err)}
+.c-multi  {background:var(--warn-l);border-color:#fcd34d; color:var(--warn)}
+.c-mah    {background:var(--pur-l); border-color:#c4b5fd; color:var(--pur)}
+.c-notc   {background:#f0f9ff;      border-color:#bae6fd; color:#0369a1}
+.c-tcalt  {background:var(--ok-l);  border-color:#86efac; color:var(--ok)}
+
+/* Tablo */
+.tbl-wrap{border-radius:9px;border:1.5px solid var(--border);overflow:hidden;max-height:500px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--pr);color:#fff;padding:9px 10px;text-align:left;position:sticky;top:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+tbody tr:nth-child(even) td{background:#f8fafc}
+tbody tr:hover td{background:var(--pr-l)}
+td{padding:7px 10px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:5px;font-size:10px;font-weight:800;white-space:nowrap}
+.b-err {background:var(--err-l);color:var(--err)}
+.b-warn{background:var(--warn-l);color:var(--warn)}
+.b-ok  {background:var(--ok-l);color:var(--ok)}
+.b-pur {background:var(--pur-l);color:var(--pur)}
+.b-muted{background:#f1f5f9;color:var(--muted)}
+
+.tc-mono{font-family:'Courier New',monospace;font-size:11px;letter-spacing:.05em}
+
+/* Tab */
+.tab-row{display:flex;gap:2px;flex-wrap:wrap;margin-bottom:14px}
+.tab{padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;border-radius:7px 7px 0 0;color:var(--muted);border:none;background:none;transition:all .15s;border-bottom:2px solid transparent}
+.tab.active{background:var(--pr);color:#fff}
+
+/* Alert */
+.alert{border-radius:8px;padding:10px 13px;font-size:12px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.al-info   {background:var(--pr-l);color:var(--pr)}
+.al-warn   {background:var(--warn-l);color:var(--warn)}
+.al-ok     {background:var(--ok-l);color:var(--ok)}
+.al-err    {background:var(--err-l);color:var(--err)}
+
+.group-hdr{background:#f8fafc;padding:8px 10px;font-size:11px;font-weight:800;color:var(--muted);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+
+/* Arama */
+.search-bar{display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.search-bar input{flex:1;min-width:180px;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:12px;outline:none}
+.search-bar input:focus{border-color:var(--pr)}
+
+#section-results{display:none}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div>
+    <h1>🔬 Veri Kalitesi Tarama</h1>
+    <p>Firestore'daki vatandaş kayıtlarında tutarsızlık, mükerrer ve eksik verileri tespit et</p>
+  </div>
+</div>
+
+<!-- Giriş -->
+<div class="card" id="section-giris">
+  <div class="card-title">🔐 Firebase Girişi</div>
+  <div class="form-row"><label>E-posta</label><input id="email" type="email" value="ozan.ersin@kusadasi.bel.tr"></div>
+  <div class="form-row"><label>Şifre</label><input id="sifre" type="password" onkeydown="if(event.key==='Enter')girisYap()"></div>
+  <button class="btn btn-pr" onclick="girisYap()" id="btn-giris">🔑 Giriş Yap</button>
+  <div id="giris-err" style="margin-top:8px"></div>
+</div>
+
+<!-- Tarama -->
+<div class="card" id="section-tara" style="display:none">
+  <div class="card-title">🔍 Tarama</div>
+  <div class="alert al-info">
+    ℹ️ <strong>vatandaslar</strong> (kayıt koleksiyonu) ve <strong>vatandaslar_bilgi</strong> (kişi koleksiyonu) birlikte taranır.
+    Benzer isim tespitinde Türkçe normalize + token karşılaştırması kullanılır.
+  </div>
+  <button class="btn btn-pr" onclick="taramaBaslat()" id="btn-tara">🚀 Taramayı Başlat</button>
+  <div class="prog-wrap" id="prog-wrap" style="display:none"><div class="prog-bar" id="prog-bar" style="width:0%"></div></div>
+  <div id="tara-durum" style="font-size:12px;color:var(--muted);margin-top:6px"></div>
+</div>
+
+<!-- Sonuçlar -->
+<div id="section-results">
+
+  <!-- Özet -->
+  <div class="card">
+    <div class="card-title">📊 Tarama Özeti</div>
+    <div class="cat-grid" id="cat-grid"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="exportExcel()">📥 Excel'e Aktar</button>
+      <button class="btn btn-ghost btn-sm" onclick="taramaBaslat()">🔄 Yeniden Tara</button>
+    </div>
+  </div>
+
+  <!-- Detay paneli -->
+  <div class="card" id="detail-panel">
+    <div class="card-title" id="detail-title">Bir kategori seçin</div>
+    <div class="search-bar">
+      <input type="text" id="ara-input" placeholder="İsim, mahalle, TC ara..." oninput="araFiltrele()">
+      <span id="ara-sayi" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+    <div id="detail-body"></div>
+  </div>
+
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyCc0AhkPaIzmUewk_szFLmxqfMMmMctnHw",
+  authDomain:"evdebakim-ca02e.firebaseapp.com",
+  projectId:"evdebakim-ca02e",
+  storageBucket:"evdebakim-ca02e.firebasestorage.app",
+  messagingSenderId:"708187732533",
+  appId:"1:708187732533:web:34d1fea5bb82bfad2b0f7c"
+});
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ── State ──
+let VAT     = [];  // vatandaslar koleksiyonu
+let BILGI   = [];  // vatandaslar_bilgi koleksiyonu
+let BULGULAR = {}; // { cift, benzerIsim, farklıMahalle, tcYok, tcVarAmaEksik }
+let aktifKat = null;
+let aktifRows = [];
+
+// ─────────────────────────────────────
+// GİRİŞ
+// ─────────────────────────────────────
+async function girisYap() {
+  const btn = document.getElementById('btn-giris');
+  btn.disabled = true; btn.textContent = '⏳...';
+  try {
+    await auth.signInWithEmailAndPassword(
+      document.getElementById('email').value.trim(),
+      document.getElementById('sifre').value
+    );
+    document.getElementById('section-giris').style.display = 'none';
+    document.getElementById('section-tara').style.display  = 'block';
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '🔑 Giriş Yap';
+    document.getElementById('giris-err').innerHTML = `<div class="alert al-err">❌ ${e.message}</div>`;
+  }
+}
+
+// ─────────────────────────────────────
+// TARAMA
+// ─────────────────────────────────────
+async function taramaBaslat() {
+  const btn  = document.getElementById('btn-tara');
+  const prog = document.getElementById('prog-wrap');
+  const bar  = document.getElementById('prog-bar');
+  const dur  = document.getElementById('tara-durum');
+  btn.disabled = true;
+  prog.style.display = 'block';
+  document.getElementById('section-results').style.display = 'none';
+
+  const adim = (p, msg) => { bar.style.width = p+'%'; dur.textContent = msg; };
+
+  adim(10, 'vatandaslar koleksiyonu çekiliyor...');
+  const snap1 = await db.collection('vatandaslar').get();
+  VAT = snap1.docs.map(d => ({ _fbId: d.id, ...d.data() }));
+
+  adim(40, 'vatandaslar_bilgi koleksiyonu çekiliyor...');
+  const snap2 = await db.collection('vatandaslar_bilgi').get();
+  BILGI = snap2.docs.map(d => ({ _fbId: d.id, ...d.data() }));
+
+  adim(60, `${VAT.length} kayıt + ${BILGI.length} kişi analiz ediliyor...`);
+  await new Promise(r => setTimeout(r, 60));
+
+  BULGULAR = analiz();
+
+  adim(100, `Tamamlandı — ${BILGI.length} kişi, ${VAT.length} kayıt incelendi`);
+  setTimeout(() => { prog.style.display = 'none'; }, 500);
+
+  ozeteRender();
+  document.getElementById('section-results').style.display = 'block';
+  btn.disabled = false;
+}
+
+// ─────────────────────────────────────
+// ANALİZ
+// ─────────────────────────────────────
+function analiz() {
+  const res = {
+    ciftTc:        [],   // Aynı TC'ye sahip birden fazla bilgi kaydı
+    benzerIsim:    [],   // Farklı hizmetlerde benzer isimli kişiler (muhtemelen aynı kişi)
+    farklıMahalle: [],   // Aynı isim, farklı mahallede kayıtlı
+    tcYok:         [],   // vatandaslar_bilgi'de TC alanı boş/eksik
+    tcVarAmaEksik: [],   // vatandaslar'da TC'li bilgi eşleşmesi var ama kayıt henüz güncellenmemiş
+    ciftKayit:     [],   // Aynı isim + aynı hizmet = muhtemelen mükerrer kayıt
+  };
+
+  // ── 1. Aynı TC'ye sahip birden fazla bilgi kaydı ──
+  const tcMap = {};
+  BILGI.forEach(r => {
+    const tc = String(r.TC || '').replace(/\D/g,'');
+    if (tc.length !== 11) return;
+    if (!tcMap[tc]) tcMap[tc] = [];
+    tcMap[tc].push(r);
+  });
+  Object.entries(tcMap).forEach(([tc, kayitlar]) => {
+    if (kayitlar.length > 1) res.ciftTc.push({ tc, kayitlar });
+  });
+
+  // ── 2. TC yoklar ──
+  BILGI.forEach(r => {
+    const tc = String(r.TC || '').replace(/\D/g,'');
+    if (tc.length !== 11) res.tcYok.push(r);
+  });
+
+  // ── 3. Benzer isim tespiti (vatandaslar_bilgi içinde) ──
+  const bilgiNorm = BILGI.map(r => ({ r, norm: normIsim(r.AD_SOYAD || '') }));
+  const ziyaret = new Set();
+
+  for (let i = 0; i < bilgiNorm.length; i++) {
+    if (ziyaret.has(i)) continue;
+    const grup = [bilgiNorm[i]];
+    for (let j = i+1; j < bilgiNorm.length; j++) {
+      if (ziyaret.has(j)) continue;
+      const s = isimBenzerlik(bilgiNorm[i].norm, bilgiNorm[j].norm);
+      if (s >= 75 && bilgiNorm[i].norm !== bilgiNorm[j].norm) {
+        // TC farklıysa ve her ikisi de 11 haneliyse farklı kişi — atla
+        const tc1 = String(bilgiNorm[i].r.TC||'').replace(/\D/g,'');
+        const tc2 = String(bilgiNorm[j].r.TC||'').replace(/\D/g,'');
+        if (tc1.length === 11 && tc2.length === 11 && tc1 !== tc2) continue;
+        grup.push(bilgiNorm[j]);
+        ziyaret.add(j);
+      }
+    }
+    if (grup.length > 1) {
+      ziyaret.add(i);
+      res.benzerIsim.push(grup.map(g => g.r));
+    }
+  }
+
+  // ── 4. Aynı isim farklı mahalle (vatandaslar_bilgi) ──
+  const mahMap = {};
+  BILGI.forEach(r => {
+    const norm = normIsim(r.AD_SOYAD || '');
+    if (!norm) return;
+    if (!mahMap[norm]) mahMap[norm] = [];
+    mahMap[norm].push(r);
+  });
+  Object.entries(mahMap).forEach(([, liste]) => {
+    const mahalleler = [...new Set(liste.map(r => (r.MAHALLE||'').trim().toUpperCase()).filter(Boolean))];
+    if (mahalleler.length > 1) res.farklıMahalle.push(liste);
+  });
+
+  // ── 5. Mükerrer kayıt (vatandaslar: aynı isim + aynı hizmet) ──
+  const vatMap = {};
+  VAT.forEach(r => {
+    const key = normIsim(r.ISIM_SOYISIM||'') + '||' + (r['HİZMET']||'').trim().toUpperCase();
+    if (!vatMap[key]) vatMap[key] = [];
+    vatMap[key].push(r);
+  });
+  Object.entries(vatMap).forEach(([, liste]) => {
+    if (liste.length > 1) res.ciftKayit.push(liste);
+  });
+
+  // ── 6. vatandaslar_bilgi'de TC var, aynı isimli başka kayıt TC'siz ──
+  const isimTcMap = {}; // norm_isim -> {tcli: [...], tcsiz: [...]}
+  BILGI.forEach(r => {
+    const norm = normIsim(r.AD_SOYAD || '');
+    if (!norm) return;
+    if (!isimTcMap[norm]) isimTcMap[norm] = { tcli: [], tcsiz: [] };
+    const tc = String(r.TC||'').replace(/\D/g,'');
+    if (tc.length === 11) isimTcMap[norm].tcli.push(r);
+    else isimTcMap[norm].tcsiz.push(r);
+  });
+  Object.entries(isimTcMap).forEach(([, v]) => {
+    if (v.tcli.length > 0 && v.tcsiz.length > 0)
+      res.tcVarAmaEksik.push({ tcli: v.tcli, tcsiz: v.tcsiz });
+  });
+
+  return res;
+}
+
+// ─────────────────────────────────────
+// ÖZET
+// ─────────────────────────────────────
+const KATEGORILER = [
+  { id:'ciftTc',        etiket:'Çift TC',              ikon:'🚨', aciklama:'Aynı TC\'ye sahip birden fazla kişi kaydı',  cls:'c-cift'  },
+  { id:'ciftKayit',     etiket:'Mükerrer Kayıt',        ikon:'🔁', aciklama:'Aynı isim + hizmet = muhtemelen kopyalanmış', cls:'c-cift'  },
+  { id:'benzerIsim',    etiket:'Benzer İsim',           ikon:'👥', aciklama:'Farklı kayıtlarda aynı kişi olabilir',       cls:'c-multi' },
+  { id:'farklıMahalle', etiket:'Farklı Mahalle',        ikon:'📍', aciklama:'Aynı kişi, farklı mahalle bilgisi',          cls:'c-mah'   },
+  { id:'tcYok',         etiket:'TC Eksik',              ikon:'🪪', aciklama:'vatandaslar_bilgi\'de TC numarası yok',       cls:'c-notc'  },
+  { id:'tcVarAmaEksik', etiket:'TC Kopyalanabilir',     ikon:'♻️', aciklama:'Aynı isimde TC\'li kayıt var, diğeri boş',   cls:'c-tcalt' },
+];
+
+function ozeteRender() {
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML = KATEGORILER.map(k => {
+    const sayi = BULGULAR[k.id]?.length || 0;
+    return `<div class="cat-card ${k.cls}" onclick="detayGoster('${k.id}')">
+      <div class="cc-n">${sayi}</div>
+      <div class="cc-l">${k.ikon} ${k.etiket}</div>
+      <div class="cc-sub">${k.aciklama}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────
+// DETAY PANELİ
+// ─────────────────────────────────────
+function detayGoster(katId) {
+  aktifKat = katId;
+  document.querySelectorAll('.cat-card').forEach(c => c.classList.remove('active'));
+  const idx = KATEGORILER.findIndex(k => k.id === katId);
+  document.querySelectorAll('.cat-card')[idx]?.classList.add('active');
+
+  const kat    = KATEGORILER.find(k => k.id === katId);
+  const liste  = BULGULAR[katId] || [];
+  document.getElementById('detail-title').textContent = `${kat.ikon} ${kat.etiket} — ${liste.length} grup`;
+  document.getElementById('ara-input').value = '';
+
+  aktifRows = liste;
+  renderDetay(liste);
+  document.getElementById('detail-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function renderDetay(liste) {
+  const body = document.getElementById('detail-body');
+  document.getElementById('ara-sayi').textContent = `${liste.length} sonuç`;
+  if (!liste.length) { body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--muted);font-size:13px">Sonuç yok ✓</div>'; return; }
+
+  const render = {
+    ciftTc:        renderCiftTc,
+    ciftKayit:     renderCiftKayit,
+    benzerIsim:    renderBenzerIsim,
+    farklıMahalle: renderFarklıMahalle,
+    tcYok:         renderTcYok,
+    tcVarAmaEksik: renderTcVarAmaEksik,
+  };
+  body.innerHTML = (render[aktifKat] || (() => '<div>Bilinmiyor</div>'))(liste);
+}
+
+function renderCiftTc(liste) {
+  return '<div class="tbl-wrap">' + liste.map((g,i) => `
+    <div class="group-hdr"><span class="badge b-err">TC: ${g.tc}</span> ${g.kayitlar.length} kayıt aynı TC'yi kullanıyor</div>
+    <table><thead><tr><th>#</th><th>Ad Soyad</th><th>Hizmetler</th><th>Mahalle</th><th>Adres</th><th>Firestore ID</th></tr></thead>
+    <tbody>${g.kayitlar.map((r,j) => `<tr>
+      <td style="color:var(--muted)">${j+1}</td>
+      <td><strong>${esc(r.AD_SOYAD||'—')}</strong></td>
+      <td>${(r.HIZMETLER||[r.HIZMET||'']).map(h=>`<span class="badge b-warn">${esc(h)}</span>`).join(' ')}</td>
+      <td>${esc(r.MAHALLE||'—')}</td>
+      <td style="font-size:11px">${esc(r.ADRES||'—')}</td>
+      <td class="tc-mono" style="font-size:10px">${r._fbId}</td>
+    </tr>`).join('')}</tbody></table>`).join('') + '</div>';
+}
+
+function renderCiftKayit(liste) {
+  return '<div class="tbl-wrap"><table><thead><tr><th>#</th><th>İsim Soyisim</th><th>Hizmet</th><th>Aylar</th><th>Mahalle(ler)</th><th>Durum(lar)</th></tr></thead><tbody>' +
+  liste.map((grup, i) => {
+    const aylar   = [...new Set(grup.map(r=>r.AY).filter(Boolean))].join(', ');
+    const mahler  = [...new Set(grup.map(r=>r.MAHALLE).filter(Boolean))].join(', ');
+    const durumlar= [...new Set(grup.map(r=>r.DURUM).filter(Boolean))].join(', ');
+    return `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td><strong>${esc(grup[0].ISIM_SOYISIM||'—')}</strong></td>
+      <td><span class="badge b-err">${esc(grup[0]['HİZMET']||'—')}</span></td>
+      <td style="font-size:11px">${esc(aylar||'—')}</td>
+      <td style="font-size:11px">${esc(mahler||'—')}</td>
+      <td><span class="badge b-muted">${esc(durumlar||'—')}</span></td>
+    </tr>`;
+  }).join('') + '</tbody></table></div>';
+}
+
+function renderBenzerIsim(liste) {
+  return '<div class="tbl-wrap">' + liste.map((grup, i) => `
+    <div class="group-hdr">Grup ${i+1} — ${grup.length} benzer kayıt</div>
+    <table><thead><tr><th>#</th><th>Ad Soyad</th><th>TC</th><th>Hizmetler</th><th>Mahalle</th><th>Doğum Tarihi</th></tr></thead>
+    <tbody>${grup.map((r,j) => {
+      const tc  = String(r.TC||'').replace(/\D/g,'');
+      const tcOk = tc.length===11;
+      return `<tr>
+        <td style="color:var(--muted)">${j+1}</td>
+        <td><strong>${esc(r.AD_SOYAD||'—')}</strong></td>
+        <td class="tc-mono"><span class="badge ${tcOk?'b-ok':'b-err'}">${tcOk?tc:'Yok'}</span></td>
+        <td>${(r.HIZMETLER||[r.HIZMET||'']).map(h=>`<span class="badge b-warn">${esc(h)}</span>`).join(' ')}</td>
+        <td>${esc(r.MAHALLE||'—')}</td>
+        <td style="font-size:11px">${esc(r.DOGUM_TARIHI||'—')}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`).join('') + '</div>';
+}
+
+function renderFarklıMahalle(liste) {
+  return '<div class="tbl-wrap">' + liste.map((grup, i) => `
+    <div class="group-hdr">${esc(grup[0].AD_SOYAD||'?')} — ${[...new Set(grup.map(r=>(r.MAHALLE||'').toUpperCase()))].join(' / ')}</div>
+    <table><thead><tr><th>#</th><th>Ad Soyad</th><th>Mahalle</th><th>Adres</th><th>TC</th><th>Hizmetler</th></tr></thead>
+    <tbody>${grup.map((r,j) => {
+      const tc = String(r.TC||'').replace(/\D/g,'');
+      return `<tr>
+        <td style="color:var(--muted)">${j+1}</td>
+        <td><strong>${esc(r.AD_SOYAD||'—')}</strong></td>
+        <td><span class="badge b-pur">${esc(r.MAHALLE||'—')}</span></td>
+        <td style="font-size:11px">${esc(r.ADRES||'—')}</td>
+        <td class="tc-mono" style="font-size:11px">${tc.length===11?tc:'—'}</td>
+        <td>${(r.HIZMETLER||[r.HIZMET||'']).filter(Boolean).map(h=>`<span class="badge b-muted">${esc(h)}</span>`).join(' ')}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`).join('') + '</div>';
+}
+
+function renderTcYok(liste) {
+  return '<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Ad Soyad</th><th>Mahalle</th><th>Doğum Tarihi</th><th>Hizmetler</th><th>Telefon</th></tr></thead><tbody>' +
+  liste.map((r,i) => `<tr>
+    <td style="color:var(--muted)">${i+1}</td>
+    <td><strong>${esc(r.AD_SOYAD||'—')}</strong></td>
+    <td>${esc(r.MAHALLE||'—')}</td>
+    <td style="font-size:11px">${esc(r.DOGUM_TARIHI||'—')}</td>
+    <td>${(r.HIZMETLER||[r.HIZMET||'']).filter(Boolean).map(h=>`<span class="badge b-muted">${esc(h)}</span>`).join(' ')}</td>
+    <td style="font-size:11px">${esc(r.TELEFON||'—')}</td>
+  </tr>`).join('') + '</tbody></table></div>';
+}
+
+function renderTcVarAmaEksik(liste) {
+  return '<div class="tbl-wrap">' + liste.map((grup, i) => `
+    <div class="group-hdr">Grup ${i+1} — TC kopyalanabilir</div>
+    <table><thead><tr><th>Durum</th><th>Ad Soyad</th><th>TC</th><th>Mahalle</th><th>Hizmetler</th></tr></thead>
+    <tbody>
+      ${grup.tcli.map(r => `<tr>
+        <td><span class="badge b-ok">TC var</span></td>
+        <td><strong>${esc(r.AD_SOYAD||'—')}</strong></td>
+        <td class="tc-mono">${String(r.TC||'').replace(/\D/g,'')}</td>
+        <td>${esc(r.MAHALLE||'—')}</td>
+        <td>${(r.HIZMETLER||[r.HIZMET||'']).filter(Boolean).map(h=>`<span class="badge b-ok">${esc(h)}</span>`).join(' ')}</td>
+      </tr>`).join('')}
+      ${grup.tcsiz.map(r => `<tr>
+        <td><span class="badge b-err">TC yok</span></td>
+        <td><strong>${esc(r.AD_SOYAD||'—')}</strong></td>
+        <td>—</td>
+        <td>${esc(r.MAHALLE||'—')}</td>
+        <td>${(r.HIZMETLER||[r.HIZMET||'']).filter(Boolean).map(h=>`<span class="badge b-warn">${esc(h)}</span>`).join(' ')}</td>
+      </tr>`).join('')}
+    </tbody></table>`).join('') + '</div>';
+}
+
+// ─────────────────────────────────────
+// ARAMA
+// ─────────────────────────────────────
+function araFiltrele() {
+  const q = document.getElementById('ara-input').value.toLocaleUpperCase('tr-TR').trim();
+  if (!q) { renderDetay(aktifRows); return; }
+
+  const filtrele = (liste) => {
+    if (!liste || !liste.length) return [];
+    // Her öğe bir grup (array) veya tek kayıt olabilir
+    const ilk = liste[0];
+    if (Array.isArray(ilk)) {
+      return liste.filter(grup => grup.some(r => JSON.stringify(r).toUpperCase().includes(q)));
+    }
+    // ciftTc formatı: {tc, kayitlar}
+    if (ilk && ilk.tc) {
+      return liste.filter(g => g.tc.includes(q) || g.kayitlar.some(r => JSON.stringify(r).toUpperCase().includes(q)));
+    }
+    // tcVarAmaEksik: {tcli, tcsiz}
+    if (ilk && ilk.tcli) {
+      return liste.filter(g => [...g.tcli,...g.tcsiz].some(r => JSON.stringify(r).toUpperCase().includes(q)));
+    }
+    // Düz liste
+    return liste.filter(r => JSON.stringify(r).toUpperCase().includes(q));
+  };
+
+  renderDetay(filtrele(aktifRows));
+}
+
+// ─────────────────────────────────────
+// EXPORT
+// ─────────────────────────────────────
+function exportExcel() {
+  const rows = [['Kategori','Grup','Ad Soyad','TC','Mahalle','Hizmetler','Doğum Tarihi','Adres','Açıklama']];
+
+  const ekle = (kat, aciklama, r, grup) => {
+    const tc = String(r.TC||r['TC']||'').replace(/\D/g,'');
+    rows.push([
+      kat, grup,
+      r.AD_SOYAD || r.ISIM_SOYISIM || '',
+      tc.length===11 ? tc : '',
+      r.MAHALLE||'',
+      (r.HIZMETLER||[r['HİZMET']||r.HIZMET||'']).filter(Boolean).join(', '),
+      r.DOGUM_TARIHI||'',
+      r.ADRES||'',
+      aciklama
+    ]);
+  };
+
+  BULGULAR.ciftTc.forEach((g,i) => g.kayitlar.forEach(r => ekle('Çift TC', `Grup ${i+1} TC:${g.tc}`, r, i+1)));
+  BULGULAR.ciftKayit.forEach((g,i) => g.forEach(r => ekle('Mükerrer Kayıt', r['HİZMET']||'', {AD_SOYAD:r.ISIM_SOYISIM,MAHALLE:r.MAHALLE,DOGUM_TARIHI:'',ADRES:''}, i+1)));
+  BULGULAR.benzerIsim.forEach((g,i) => g.forEach(r => ekle('Benzer İsim', `Grup ${i+1}`, r, i+1)));
+  BULGULAR.farklıMahalle.forEach((g,i) => g.forEach(r => ekle('Farklı Mahalle', `Grup ${i+1}`, r, i+1)));
+  BULGULAR.tcYok.forEach((r,i) => ekle('TC Eksik', '', r, i+1));
+  BULGULAR.tcVarAmaEksik.forEach((g,i) => {
+    g.tcli.forEach(r => ekle('TC Kopyalanabilir', `TC var — Grup ${i+1}`, r, i+1));
+    g.tcsiz.forEach(r => ekle('TC Kopyalanabilir', `TC yok — Grup ${i+1}`, r, i+1));
+  });
+
+  // CSV olarak indir
+  const csv = rows.map(r => r.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const BOM  = '\uFEFF';
+  const blob = new Blob([BOM+csv], { type:'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a'); a.href=url; a.download='veri_kalitesi_raporu.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─────────────────────────────────────
+// YARDIMCILAR
+// ─────────────────────────────────────
+function normIsim(s) {
+  return String(s||'').trim()
+    .toLocaleUpperCase('tr-TR')
+    .replace(/İ/g,'I').replace(/Ğ/g,'G').replace(/Ü/g,'U')
+    .replace(/Ş/g,'S').replace(/Ö/g,'O').replace(/Ç/g,'C')
+    .replace(/[^A-Z ]/g,'').replace(/\s+/g,' ').trim();
+}
+
+function isimBenzerlik(a,b) {
+  if (!a||!b) return 0;
+  if (a===b) return 100;
+  const tA=a.split(' ').filter(Boolean), tB=b.split(' ').filter(Boolean);
+  let ort=0;
+  tA.forEach(t=>{ if(tB.some(u=>u===t||u.startsWith(t)||t.startsWith(u))) ort++; });
+  const tS = tA.length ? (ort/Math.max(tA.length,tB.length))*100 : 0;
+  const lev = levenshtein(a,b);
+  const lS  = (1-lev/Math.max(a.length,b.length))*100;
+  return Math.round(Math.max(tS,lS));
+}
+
+function levenshtein(s,t) {
+  const m=s.length,n=t.length;
+  if(!m)return n; if(!n)return m;
+  const dp=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);
+  for(let j=1;j<=n;j++) dp[0][j]=j;
+  for(let i=1;i<=m;i++) for(let j=1;j<=n;j++)
+    dp[i][j]=s[i-1]===t[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
