@@ -473,16 +473,18 @@ function gkIsimSecildi() {
       if (mevcutTC) {
         tcEl.value = mevcutTC;
         tcEl.readOnly = true;
-        tcEl.style.background = 'var(--bg-soft)';
-        tcEl.style.color = 'var(--text-soft)';
+        tcEl.style.background = '#f0fdf4';
+        tcEl.style.color = '#166534';
+        tcEl.style.border = '1.5px solid #86efac';
       } else {
-        // Aynı ismin diğer kayıtlarında TC var mı?
-        const digerTC = allData.find(r => (r.ISIM_SOYISIM||'').toUpperCase() === val && r.TC)?.TC || '';
+        // Aynı ismin diğer kayıtlarında veya kbData'da TC var mı?
+        const digerTC = allData.find(r => (r.ISIM_SOYISIM||'').toUpperCase() === val && r.TC)?.TC
+          || (typeof kbData !== 'undefined' ? kbData : []).find(k => (k.AD_SOYAD||'').toUpperCase() === val)?.TC || '';
         tcEl.value = digerTC;
-        tcEl.readOnly = false;
-        tcEl.style.background = '';
-        tcEl.style.color = '';
-        tcEl.style.border = digerTC ? '' : '1.5px solid #f59e0b';
+        tcEl.readOnly = !!digerTC;
+        tcEl.style.background = digerTC ? '#f0fdf4' : '';
+        tcEl.style.color = digerTC ? '#166534' : '';
+        tcEl.style.border = digerTC ? '1.5px solid #86efac' : '';
       }
     }
 
@@ -577,7 +579,6 @@ async function gkKaydet() {
 
   if (!isim) { _gkIslemDevam = false; showToast('Vatandas adi zorunlu'); return; }
   if (!tarih) { _gkIslemDevam = false; showToast('Tarih zorunlu'); return; }
-  if (!tc || tc.length !== 11) { _gkIslemDevam = false; showToast('❌ TC kimlik no zorunlu (11 hane)'); return; }
   if (!engel) { _gkIslemDevam = false; showToast('❌ Engel durumu zorunlu'); return; }
 
   // İleri tarih kontrolü
@@ -1035,7 +1036,6 @@ async function saveRec(){
 
   if(!isim||!mah){showToast('⚠️ İsim ve mahalle zorunlu');return;}
   if(!seciliHizmetler.length){showToast('⚠️ En az bir hizmet seçin');return;}
-  if(!tc||tc.length!==11){showToast('❌ TC kimlik no zorunlu (11 hane)');return;}
   if(!engel){showToast('❌ Engel durumu zorunlu');return;}
   const zatenOlanlar = seciliHizmetler.filter(h=>allData.some(r=>r.ISIM_SOYISIM&&r.ISIM_SOYISIM.toUpperCase()===isim&&r['HİZMET']===h&&(r.DURUM||'').toUpperCase()==='AKTİF'));
   if(zatenOlanlar.length){showToast(`⚠️ Zaten kayıtlı hizmet var: ${zatenOlanlar.join(', ')}`);return;}

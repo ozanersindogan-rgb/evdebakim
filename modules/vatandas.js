@@ -387,6 +387,7 @@ function showDetail(isim, hizmet, ay) {
     </div>`:''}
     ${(r.NOT1||r.NOT2||r.NOT3)?`<div style="background:#FFFDE7;border:1px solid #FDD835;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#795548">
       Not: ${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')}</div>`:''}
+    ${(()=>{const tcVal=(r.TC||adresBilgi.TC||'').toString().replace(/\D/g,'');const tcOk=tcVal.length===11;return`<div style="background:#0f172a;border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between"><div><span style="font-size:10px;font-weight:800;color:#94a3b8;letter-spacing:.07em;text-transform:uppercase">T.C. Kimlik No</span><br><span style="font-family:'Courier New',monospace;font-size:17px;font-weight:900;color:${tcOk?'#e2e8f0':'#f87171'};letter-spacing:.1em">${tcOk?tcVal:'Girilmemiş'}</span></div><span style="background:${tcOk?'#1d4ed8':'#dc2626'};color:#fff;border-radius:8px;padding:3px 10px;font-size:10px;font-weight:800">${tcOk?'🪪 TC':'Eksik'}</span></div>`;})()}
     ${(r.DOGUM_TARIHI||adresBilgi.dogum)?`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
       <div><span style="font-size:11px;font-weight:700;color:#94a3b8">DOGUM TARIHI</span><br>
       <span style="font-size:13px;color:#374151;font-weight:600">${r.DOGUM_TARIHI||adresBilgi.dogum||''}</span></div>

@@ -144,7 +144,7 @@ function hmVatandasSecildi() {
       tcEl.readOnly = false;
       tcEl.style.background = '';
       tcEl.style.color = '';
-      tcEl.style.border = '1.5px solid #f59e0b';
+      tcEl.style.border = '';
     }
   }
 
@@ -251,7 +251,6 @@ async function hmKaydet() {
 
   const hmTc = (document.getElementById('hm-tc')?.value || '').trim();
   const hmEngel = document.getElementById('hm-engel')?.value || '';
-  if (!hmTc || hmTc.length !== 11) { showToast('❌ TC kimlik no zorunlu (11 hane)'); return; }
   if (!hmEngel) { showToast('❌ Engel durumu zorunlu'); return; }
 
   const getVal = id => { const el = document.getElementById(id); return el ? el.value : ''; };
