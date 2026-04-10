@@ -598,40 +598,17 @@ function svHesapla(yilFiltre, hizmetFiltre) {
 
   });
 
-  // Aktif vatandaş sayısı — vatandaşlar sekmesiyle birebir aynı mantık
+  // Aktif vatandaş sayısı — tüm hizmetler için aynı mantık:
   // allData'da r.AY alanına göre filtreleyerek o ay kaydedilmiş AKTİF kişi sayısı
   const AY_ADLARI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
   hizmetler.forEach(hz => {
     for(let ay=1;ay<=12;ay++) {
-      if (hz === 'TEMİZLİK') {
-        // TEMİZLİK: TP_DATA'dan AKTİF olanları say (ay bağımsız — sabit)
-        sonuc[hz][ay].aktif = (typeof TP_DATA !== 'undefined')
-          ? TP_DATA.filter(tp => tp.durum === 'AKTİF').length
-          : 0;
-      } else {
-        // Banyo/Kuaför: vatandaşlar sekmesiyle aynı — r.AY alanına göre filtrele
-        const ayAdi = AY_ADLARI[ay-1];
-        sonuc[hz][ay].aktif = allData.filter(r =>
-          r['HİZMET']===hz && r.DURUM==='AKTİF' && r.AY===ayAdi
-        ).length;
-      }
+      const ayAdi = AY_ADLARI[ay-1];
+      sonuc[hz][ay].aktif = allData.filter(r =>
+        r['HİZMET']===hz && r.DURUM==='AKTİF' && r.AY===ayAdi
+      ).length;
     }
   });
-
-  // TEMİZLİK için TP_DATA'dan hizmet sayısını da ekle
-  if (sonuc['TEMİZLİK'] && typeof TP_DATA !== 'undefined') {
-    TP_DATA.forEach(tp => {
-      if (!tp.sonGidilme) return;
-      const parsed = svTarihAyYil(tp.sonGidilme);
-      if (!parsed) return;
-      if (yilFiltre && parsed.y !== parseInt(yilFiltre)) return;
-      const zatenVar = sonuc['TEMİZLİK'][parsed.m].isimler.has((tp.isim||'').toUpperCase());
-      if (!zatenVar) {
-        sonuc['TEMİZLİK'][parsed.m].hizmet++;
-        sonuc['TEMİZLİK'][parsed.m].isimler.add((tp.isim||'').toUpperCase());
-      }
-    });
-  }
 
   return sonuc;
 }
