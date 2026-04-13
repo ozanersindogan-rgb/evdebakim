@@ -64,6 +64,7 @@
     <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>Yıllık İstatistik</div>
     <div class="nav-item" onclick="navTo('analiz',this);analizRender()"><span class="icon">✨</span>Analiz & Grafikler</div>
     <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">🔢</span>Sayı Ver</div>
+    <div class="nav-item" onclick="navTo('id-tamamla',this);idTamamlaYukle()"><span class="icon">🪪</span>TC Tamamla</div>
     <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
 
     <!-- ── SİSTEM ───────────────────────────────── -->
@@ -1518,6 +1519,15 @@
 
       <!-- ─── EXPORT ─── -->
       <!-- ─── SAYI VER ─── -->
+      <div class="page" id="page-id-tamamla">
+        <div class="form-section">
+          <h3>🪪 TC & Doğum Tarihi Tamamlama</h3>
+          <p style="font-size:12px;color:var(--text-soft);margin-top:4px;margin-bottom:16px">TC numarası eksik kayıtlar listelenir. Excel ile toplu veri girişi yapılabilir.</p>
+          <div id="id-tamamla-wrap">
+            <div style="padding:32px;text-align:center;color:var(--text-soft)">Sayfayı açmak için menüden TC Tamamla'ya tıklayın.</div>
+          </div>
+        </div>
+      </div>
       <div class="page" id="page-sayi-ver">
         <div class="form-section">
           <h3>📊 Sayı Ver — Aylık Hizmet Özeti</h3>
@@ -1923,6 +1933,7 @@
 <script src="./modules/analiz.js?v=1775069935"></script>
 <script src="./modules/stok.js?v=1775069935"></script>
 <script src="./modules/medikal.js?v=1775069935"></script>
+<script src="./modules/id_tamamla.js?v=1775069935"></script>
 <script src="./modules/hemsire.js?v=1775069935"></script>
 <script src="./app.js?v=1775069935"></script>
 
