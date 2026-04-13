@@ -105,6 +105,13 @@ td{padding:6px 9px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
 .pv-val.empty{color:#94a3b8;font-style:italic;font-weight:400}
 .step-hint{font-size:11px;color:var(--warn);background:var(--warn-l);padding:8px 11px;border-radius:7px;border-left:3px solid var(--warn);margin-bottom:12px;font-weight:600}
 .merge-log{background:#0f172a;color:#94a3b8;border-radius:8px;padding:11px;font-size:11px;font-family:'Courier New',monospace;max-height:140px;overflow-y:auto;line-height:1.6;margin-top:12px}
+.field-cell{cursor:pointer;padding:7px 10px!important;border-radius:6px;transition:background .15s;font-size:12px}
+.field-cell:hover{background:var(--pr-l)}
+.field-cell.sel{background:var(--ok-l);font-weight:800;position:relative}
+.field-cell.sel::after{content:'✓';position:absolute;top:4px;right:6px;font-size:10px;color:var(--ok)}
+.field-cell.empty-val{color:#94a3b8;font-style:italic}
+.field-cell.both-same{background:#f8fafc;cursor:default}
+.field-name-col{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;padding:7px 10px!important;background:#f8fafc;white-space:nowrap}
 #section-results{display:none}
 </style>
 </head>
@@ -155,29 +162,42 @@ td{padding:6px 9px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
 
 <!-- Birleştirme Modal -->
 <div class="modal-bg" id="modal-bg" style="display:none" onclick="if(event.target===this)modalKapat()">
-  <div class="modal">
+  <div class="modal" style="max-width:960px">
     <div class="modal-head">
       <h2>🔀 Kayıt Birleştirme</h2>
       <button class="modal-close" onclick="modalKapat()">✕</button>
     </div>
     <div class="modal-body">
-      <div class="step-hint" id="merge-hint">1. ADIM: ANA kayıt seçin (bu kayıt korunur, diğerindeki bilgiler buraya aktarılır)</div>
-      <div class="merge-grid" id="merge-cards"></div>
-      <div id="merge-preview" style="display:none">
-        <div class="preview-box">
-          <h4>📋 Birleştirilmiş Kayıt Önizlemesi</h4>
-          <div class="pv-grid" id="pv-grid"></div>
-          <div style="margin-top:8px;font-size:10px;color:var(--muted)">
-            <span style="color:#16a34a;font-weight:800">■ Yeşil</span> = Ana kayıttan &nbsp;
-            <span style="color:var(--pr);font-weight:800">■ Mavi</span> = Silinecek kayıttan alındı (ana kayıtta boştu)
-          </div>
+      <div class="step-hint" id="merge-hint">ANA kaydı seçin — diğer kayıt silinecek, bilgileri buraya aktarılacak.</div>
+
+      <!-- Adım 1: Ana kayıt seçimi -->
+      <div id="step-master">
+        <div class="merge-grid" id="merge-cards"></div>
+      </div>
+
+      <!-- Adım 2: Alan bazlı seçim tablosu -->
+      <div id="step-fields" style="display:none">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">Her satırda <strong>hangi kaydın değeri alınsın</strong> seçin. Yeşil = seçili.</div>
+        <div class="tbl-wrap" style="max-height:380px">
+          <table id="field-table">
+            <thead><tr>
+              <th style="width:120px">Alan</th>
+              <th id="col-a-head">Kayıt A</th>
+              <th id="col-b-head">Kayıt B</th>
+            </tr></thead>
+            <tbody id="field-tbody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:10px;font-size:10px;color:var(--muted)">
+          Hizmetler her iki kayıttan da birleştirilerek alınır.
         </div>
       </div>
+
       <div class="merge-log" id="merge-log" style="display:none"></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="modalKapat()">İptal</button>
-      <button class="btn btn-warn" id="btn-onizle" onclick="onizle()" disabled>👁 Önizle</button>
+      <button class="btn btn-ghost" id="btn-geri" onclick="mergeGeriDon()" style="display:none">← Geri</button>
       <button class="btn btn-ok" id="btn-birlestir" onclick="birlestir()" disabled>✅ Birleştir & Kaydet</button>
     </div>
   </div>
@@ -195,6 +215,8 @@ firebase.initializeApp({
 const auth=firebase.auth(), db=firebase.firestore();
 let VAT=[], BILGI=[], BULGULAR={}, aktifKat=null, aktifRows=[];
 let mergeGrup=[], mergeMaster=null, mergeDupe=null;
+let ignoredGroups={}; // {kat: Set of group indices}
+let fieldChoices={}; // {fieldKey: recordIndex} for manual field selection
 
 // ════════════ GİRİŞ ════════════
 async function girisYap(){
@@ -246,7 +268,7 @@ function analiz(){
   // 2. TC Yok
   BILGI.forEach(r=>{if(!tcNo(r))res.tcYok.push(r);});
 
-  // 3. Benzer isim
+  // 3. Benzer isim — çok katmanlı skor sistemi
   const bN=BILGI.map(r=>({r,norm:normIsim(r.AD_SOYAD||'')}));
   const viz=new Set();
   for(let i=0;i<bN.length;i++){
@@ -254,12 +276,39 @@ function analiz(){
     const g=[bN[i]];
     for(let j=i+1;j<bN.length;j++){
       if(viz.has(j))continue;
-      const s=isimBenzerlik(bN[i].norm,bN[j].norm);
-      if(s>=75&&bN[i].norm!==bN[j].norm){
-        const t1=tcNo(bN[i].r),t2=tcNo(bN[j].r);
-        if(t1&&t2&&t1!==t2)continue;
-        g.push(bN[j]);viz.add(j);
-      }
+      const rA=bN[i].r, rB=bN[j].r;
+      const nA=bN[i].norm, nB=bN[j].norm;
+      if(!nA||!nB)continue;
+
+      // TC varsa ve farklıysa kesinlikle aynı kişi değil
+      const t1=tcNo(rA), t2=tcNo(rB);
+      if(t1&&t2&&t1!==t2)continue;
+
+      const isimS=isimBenzerlik(nA,nB);
+      if(isimS<85)continue; // eşik yükseltildi 75→85
+
+      // Ek doğrulama: aynı isim tokenları sayısı
+      const tA=nA.split(' ').filter(Boolean), tB=nB.split(' ').filter(Boolean);
+      const ortakToken=tA.filter(t=>tB.includes(t)).length;
+      // En az 2 ortak token veya tek kelimeli isim ise tam eşleşme
+      const minTokens=Math.min(tA.length,tB.length);
+      if(minTokens>=2&&ortakToken<2)continue;
+
+      // Doğum tarihi varsa ve farklıysa aynı kişi değil
+      const dA=(rA.DOGUM_TARIHI||'').trim(), dB=(rB.DOGUM_TARIHI||'').trim();
+      if(dA&&dB&&dA!==dB)continue;
+
+      // Puan hesapla: TC eşleşmesi veya doğum tarihi eşleşmesi güçlü kanıt
+      let puan=isimS;
+      if(t1&&t2&&t1===t2)puan+=30;
+      if(dA&&dB&&dA===dB)puan+=20;
+      const mA=(rA.MAHALLE||'').trim().toUpperCase();
+      const mB=(rB.MAHALLE||'').trim().toUpperCase();
+      if(mA&&mB&&mA===mB)puan+=10;
+      // TC yok ve doğum tarihi yok ve mahalle farklıysa çok belirsiz → atla
+      if(!t1&&!t2&&!dA&&!dB&&mA&&mB&&mA!==mB&&isimS<95)continue;
+
+      g.push(bN[j]); viz.add(j);
     }
     if(g.length>1){viz.add(i);res.benzerIsim.push(g.map(x=>x.r));}
   }
@@ -344,15 +393,44 @@ function hizBadge(r){
     .map(h=>`<span class="badge b-muted">${esc(h)}</span>`).join(' ')||'—';
 }
 
-// ── Birleştir butonu ──
+// ── Birleştir + Atla butonları ──
 function mBtn(gi){
-  return `<button class="btn btn-pr btn-sm" onclick="modalAc(${gi})">🔀 Birleştir</button>`;
+  const ignored=ignoredGroups[aktifKat]?.has(gi);
+  if(ignored){
+    return `<button class="btn btn-ghost btn-sm" onclick="grubuGeriAl(${gi})" style="opacity:.7">↩ Geri Al</button>`;
+  }
+  return `<span style="display:inline-flex;gap:5px">
+    <button class="btn btn-pr btn-sm" onclick="modalAc(${gi})">🔀 Birleştir</button>
+    <button class="btn btn-ghost btn-sm" onclick="grubuAtla(${gi})" title="Bu grup aynı kişi değil, atlansın" style="color:var(--ok);border-color:#86efac">✓ Doğru Kayıt</button>
+  </span>`;
+}
+
+function grubuAtla(gi){
+  if(!ignoredGroups[aktifKat])ignoredGroups[aktifKat]=new Set();
+  ignoredGroups[aktifKat].add(gi);
+  renderDetay(aktifRows);
+}
+function grubuGeriAl(gi){
+  ignoredGroups[aktifKat]?.delete(gi);
+  renderDetay(aktifRows);
+}
+
+function isIgnored(gi){return ignoredGroups[aktifKat]?.has(gi);}
+
+function ignoredOverlay(gi,inner){
+  if(!isIgnored(gi))return inner;
+  return `<div style="position:relative;opacity:.45;pointer-events:none">${inner}</div>
+  <div style="padding:6px 10px;font-size:11px;color:var(--ok);background:var(--ok-l);border-left:3px solid var(--ok);display:flex;align-items:center;justify-content:space-between">
+    <span>✅ Bu grup doğru kayıt olarak işaretlendi</span>
+    <button class="btn btn-ghost btn-sm" style="pointer-events:all" onclick="grubuGeriAl(${gi})">↩ Geri Al</button>
+  </div>`;
 }
 
 // ─── RENDER ───
 function rCiftTc(l){
-  return '<div class="tbl-wrap">'+l.map((g,i)=>`
-    <div class="group-hdr">${tcChip(g.kayitlar[0])} <span>${g.kayitlar.length} kayıt bu TC\'yi paylaşıyor</span> ${mBtn(i)}</div>
+  return '<div class="tbl-wrap">'+l.map((g,i)=>{
+    const inner=`
+    <div class="group-hdr">${tcChip(g.kayitlar[0])} <span>${g.kayitlar.length} kayıt bu TC'yi paylaşıyor</span> ${mBtn(i)}</div>
     <table><thead><tr><th>#</th><th>Ad Soyad</th><th>TC</th><th>Hizmetler</th><th>Mahalle</th><th>Adres</th><th>Doğum</th><th>Telefon</th></tr></thead>
     <tbody>${g.kayitlar.map((r,j)=>`<tr>
       <td style="color:var(--muted)">${j+1}</td>
@@ -363,7 +441,9 @@ function rCiftTc(l){
       <td style="font-size:10px">${esc(r.ADRES||'—')}</td>
       <td style="font-size:10px">${esc(r.DOGUM_TARIHI||'—')}</td>
       <td style="font-size:10px">${esc(r.TELEFON||'—')}</td>
-    </tr>`).join('')}</tbody></table>`).join('')+'</div>';
+    </tr>`).join('')}</tbody></table>`;
+    return ignoredOverlay(i,inner);
+  }).join('')+'</div>';
 }
 
 function rCiftKayit(l){
@@ -383,7 +463,8 @@ function rCiftKayit(l){
 }
 
 function rBenzer(l){
-  return '<div class="tbl-wrap">'+l.map((g,i)=>`
+  return '<div class="tbl-wrap">'+l.map((g,i)=>{
+    const inner=`
     <div class="group-hdr"><span>Grup ${i+1} — ${g.length} benzer kayıt</span> ${mBtn(i)}</div>
     <table><thead><tr><th>#</th><th>Ad Soyad</th><th>TC</th><th>Hizmetler</th><th>Mahalle</th><th>Doğum Tarihi</th><th>Telefon</th></tr></thead>
     <tbody>${g.map((r,j)=>`<tr>
@@ -394,13 +475,15 @@ function rBenzer(l){
       <td>${esc(r.MAHALLE||'—')}</td>
       <td style="font-size:10px">${esc(r.DOGUM_TARIHI||'—')}</td>
       <td style="font-size:10px">${esc(r.TELEFON||'—')}</td>
-    </tr>`).join('')}</tbody></table>`).join('')+'</div>';
+    </tr>`).join('')}</tbody></table>`;
+    return ignoredOverlay(i,inner);
+  }).join('')+'</div>';
 }
 
 function rFarklıMah(l){
   return '<div class="tbl-wrap">'+l.map((g,i)=>{
     const mah=[...new Set(g.map(r=>(r.MAHALLE||'').toUpperCase()))].join(' / ');
-    return `
+    const inner=`
     <div class="group-hdr"><span>${esc(g[0].AD_SOYAD||'?')}</span><span class="badge b-pur">${mah}</span>${mBtn(i)}</div>
     <table><thead><tr><th>#</th><th>Ad Soyad</th><th>TC</th><th>Mahalle</th><th>Adres</th><th>Hizmetler</th><th>Doğum</th></tr></thead>
     <tbody>${g.map((r,j)=>`<tr>
@@ -412,6 +495,7 @@ function rFarklıMah(l){
       <td>${hizBadge(r)}</td>
       <td style="font-size:10px">${esc(r.DOGUM_TARIHI||'—')}</td>
     </tr>`).join('')}</tbody></table>`;
+    return ignoredOverlay(i,inner);
   }).join('')+'</div>';
 }
 
@@ -430,8 +514,7 @@ function rTcYok(l){
 
 function rTcAlt(l){
   return '<div class="tbl-wrap">'+l.map((g,i)=>{
-    const hepsi=[...g.tcli,...g.tcsiz];
-    return `
+    const inner=`
     <div class="group-hdr"><span>Grup ${i+1}</span>${tcChip(g.tcli[0]||{})}${mBtn(i)}</div>
     <table><thead><tr><th>Durum</th><th>Ad Soyad</th><th>TC</th><th>Mahalle</th><th>Hizmetler</th><th>Doğum</th><th>Telefon</th></tr></thead>
     <tbody>
@@ -454,6 +537,7 @@ function rTcAlt(l){
         <td style="font-size:10px">${esc(r.TELEFON||'—')}</td>
       </tr>`).join('')}
     </tbody></table>`;
+    return ignoredOverlay(i,inner);
   }).join('')+'</div>';
 }
 
@@ -464,16 +548,27 @@ function modalAc(gi){
   else if(aktifKat==='tcVarAmaEksik') mergeGrup=[...src[gi].tcli,...src[gi].tcsiz];
   else                               mergeGrup=src[gi];
 
-  mergeMaster=null; mergeDupe=null;
-  document.getElementById('btn-onizle').disabled=true;
+  mergeMaster=null; mergeDupe=null; fieldChoices={};
   document.getElementById('btn-birlestir').disabled=true;
-  document.getElementById('merge-preview').style.display='none';
+  document.getElementById('btn-geri').style.display='none';
   document.getElementById('merge-log').style.display='none';
-  document.getElementById('merge-hint').textContent='1. ADIM: ANA kayıt seçin (korunacak, diğerindeki bilgiler buraya aktarılır)';
+  document.getElementById('step-master').style.display='block';
+  document.getElementById('step-fields').style.display='none';
+  document.getElementById('merge-hint').textContent='ANA kaydı seçin — bu kayıt korunur, diğerindeki bilgiler buraya aktarılır.';
   renderMCards();
   document.getElementById('modal-bg').style.display='flex';
 }
 function modalKapat(){document.getElementById('modal-bg').style.display='none';}
+
+function mergeGeriDon(){
+  mergeMaster=null; mergeDupe=null; fieldChoices={};
+  document.getElementById('step-master').style.display='block';
+  document.getElementById('step-fields').style.display='none';
+  document.getElementById('btn-geri').style.display='none';
+  document.getElementById('btn-birlestir').disabled=true;
+  document.getElementById('merge-hint').textContent='ANA kaydı seçin — bu kayıt korunur, diğerindeki bilgiler buraya aktarılır.';
+  renderMCards();
+}
 
 function renderMCards(){
   document.getElementById('merge-cards').innerHTML=mergeGrup.map((r,i)=>{
@@ -497,25 +592,68 @@ function renderMCards(){
 function kartSec(i){
   if(mergeMaster===null){
     mergeMaster=i;
-    document.getElementById('merge-hint').textContent='2. ADIM: SİLİNECEK kaydı seçin (bilgileri ana kayda aktarılır, sonra silinir)';
-  }else if(mergeDupe===null&&i!==mergeMaster){
+    document.getElementById('merge-hint').textContent='Şimdi SİLİNECEK kaydı seçin.';
+    renderMCards();
+  } else if(mergeDupe===null && i!==mergeMaster){
     mergeDupe=i;
-    document.getElementById('merge-hint').textContent='✅ Hazır — önce Önizle\'ye basın, sonra Birleştir.';
-    document.getElementById('btn-onizle').disabled=false;
-  }else if(i===mergeMaster){
-    mergeMaster=null;mergeDupe=null;
-    document.getElementById('btn-onizle').disabled=true;
-    document.getElementById('btn-birlestir').disabled=true;
-    document.getElementById('merge-preview').style.display='none';
-    document.getElementById('merge-hint').textContent='1. ADIM: ANA kayıt seçin';
-  }else if(i===mergeDupe){
+    // Adım 2: Alan seçim tablosuna geç
+    geçFieldStep();
+  } else if(i===mergeMaster){
+    mergeMaster=null; mergeDupe=null;
+    document.getElementById('merge-hint').textContent='ANA kaydı seçin.';
+    renderMCards();
+  } else if(i===mergeDupe){
     mergeDupe=null;
-    document.getElementById('btn-onizle').disabled=true;
-    document.getElementById('btn-birlestir').disabled=true;
-    document.getElementById('merge-preview').style.display='none';
-    document.getElementById('merge-hint').textContent='2. ADIM: SİLİNECEK kaydı seçin';
+    document.getElementById('merge-hint').textContent='Şimdi SİLİNECEK kaydı seçin.';
+    renderMCards();
   }
-  renderMCards();
+}
+
+function geçFieldStep(){
+  const A=mergeGrup[mergeMaster], B=mergeGrup[mergeDupe];
+  document.getElementById('step-master').style.display='none';
+  document.getElementById('step-fields').style.display='block';
+  document.getElementById('btn-geri').style.display='inline-flex';
+  document.getElementById('merge-hint').textContent='Her alan için hangi kaydın değeri kullanılsın seçin. Tıklayarak değiştirin.';
+  document.getElementById('col-a-head').textContent='✅ ANA: '+(A.AD_SOYAD||A._fbId);
+  document.getElementById('col-b-head').textContent='🗑 SİL: '+(B.AD_SOYAD||B._fbId);
+
+  // Varsayılan seçimler: A'da varsa A, yoksa B
+  ALANLAR.forEach(({k})=>{
+    const vA=String(A[k]||'').trim(), vB=String(B[k]||'').trim();
+    fieldChoices[k]=vA?'A':(vB?'B':'A');
+  });
+  renderFieldTable();
+  document.getElementById('btn-birlestir').disabled=false;
+}
+
+function renderFieldTable(){
+  const A=mergeGrup[mergeMaster], B=mergeGrup[mergeDupe];
+  document.getElementById('field-tbody').innerHTML=ALANLAR.map(({k,l})=>{
+    const vA=String(A[k]||'').trim(), vB=String(B[k]||'').trim();
+    const bothSame=vA&&vB&&vA===vB;
+    if(bothSame){
+      // Aynı değer — seçim gerekmez
+      const display=k==='TC'?`<span class="tc-chip" style="font-size:11px">${vA.replace(/\D/g,'')}</span>`:esc(vA);
+      return `<tr>
+        <td class="field-name-col">${l}</td>
+        <td colspan="2" class="field-cell both-same" style="text-align:center;color:var(--ok)">${display} <span style="font-size:9px;opacity:.6">(ikisi de aynı)</span></td>
+      </tr>`;
+    }
+    const selA=fieldChoices[k]==='A', selB=fieldChoices[k]==='B';
+    const dispA=vA?(k==='TC'?`<span class="tc-chip" style="font-size:11px">${vA.replace(/\D/g,'')}</span>`:esc(vA)):'<em style="color:#94a3b8;font-size:10px">boş</em>';
+    const dispB=vB?(k==='TC'?`<span class="tc-chip" style="font-size:11px">${vB.replace(/\D/g,'')}</span>`:esc(vB)):'<em style="color:#94a3b8;font-size:10px">boş</em>';
+    return `<tr>
+      <td class="field-name-col">${l}</td>
+      <td class="field-cell${selA?' sel':''}${!vA?' empty-val':''}" onclick="alanSec('${k}','A')">${dispA}</td>
+      <td class="field-cell${selB?' sel':''}${!vB?' empty-val':''}" onclick="alanSec('${k}','B')">${dispB}</td>
+    </tr>`;
+  }).join('');
+}
+
+function alanSec(k, src){
+  fieldChoices[k]=src;
+  renderFieldTable();
 }
 
 const ALANLAR=[
@@ -525,22 +663,7 @@ const ALANLAR=[
   {k:'NOT1',l:'Not 1'},{k:'NOT2',l:'Not 2'},
 ];
 
-function onizle(){
-  if(mergeMaster===null||mergeDupe===null)return;
-  const A=mergeGrup[mergeMaster],B=mergeGrup[mergeDupe];
-  document.getElementById('pv-grid').innerHTML=ALANLAR.map(({k,l})=>{
-    const vA=String(A[k]||'').trim(),vB=String(B[k]||'').trim();
-    let val,cls;
-    if(vA){val=vA;cls='from-a';}else if(vB){val=vB;cls='from-b';}else{val='boş';cls='empty';}
-    const display=k==='TC'&&val!=='boş'?`<span class="tc-chip" style="font-size:11px">${val.replace(/\D/g,'')}</span>`:esc(val);
-    return `<div class="pv-f"><div class="pv-label">${l}</div><div class="pv-val ${cls}">${display}</div></div>`;
-  }).join('')+`<div class="pv-f" style="grid-column:1/-1">
-    <div class="pv-label">Hizmetler (birleşik)</div>
-    <div class="pv-val from-a">${[...new Set([...(A.HIZMETLER||[A.HIZMET||A['HİZMET']||'']).filter(Boolean),...(B.HIZMETLER||[B.HIZMET||B['HİZMET']||'']).filter(Boolean)])].map(h=>`<span class="badge b-muted">${esc(h)}</span>`).join(' ')||'—'}</div>
-  </div>`;
-  document.getElementById('merge-preview').style.display='block';
-  document.getElementById('btn-birlestir').disabled=false;
-}
+// onizle fonksiyonu kaldırıldı — alan seçimi doğrudan tabloda yapılıyor
 
 async function birlestir(){
   if(mergeMaster===null||mergeDupe===null)return;
@@ -549,15 +672,21 @@ async function birlestir(){
   const logEl=document.getElementById('merge-log');
   logEl.style.display='block'; logEl.innerHTML='';
   document.getElementById('btn-birlestir').disabled=true;
-  document.getElementById('btn-onizle').disabled=true;
   const log=(c,m)=>{logEl.innerHTML+=`<div style="color:${c==='ok'?'#4ade80':c==='err'?'#f87171':'#facc15'}">${m}</div>`;logEl.scrollTop=9999;};
   try{
-    // Birleştir
+    // Alan seçimlerine göre birleştir
     const merged={};
     ALANLAR.forEach(({k})=>{
-      const vA=String(A[k]||'').trim(),vB=String(B[k]||'').trim();
-      if(vA)merged[k]=A[k];
-      else if(vB){merged[k]=B[k];log('warn',`ℹ ${k}: Ana'da boştu → "${vB}" alındı`);}
+      const vA=String(A[k]||'').trim(), vB=String(B[k]||'').trim();
+      const bothSame=vA&&vB&&vA===vB;
+      if(bothSame){merged[k]=A[k];return;}
+      const src=fieldChoices[k]||'A';
+      const chosen=src==='A'?A[k]:B[k];
+      const chosenVal=String(chosen||'').trim();
+      if(chosenVal){
+        merged[k]=chosen;
+        if(src==='B')log('warn',`ℹ ${k}: B kaydından alındı → "${chosenVal}"`);
+      }
     });
     const hA=(A.HIZMETLER||[A.HIZMET||A['HİZMET']||'']).filter(Boolean);
     const hB=(B.HIZMETLER||[B.HIZMET||B['HİZMET']||'']).filter(Boolean);
@@ -581,7 +710,7 @@ async function birlestir(){
     if(ai>=0) Object.assign(BILGI[ai],merged);
     BULGULAR=analiz(); ozeteRender();
     aktifRows=BULGULAR[aktifKat]||[]; renderDetay(aktifRows);
-    setTimeout(modalKapat,1600);
+    setTimeout(modalKapat,1800);
   }catch(e){
     log('err','✗ HATA: '+e.message);
     document.getElementById('btn-birlestir').disabled=false;
