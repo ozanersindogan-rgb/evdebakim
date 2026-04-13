@@ -43,6 +43,7 @@
     <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
     <div class="nav-item" onclick="navTo('takvim',this)"><span class="icon">📆</span>Ziyaret Takvimi</div>
     <div class="nav-item" onclick="navTo('durum',this)"><span class="icon">🔄</span>Durum Güncelle</div>
+    <div class="nav-item" onclick="navTo('isim-duzenle',this);idUpdateIsimler()"><span class="icon">✏️</span>İsim / Mahalle Düzenle</div>
     <div class="nav-item" onclick="navTo('yeni-vatandas',this)"><span class="icon">➕</span>Yeni Vatandaş</div>
 
     <!-- ── HİZMETLER ───────────────────────────── -->
@@ -842,8 +843,8 @@
             </div>
             <div class="form-group"><label>Vatandaş *</label>
               <input type="text" id="gk-isim-search" placeholder="İsim ara..." autocomplete="off"
-                oninput="gkIsimFiltrele(this.value)"
-                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px 8px 0 0;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+                oninput="this.value=this.value.toLocaleUpperCase('tr-TR');gkIsimFiltrele(this.value)"
+                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px 8px 0 0;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;text-transform:uppercase">
               <select id="gk-isim" size="5" onchange="gkIsimSecildi()"
                 style="width:100%;border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;font-family:inherit;font-size:13px;padding:4px;max-height:140px;overflow-y:auto;display:none">
               </select>
@@ -1064,6 +1065,63 @@
       </div>
 
       <!-- ─── DURUM GÜNCELLE ─── -->
+      <div class="page" id="page-isim-duzenle">
+        <div class="form-section">
+          <h3>✏️ İsim / Mahalle Düzenle</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Vatandaşın adı veya mahallesi yanlışsa buradan düzeltin. Seçilen kişiye ait tüm ay kayıtları ve kişi kartı otomatik güncellenir.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Hizmet Türü</label>
+              <select class="form-select" id="id-hizmet" onchange="idUpdateIsimler()">
+                <option value="__TUMU__">— Tümü —</option>
+                <option value="KADIN BANYO">Kadın Banyo</option>
+                <option value="ERKEK BANYO">Erkek Banyo</option>
+                <option value="KUAFÖR">Kuaför</option>
+                <option value="TEMİZLİK">Temizlik</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Vatandaş *</label>
+              <input type="text" id="id-isim-search" placeholder="İsim ara..." autocomplete="off"
+                oninput="this.value=this.value.toLocaleUpperCase('tr-TR');idIsimFiltrele(this.value)"
+                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px 8px 0 0;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;text-transform:uppercase">
+              <select id="id-isim" size="5" onchange="idIsimSecildi()"
+                style="width:100%;border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;font-family:inherit;font-size:13px;padding:4px;max-height:140px;overflow-y:auto;display:none">
+              </select>
+            </div>
+            <div class="form-group" id="id-mevcut-wrap">
+              <label>Mevcut Bilgi</label>
+              <div id="id-mevcut-bilgi" style="padding:8px 0;min-height:32px"></div>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:4px">
+            <div class="form-group">
+              <label>Yeni İsim Soyisim *</label>
+              <input type="text" class="form-input" id="id-yeni-isim" placeholder="Büyük harf ile yazın"
+                oninput="this.value=this.value.toLocaleUpperCase('tr-TR')"
+                style="text-transform:uppercase">
+            </div>
+            <div class="form-group">
+              <label>Yeni Mahalle</label>
+              <input type="text" class="form-input" id="id-yeni-mah" placeholder="Mahalle adı"
+                oninput="this.value=this.value.toLocaleUpperCase('tr-TR')"
+                style="text-transform:uppercase">
+            </div>
+          </div>
+          <div style="display:flex;gap:9px;margin-top:10px">
+            <button class="btn btn-primary" id="id-duzenle-btn" onclick="idDuzenleKaydet()">💾 Güncelle</button>
+            <button class="btn btn-cancel" onclick="idTemizle()">Temizle</button>
+          </div>
+        </div>
+        <div class="table-card">
+          <div class="table-header">
+            <span class="table-title">Bu Oturumda Yapılan Değişiklikler</span>
+            <span class="page-info" id="id-log-count">0 kayıt</span>
+          </div>
+          <div class="scroll-table"><table id="id-log-table"></table></div>
+        </div>
+      </div>
+
       <div class="page" id="page-durum">
         <div class="form-section">
           <h3>🔄 Durum Güncelle</h3>
@@ -1079,8 +1137,8 @@
             </div>
             <div class="form-group"><label>Vatandaş *</label>
               <input type="text" id="du-isim-search" placeholder="İsim ara..." autocomplete="off"
-                oninput="duIsimFiltrele(this.value)"
-                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px 8px 0 0;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box">
+                oninput="this.value=this.value.toLocaleUpperCase('tr-TR');duIsimFiltrele(this.value)"
+                style="width:100%;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px 8px 0 0;font-family:inherit;font-size:13px;outline:none;box-sizing:border-box;text-transform:uppercase">
               <select id="du-isim" size="5" onchange="duIsimSecildi()"
                 style="width:100%;border:1.5px solid var(--border);border-top:none;border-radius:0 0 8px 8px;font-family:inherit;font-size:13px;padding:4px;max-height:140px;overflow-y:auto;display:none">
               </select>
@@ -1934,6 +1992,7 @@
 <script src="./modules/stok.js?v=1775069935"></script>
 <script src="./modules/medikal.js?v=1775069935"></script>
 <script src="./modules/id_tamamla.js?v=1775069935"></script>
+<script src="./modules/isim_duzenle.js?v=1775069935"></script>
 <script src="./modules/hemsire.js?v=1775069935"></script>
 <script src="./app.js?v=1775069935"></script>
 
