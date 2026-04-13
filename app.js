@@ -130,6 +130,8 @@ function normalizeRecord(r) {
   r.DURUM = (r.DURUM||'').toString().trim();
   r.AY = (r.AY||'').toString().trim().toUpperCase();
   r['HİZMET'] = (r['HİZMET']||'').toString().trim();
+  // İsim her zaman büyük harf
+  if (r.ISIM_SOYISIM) r.ISIM_SOYISIM = r.ISIM_SOYISIM.toString().trim().toLocaleUpperCase('tr-TR');
   return r;
 }
 
@@ -617,12 +619,6 @@ function openEditModal(idx) {
       </select>
     </div>
     <div class="form-group full"><label>🏠 Adres</label><input class="form-input" id="ed-adres" type="text" value="${esc(r.ADRES)}"></div>
-    <div class="form-group"><label>🪪 TC Kimlik No</label>
-      <input class="form-input" id="ed-tc" type="text" maxlength="11" inputmode="numeric"
-        value="${String(r.TC||'').replace(/\D/g,'')}"
-        oninput="this.value=this.value.replace(/\D/g,'').slice(0,11)"
-        placeholder="11 haneli TC numarası">
-    </div>
     <div class="form-group full"><label>Not 1</label><input class="form-input" id="ed-not1" type="text" value="${esc(r.NOT1)}"></div>
     <div class="form-group full"><label>Not 2</label><input class="form-input" id="ed-not2" type="text" value="${esc(r.NOT2)}"></div>
     ${r['HİZMET']==='KADIN BANYO' ? (() => {
@@ -680,7 +676,6 @@ async function saveEdit() {
   r.TELEFON2      = getV('ed-tel2').trim();
   r.TELEFON_AKTIF = getV('ed-tel-aktif');
   r.ADRES         = getV('ed-adres').trim();
-  r.TC            = getV('ed-tc').replace(/\D/g,'').slice(0,11);
   r.NOT1          = getV('ed-not1');
   r.NOT2          = getV('ed-not2');
   if (r['HİZMET'] === 'KADIN BANYO') {
@@ -711,45 +706,8 @@ async function saveEdit() {
   const changes = Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('_')));
   try {
     await fbUpdateDoc(guncelIdx, changes);
-
-    // ── Ortak bilgileri aynı isimdeki TÜM aylara yansıt ──────────────────
-    const ORTAK_ALANLAR = ['TELEFON','TELEFON2','TELEFON_AKTIF','ADRES','MAHALLE',
-                           'DOGUM_TARIHI','DURUM','ONAY_TARIHI','IPTAL_TARIHI',
-                           'IPTAL_NEDEN','NOT1','NOT2','TC'];
-    const ortakDeg = Object.fromEntries(
-      ORTAK_ALANLAR.filter(k => k in changes).map(k => [k, changes[k]])
-    );
-    if (Object.keys(ortakDeg).length) {
-      const isim = r.ISIM_SOYISIM;
-      const snap = await firebase.firestore().collection('vatandaslar')
-        .where('ISIM_SOYISIM', '==', isim).get();
-      let guncellenen = 0;
-      for (const doc of snap.docs) {
-        if (doc.id === hedefFbId) continue;
-        await doc.ref.update(ortakDeg);
-        guncellenen++;
-      }
-      showToast(guncellenen > 0 ? `✅ Kaydedildi — ${guncellenen} diğer ay da güncellendi` : '✅ Kaydedildi');
-    } else {
-      showToast('✅ Kaydedildi');
-    }
-    // ─────────────────────────────────────────────────────────────────────
-
-    // TC değiştiyse vatandaslar_bilgi kaydına da yaz
-    if (changes.TC) {
-      const isim = r.ISIM_SOYISIM;
-      if (typeof kbData !== 'undefined') {
-        const bilgiRec = kbData.find(k => (k.AD_SOYAD||'').toUpperCase() === isim.toUpperCase());
-        if (bilgiRec) {
-          try {
-            await firebase.firestore().collection('vatandaslar_bilgi').doc(bilgiRec._fbId).update({ TC: changes.TC });
-            bilgiRec.TC = changes.TC;
-          } catch(e) { console.warn('vatandaslar_bilgi TC güncelleme hatası:', e.message); }
-        }
-      }
-    }
-
     closeEditModal();
+    showToast('✅ Kaydedildi');
   } catch(e) {
     showToast('⚠️ Kaydedilemedi: ' + (e.message || e));
   }
