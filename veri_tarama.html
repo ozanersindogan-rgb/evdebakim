@@ -693,12 +693,35 @@ async function birlestir(){
     merged.HIZMETLER=[...new Set([...hA,...hB])];
 
     await db.collection('vatandaslar_bilgi').doc(A._fbId).update(merged);
-    log('ok',`✓ Ana kayıt güncellendi (${A._fbId})`);
+    log('ok',`✓ Ana kayıt (vatandaslar_bilgi) güncellendi (${A._fbId})`);
 
-    // vatandaslar'daki isim referanslarını güncelle
-    const snap=await db.collection('vatandaslar').where('ISIM_SOYISIM','==',B.AD_SOYAD).get();
-    for(const d of snap.docs) await d.ref.update({ISIM_SOYISIM:A.AD_SOYAD});
-    if(snap.size) log('ok',`✓ ${snap.size} kayıt satırında isim güncellendi`);
+    // vatandaslar koleksiyonunu güncelle — isim + TC + telefon + mahalle + adres
+    // Hem silinecek kaydın adıyla hem ana kaydın adıyla eşleşenleri güncelle
+    const vatGuncellenecek={};
+    if(merged.ISIM_SOYISIM||merged.AD_SOYAD) vatGuncellenecek.ISIM_SOYISIM=merged.AD_SOYAD||merged.ISIM_SOYISIM;
+    if(merged.TC)        vatGuncellenecek.TC=merged.TC;
+    if(merged.TELEFON)   vatGuncellenecek.TELEFON=merged.TELEFON;
+    if(merged.MAHALLE)   vatGuncellenecek.MAHALLE=merged.MAHALLE;
+    if(merged.ADRES)     vatGuncellenecek.ADRES=merged.ADRES;
+    if(merged.DOGUM_TARIHI) vatGuncellenecek.DOGUM_TARIHI=merged.DOGUM_TARIHI;
+
+    // Silinecek kaydın adıyla eşleşen vatandaslar satırlarını güncelle
+    const snapB=await db.collection('vatandaslar').where('ISIM_SOYISIM','==',B.AD_SOYAD).get();
+    for(const d of snapB.docs) await d.ref.update(vatGuncellenecek);
+    if(snapB.size) log('ok',`✓ ${snapB.size} satır (B adı) vatandaslar'da güncellendi`);
+
+    // Ana kaydın adıyla eşleşen vatandaslar satırlarını da güncelle (TC eksik olanlar için)
+    const snapA=await db.collection('vatandaslar').where('ISIM_SOYISIM','==',A.AD_SOYAD).get();
+    let guncellenenA=0;
+    for(const d of snapA.docs){
+      const mevcut=d.data();
+      // TC yoksa veya eksik bilgi varsa güncelle
+      if(!mevcut.TC&&merged.TC){
+        await d.ref.update(vatGuncellenecek);
+        guncellenenA++;
+      }
+    }
+    if(guncellenenA) log('ok',`✓ ${guncellenenA} satır (A adı, TC eksik) vatandaslar'da güncellendi`);
 
     await db.collection('vatandaslar_bilgi').doc(B._fbId).delete();
     log('ok',`✓ Silinecek kayıt silindi (${B._fbId})`);
