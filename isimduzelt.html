@@ -15,8 +15,11 @@
   </style>
 </head>
 <body>
-  <h2>🔤 İsim Normalizasyonu — Tüm Büyük Harf</h2>
-  <p style="color:#475569;font-size:13px">Bu araç <code>vatandaslar</code> koleksiyonundaki tüm <code>ISIM_SOYISIM</code> değerlerini Türkçe büyük harfe çevirir ve Firestore'a yazar.</p>
+  <h2>🔤 İsim Normalizasyonu — Türkçe Büyük Harf Düzeltme</h2>
+  <p style="color:#475569;font-size:13px">
+    Bu araç <code>vatandaslar</code> koleksiyonundaki <code>ISIM_SOYISIM</code> değerlerini Türkçe büyük harfe çevirir.<br>
+    <b>Sorun:</b> Standart <code>toUpperCase()</code> ile kaydedilen isimler (ör: <code>SALIM → SALİM</code>) düzeltilir.
+  </p>
 
   <button id="btn-analiz" onclick="analiz()">1. Analiz Et (Kaç Kayıt Farklı?)</button>
   <button id="btn-duzenle" onclick="duzenle()" disabled class="danger">2. Tüm İsimleri Düzelt (Firestore'a Yaz)</button>
@@ -24,12 +27,9 @@
   <div id="progress"></div>
   <div id="log"></div>
 
-  <!-- Firebase SDK — evdebakim firebase-config.js ile aynı versiyon -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
-  <!-- Kendi firebase-config.js dosyanı buraya kopyala -->
   <script src="./firebase-config.js"></script>
 
   <script>
@@ -43,18 +43,60 @@
     }
     function prog(msg) { document.getElementById('progress').textContent = msg; }
 
-    // Türkçe büyük harf dönüşümü
+    /*
+     * Türkçe büyük harf dönüşümü
+     * 
+     * SORUN: Standart JS .toUpperCase() ile yapılan dönüşümde:
+     *   "salim"  → "SALIM"   (I oldu, İ olmalıydı)
+     *   "ışık"   → "ISIK"    (I oldu, I doğru ama Ş kayboldu)
+     *   "şeker"  → "SEKER"   (Ş → S oldu)
+     * 
+     * ÇÖZÜM: Önce Türkçe karakterleri büyüt, sonra toUpperCase()
+     */
     function trUpper(str) {
       if (!str) return str;
       return str
-        .replace(/i/g, 'İ')
-        .replace(/ı/g, 'I')
+        .replace(/i/g, 'İ')   // i → İ  (en kritik: İstanbul değil Istanbul)
+        .replace(/ı/g, 'I')   // ı → I
         .replace(/ğ/g, 'Ğ')
         .replace(/ü/g, 'Ü')
         .replace(/ş/g, 'Ş')
         .replace(/ö/g, 'Ö')
         .replace(/ç/g, 'Ç')
         .toUpperCase();
+    }
+
+    /*
+     * Bozuk büyük harften Türkçe büyük harfe düzeltme
+     * 
+     * Veri zaten büyük harf ama yanlış (ör: SALIM, IBRAHIM, SEREF)
+     * Önce küçük harfe çevir, sonra Türkçe büyük harfe çevir.
+     * 
+     * Dikkat: toLocaleLowerCase('tr-TR') kullanılır ki
+     * I → ı, İ → i doğru şekilde dönüşsün.
+     */
+    function duzeltBozukBuyuk(str) {
+      if (!str) return str;
+
+      // Zaten küçük harf içeriyorsa (karma yazım) direkt trUpper uygula
+      if (/[a-zğüşöçıi]/.test(str)) {
+        return trUpper(str);
+      }
+
+      // Tamamen büyük harf (bozuk kayıt) → manuel küçük harfe çevir
+      // I harfini 'i' olarak alıyoruz çünkü Türkçe isimlerde I çoğunlukla İ'den gelir
+      // (IBRAHIM → ibrahim → İBRAHİM, SALIM → salim → SALİM)
+      const kucuk = str
+        .replace(/I/g, 'i')   // I → i  (İ'den geldiğini varsay)
+        .replace(/İ/g, 'i')   // İ zaten doğruysa da normalize et
+        .replace(/Ğ/g, 'ğ')
+        .replace(/Ü/g, 'ü')
+        .replace(/Ş/g, 'ş')
+        .replace(/Ö/g, 'ö')
+        .replace(/Ç/g, 'ç')
+        .toLowerCase();       // geri kalan ASCII harfler
+
+      return trUpper(kucuk);  // i→İ, ğ→Ğ vb. doğru Türkçe büyük harf
     }
 
     async function analiz() {
@@ -71,17 +113,17 @@
         snap.forEach(doc => {
           const d = doc.data();
           const mevcut = d.ISIM_SOYISIM || '';
-          const hedef  = trUpper(mevcut);
+          const hedef  = duzeltBozukBuyuk(mevcut);
           if (mevcut !== hedef) {
             farkli++;
             _farklıKayitlar.push({ id: doc.id, mevcut, hedef });
-            if (farkli <= 30) log(`⚠️ <b>${mevcut}</b> → <b>${hedef}</b>`, 'warn');
+            if (farkli <= 50) log(`⚠️ <b>${mevcut}</b> → <b>${hedef}</b>`, 'warn');
           } else {
             ayni++;
           }
         });
 
-        if (farkli > 30) log(`... ve ${farkli - 30} kayıt daha`, 'warn');
+        if (farkli > 50) log(`... ve ${farkli - 50} kayıt daha`, 'warn');
         log(`✅ Aynı: ${ayni} kayıt`, 'ok');
         log(`⚠️ Düzeltilecek: ${farkli} kayıt`, farkli > 0 ? 'warn' : 'ok');
 
@@ -89,7 +131,8 @@
           document.getElementById('btn-duzenle').disabled = false;
           log(`👆 "Tüm İsimleri Düzelt" butonuna tıkla.`, 'info');
         } else {
-          log('🎉 Tüm isimler zaten büyük harf — düzeltme gerekmez!', 'ok');
+          log('🎉 Tüm isimler zaten doğru — düzeltme gerekmez!', 'ok');
+          document.getElementById('btn-analiz').disabled = false;
         }
       } catch(e) {
         log('❌ Hata: ' + e.message, 'err');
@@ -105,7 +148,6 @@
       document.getElementById('btn-analiz').disabled = true;
       log('🚀 Güncelleme başlıyor...', 'info');
 
-      // Firestore batch: 500 limit
       const BATCH_SIZE = 400;
       let tamam = 0, hata = 0;
 
