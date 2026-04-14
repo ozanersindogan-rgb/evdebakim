@@ -205,7 +205,7 @@ td{padding:6px 9px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
       <button class="modal-close" onclick="document.getElementById('tarih-modal').style.display='none'">✕</button>
     </div>
     <div class="modal-body">
-      <div class="alert al-info" style="margin-bottom:12px">ℹ️ Yalnızca Firestore <strong>Timestamp</strong> objesi olarak kaydedilmiş tarihlerde timezone kayması oluşur. String "YYYY-MM-DD" formatındaki tarihler otomatik düzeltilemez — <strong>bunlar veri giriş hatası</strong>, birleştirme sırasında doğru tarihi elle seçin.</div>
+      <div class="alert al-info" style="margin-bottom:12px">ℹ️ Aynı kişinin iki kaydında tarih <strong>tam 1 gün</strong> farklıysa — küçük tarih yanlış (timezone kayması), büyük tarih doğrudur. Toplu düzeltme yapar.</div>
       <div id="tarih-tarama-sonuc" style="font-size:12px;color:var(--muted);margin-bottom:12px">Henüz taranmadı.</div>
       <div class="tbl-wrap" style="max-height:340px;display:none" id="tarih-tbl-wrap">
         <table>
@@ -697,9 +697,17 @@ function geçFieldStep(){
   document.getElementById('col-a-head').textContent='✅ ANA: '+(A.AD_SOYAD||A._fbId);
   document.getElementById('col-b-head').textContent='🗑 SİL: '+(B.AD_SOYAD||B._fbId);
 
-  // Varsayılan seçimler: A'da varsa A, yoksa B
+  // Varsayılan seçimler: A'da varsa A, yoksa B — ama tarih 1 gün farksa büyük olanı seç
   ALANLAR.forEach(({k})=>{
     const vA=String(A[k]||'').trim(), vB=String(B[k]||'').trim();
+    if(k==='DOGUM_TARIHI'&&vA&&vB){
+      const kont=tarihCiftKontrol(vA,vB);
+      if(kont){
+        // Küçük yanlış, büyük doğru — büyük hangisi?
+        fieldChoices[k]=vA===kont.dogru?'A':'B';
+        return;
+      }
+    }
     fieldChoices[k]=vA?'A':(vB?'B':'A');
   });
   renderFieldTable();
@@ -941,14 +949,11 @@ function tick(){return new Promise(r=>setTimeout(r,10));}
 // Timezone kaymasız tarih normalize et — her zaman YYYY-MM-DD string döner
 function normTarih(val){
   if(!val)return '';
-  // Zaten string YYYY-MM-DD formatındaysa direkt döndür
   if(typeof val==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(val.trim()))return val.trim();
-  // Firestore Timestamp ise
   if(val?.toDate){
     const d=val.toDate();
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
   }
-  // JS Date veya timestamp number ise
   if(val instanceof Date||typeof val==='number'){
     const d=new Date(val);
     return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
@@ -956,17 +961,23 @@ function normTarih(val){
   return String(val).trim();
 }
 
-// Timezone kayması kontrolü — SADECE Firestore Timestamp objesi için geçerli
-// String tarihler (YYYY-MM-DD) timezone kaymasından etkilenmez, elle girilmiş olabilir
-function tarihKaymismi(val){
-  // Eğer Firestore Timestamp ise UTC ile lokal fark var mı bak
-  if(val?.toDate){
-    const d=val.toDate();
-    const utcStr=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-    const locStr=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    if(utcStr!==locStr)return{mevcut:locStr,duzeltilmis:utcStr};
-  }
-  return null; // String tarihler otomatik düzeltilmez
+// 1 gün ekle (yanlış kaydedilmiş tarihler için düzeltme)
+function tarihBirGunIleri(str){
+  if(!str||!/^\d{4}-\d{2}-\d{2}$/.test(str))return null;
+  // UTC olarak parse et, 1 gün ekle
+  const d=new Date(str+'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate()+1);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+
+// İki tarihten hangisi 1 gün küçük — küçük olan yanlış (timezone kayması kurbanı)
+// Döner: null (kayma yok veya fark 1 günden fazla), {yanlis, dogru}
+function tarihCiftKontrol(dA, dB){
+  if(!dA||!dB)return null;
+  const tA=new Date(dA+'T00:00:00Z'), tB=new Date(dB+'T00:00:00Z');
+  const fark=Math.abs(tA-tB);
+  if(fark!==86400000)return null; // tam 1 gün değilse işlem yapma
+  return tA<tB ? {yanlis:dA,dogru:dB} : {yanlis:dB,dogru:dA};
 }
 
 // ════════════ TARİH DÜZELT MODAL ════════════
@@ -974,7 +985,7 @@ let tarihKandidatlar=[];
 
 function tarihDuzeltModal(){
   document.getElementById('tarih-modal').style.display='flex';
-  document.getElementById('tarih-tarama-sonuc').textContent='Tara butonuna basın.';
+  document.getElementById('tarih-tarama-sonuc').innerHTML='Tara butonuna basın.';
   document.getElementById('tarih-tbl-wrap').style.display='none';
   document.getElementById('tarih-log').style.display='none';
   document.getElementById('btn-tarih-duzelt').disabled=true;
@@ -983,35 +994,61 @@ function tarihDuzeltModal(){
 
 async function tarihTara(){
   document.getElementById('btn-tarih-tara').disabled=true;
-  document.getElementById('tarih-tarama-sonuc').textContent='⏳ Taranıyor...';
+  document.getElementById('tarih-tarama-sonuc').innerHTML='⏳ Taranıyor...';
   tarihKandidatlar=[];
+
+  // Yöntem: Aynı isimde 2 kayıt var ve tarihleri tam 1 gün farklıysa
+  // küçük tarih yanlış (timezone kayması kurbanı), büyük tarih doğru
+  const isimGruplari={};
   BILGI.forEach(r=>{
-    const raw=r.DOGUM_TARIHI;
-    if(!raw)return;
-    // Sadece Firestore Timestamp objesi ise kontrol et
-    const sonuc=tarihKaymismi(raw);
-    if(sonuc){
-      tarihKandidatlar.push({r,mevcut:sonuc.mevcut,duzeltilmis:sonuc.duzeltilmis,secili:true});
+    const n=normIsim(r.AD_SOYAD||'');
+    if(!n)return;
+    (isimGruplari[n]=isimGruplari[n]||[]).push(r);
+  });
+
+  Object.values(isimGruplari).forEach(grup=>{
+    if(grup.length<2)return;
+    for(let i=0;i<grup.length;i++){
+      for(let j=i+1;j<grup.length;j++){
+        const dA=normTarih(grup[i].DOGUM_TARIHI), dB=normTarih(grup[j].DOGUM_TARIHI);
+        const k=tarihCiftKontrol(dA,dB);
+        if(!k)continue;
+        // Küçük tarihli kayıt yanlış — düzeltilmesi gereken
+        const yanlisBilgi=dA===k.yanlis?grup[i]:grup[j];
+        // Zaten listede var mı?
+        if(!tarihKandidatlar.find(x=>x.r._fbId===yanlisBilgi._fbId)){
+          tarihKandidatlar.push({r:yanlisBilgi, mevcut:k.yanlis, duzeltilmis:k.dogru, secili:true});
+        }
+      }
     }
   });
+
+  // Ek yöntem: tek kayıt ama timezone kayması belirtisi var mı?
+  // (Firestore Timestamp ise UTC vs lokal karşılaştır)
+  BILGI.forEach(r=>{
+    if(tarihKandidatlar.find(x=>x.r._fbId===r._fbId))return;
+    const raw=r.DOGUM_TARIHI;
+    if(!raw?.toDate)return;
+    const d=raw.toDate();
+    const utcStr=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+    const locStr=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(utcStr!==locStr)tarihKandidatlar.push({r,mevcut:locStr,duzeltilmis:utcStr,secili:true});
+  });
+
   document.getElementById('btn-tarih-tara').disabled=false;
   if(!tarihKandidatlar.length){
-    document.getElementById('tarih-tarama-sonuc').innerHTML=`
-      <div style="background:var(--ok-l);border-left:3px solid var(--ok);padding:10px 12px;border-radius:7px;color:var(--ok);font-weight:700">
-        ✅ Timezone kayması bulunamadı.<br>
-        <span style="font-weight:400;font-size:11px">Not: 1 günlük tarih farkları genellikle veri girişi hatasından kaynaklanır — birleştirme sırasında doğru tarihi elle seçin.</span>
-      </div>`;
+    document.getElementById('tarih-tarama-sonuc').innerHTML=`<div style="background:var(--ok-l);border-left:3px solid var(--ok);padding:10px 12px;border-radius:7px;color:var(--ok);font-weight:700">✅ Düzeltilebilecek tarih kayması bulunamadı.</div>`;
     document.getElementById('tarih-tbl-wrap').style.display='none';
     return;
   }
-  document.getElementById('tarih-tarama-sonuc').textContent=`⚠️ ${tarihKandidatlar.length} kayıtta Firestore Timestamp timezone kayması tespit edildi.`;
+  document.getElementById('tarih-tarama-sonuc').innerHTML=`<div style="background:var(--warn-l);border-left:3px solid var(--warn);padding:8px 12px;border-radius:7px;color:var(--warn);font-weight:700">⚠️ ${tarihKandidatlar.length} kayıtta 1 günlük tarih kayması tespit edildi. Küçük tarih yanlış → büyük tarih doğru olarak işaretlendi.</div>`;
   document.getElementById('tarih-tbl-wrap').style.display='block';
   document.getElementById('tarih-tbody').innerHTML=tarihKandidatlar.map((k,i)=>`
     <tr>
       <td><input type="checkbox" ${k.secili?'checked':''} onchange="tarihKandidatlar[${i}].secili=this.checked;tarihSecGuncelle()"></td>
       <td><strong>${esc(k.r.AD_SOYAD||'—')}</strong></td>
-      <td><span class="badge b-err">${k.mevcut}</span></td>
-      <td><span class="badge b-ok">${k.duzeltilmis}</span></td>
+      <td><span class="badge b-err">❌ ${k.mevcut}</span></td>
+      <td><span class="badge b-ok">✓ ${k.duzeltilmis}</span></td>
       <td style="font-size:9px;color:var(--muted)">${k.r._fbId}</td>
     </tr>`).join('');
   tarihSecGuncelle();
