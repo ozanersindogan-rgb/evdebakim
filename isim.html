@@ -25,7 +25,9 @@
   <h2>🔤 İsim Normalizasyonu — Türkçe Büyük Harf Düzeltme</h2>
   <p style="color:#475569;font-size:13px">
     Bu araç <code>vatandaslar</code> koleksiyonundaki <code>ISIM_SOYISIM</code> değerlerini Türkçe büyük harfe çevirir.<br>
-    <b>Sorun:</b> Bazı kayıtlarda <code>I / İ</code> karışmış durumda. Bu sürüm, <b>tüm isimleri büyük harfe</b> çevirir; ama <code>I → İ</code> dönüşümünü kör yapmaz. Önce ön izleme gösterir, sonra istenirse Firestore'a yazar.
+    <b>Yöntem:</b> Aynı ismin farklı yazılmış versiyonları karşılaştırılır (ör: <code>ÖZEN DANDİN</code> vs <code>ÖZEN DANDIN</code>).
+    Hangi yazım <b>daha çok kayıtta</b> geçiyorsa o doğru kabul edilir; azınlıktakiler ona göre güncellenir.<br>
+    Karşılaştırma, tüm I/İ farklarını yok sayarak yapılır — yani <code>DANDIN</code> ile <code>DANDİN</code> aynı isim sayılır.
   </p>
 
   <button id="btn-analiz" onclick="analiz()">1. Analiz Et (Kaç Kayıt Farklı?)</button>
@@ -44,7 +46,8 @@
         <tr>
           <th style="width:60px">#</th>
           <th>Mevcut</th>
-          <th>Yeni</th>
+          <th>Kazanan (Çoğunluk)</th>
+          <th style="width:80px">Oy</th>
         </tr>
       </thead>
       <tbody id="previewBody"></tbody>
@@ -60,7 +63,9 @@
 
   <script>
     const db = firebase.firestore();
-    let _farklıKayitlar = [];
+
+    // Güncellenecek kayıtlar: [{ id, mevcut, hedef, kazanan, kazananSayisi, toplamSayisi }]
+    let _guncellenecekler = [];
 
     function log(msg, cls='') {
       const el = document.getElementById('log');
@@ -77,6 +82,41 @@
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
     }
+
+    // ── Normalizasyon yardımcıları ──────────────────────────────────────────
+
+    // Türkçe büyük harf dönüşümü (küçük harften)
+    function trUpper(str) {
+      if (!str) return str;
+      return str
+        .replace(/i/g, 'İ')
+        .replace(/ı/g, 'I')
+        .replace(/ğ/g, 'Ğ')
+        .replace(/ü/g, 'Ü')
+        .replace(/ş/g, 'Ş')
+        .replace(/ö/g, 'Ö')
+        .replace(/ç/g, 'Ç')
+        .toUpperCase();
+    }
+
+    // Mevcut büyük harfli metni tam Türkçe büyük harfe çevir
+    function tamBuyukHarf(str) {
+      if (!str) return str;
+      return trUpper(String(str).toLocaleLowerCase('tr-TR'));
+    }
+
+    /*
+     * Karşılaştırma anahtarı: I ve İ farkını yok say.
+     * Böylece "DANDIN" ile "DANDİN" aynı grup sayılır.
+     */
+    function anahtarOlustur(str) {
+      return String(str || '')
+        .replace(/İ/g, 'I')   // İ → I (karşılaştırma için)
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    // ── Ön izleme render ───────────────────────────────────────────────────
 
     function renderPreview(list) {
       const wrap = document.getElementById('previewWrap');
@@ -99,170 +139,127 @@
           <td>${idx + 1}</td>
           <td>${escapeHtml(item.mevcut)}</td>
           <td><b>${escapeHtml(item.hedef)}</b></td>
+          <td style="color:#64748b;font-size:12px">${item.kazananSayisi}/${item.toplamSayisi}</td>
         </tr>
       `).join('');
     }
 
-    /*
-     * Türkçe büyük harf dönüşümü
-     * 
-     * SORUN: Standart JS .toUpperCase() ile yapılan dönüşümde:
-     *   "salim"  → "SALIM"   (I oldu, İ olmalıydı)
-     *   "ışık"   → "ISIK"    (I oldu, I doğru ama Ş kayboldu)
-     *   "şeker"  → "SEKER"   (Ş → S oldu)
-     * 
-     * ÇÖZÜM: Önce Türkçe karakterleri büyüt, sonra toUpperCase()
-     */
-    function trUpper(str) {
-      if (!str) return str;
-      return str
-        .replace(/i/g, 'İ')   // i → İ  (en kritik: İstanbul değil Istanbul)
-        .replace(/ı/g, 'I')   // ı → I
-        .replace(/ğ/g, 'Ğ')
-        .replace(/ü/g, 'Ü')
-        .replace(/ş/g, 'Ş')
-        .replace(/ö/g, 'Ö')
-        .replace(/ç/g, 'Ç')
-        .toUpperCase();
-    }
-
-    /*
-     * Bozuk büyük harften Türkçe büyük harfe düzeltme
-     * 
-     * Veri zaten büyük harf ama yanlış (ör: SALIM, IBRAHIM, SEREF)
-     * Önce küçük harfe çevir, sonra Türkçe büyük harfe çevir.
-     * 
-     * Dikkat: toLocaleLowerCase('tr-TR') kullanılır ki
-     * I → ı, İ → i doğru şekilde dönüşsün.
-     */
-    // Bu araç tek seferlik temizlik için daha güvenli çalışır:
-    // - Sonuç HER ZAMAN büyük harf olur
-    // - İ harfini kör üretmez
-    // - Emin olunan kelimelerde I -> İ düzeltmesi yapar
-    // - Şüpheli kelimelerde güvenli tarafta kalır
-    //
-    // Örnek:
-    //   HÜSNİYE IRMAK            -> HÜSNİYE IRMAK
-    //   MEHMET KAAN ZEYTINÖZÜ    -> MEHMET KAAN ZEYTİNÖZÜ
-    //   MEHMET YALÇİN ANTAKYA    -> MEHMET YALÇIN ANTAKYA
-    //
-    // Not: Aşağıdaki liste, Türkçede gerçekten "İ" ile yazılan
-    // yaygın ad/soyadlar ve istisneler içindir. Gerekirse tek seferde
-    // daha da büyütülebilir.
-    const FORCE_DOTTED_I_WORDS = new Set([
-      'ADİL','AKİF','ALİ','ALİM','ASİL',
-      'BEDRİ','BEHİYE','CELİL','CEMİL','EMİN','EMİNE','ENİS',
-      'FATİH','FERİDE','GALİP','GÜLSİM','HALİL','HAMİT','HATİCE',
-      'HİDAYET','HİKMET','HİLAL','HİLMİ','İBRAHİM','İLHAMİ',
-      'İSMAİL','İSMAİL','İSMET',
-      'KADİR','KAMİL','LATİF','MELİH','MERİÇ','MESUDE KAMİŞ',
-      'MUNİSE','MÜMİNE','NAFİZ','NAZİF','NAZİM','NESLİHAN',
-      'NİHAL','NİHAT','NURİ','REMZİ','RESMİYE','RIDVAN',
-      'SALİH','SALİM','SAMİ','SELVİ','SEMİH','SEMİHA','SEVİM',
-      'SEVİMAY','ŞERİFE','TAHSİN','VASİF','VELİ','YAŞİN','YASİN',
-      'ZEYTİN','ZEYTİNOĞLU','ZEYTİNÖZÜ'
-    ]);
-
-    const FORCE_DOTLESS_I_WORDS = new Set([
-      'IRMAK','IŞIK','ISIK','ILGAZ','YALÇIN','YILMAZ','KIVANÇ',
-      'KIYMET','KIRAN','KIRCA','KIRCI','KIRDAR','KIRIK','KIVILCIM',
-      'RIZA','SILA','PINAR','YILDIRIM','YILDIRAY','YILMAZER'
-    ]);
-
-    function normalizeWordBase(word) {
-      return trUpper(String(word || '').toLocaleLowerCase('tr-TR'));
-    }
-
-    function restoreWord(word) {
-      if (!word) return word;
-
-      // Noktalama içeren parçaları yan yana kelime gibi düşünmek için
-      // yalnızca harfleri incele, geri kalanı koru.
-      const upper = normalizeWordBase(word);
-
-      if (!/[A-ZÇĞİÖŞÜ]/.test(upper)) return upper;
-
-      // Önce güvenli şekilde tüm İ'leri I yap.
-      let fixed = upper.replace(/İ/g, 'I');
-
-      // Kesin olarak İ olması gereken özel kelimeler
-      if (FORCE_DOTTED_I_WORDS.has(fixed) || FORCE_DOTTED_I_WORDS.has(upper)) {
-        fixed = fixed.replace(/I/g, 'İ');
-        return fixed;
-      }
-
-      // Kesin olarak I kalması gerekenler
-      if (FORCE_DOTLESS_I_WORDS.has(fixed) || FORCE_DOTLESS_I_WORDS.has(upper)) {
-        return fixed;
-      }
-
-      // Türkçe karakter taşıyan ve özellikle ZEYTIN... gibi bilinen yapılarda
-      // I çoğu zaman bozuk İ'dir. Bunu kontrollü uygula.
-      if (/^(ISMAIL|İSMAİL|ISMET|ISMAIL|ILHAMI|IBRAHIM|SALIM|NAZIM|NIHAT|NIHAL)$/.test(fixed)) {
-        fixed = fixed.replace(/I/g, 'İ');
-        return fixed;
-      }
-
-      if (/(ZEYTIN|TINÖZÜ|TINOĞLU|TINCI|TİN)/.test(fixed)) {
-        fixed = fixed.replace(/I/g, 'İ');
-      }
-
-      return fixed;
-    }
-
-    function duzeltBozukBuyuk(str) {
-      if (!str) return str;
-
-      const temiz = String(str).replace(/\s+/g, ' ').trim();
-      if (!temiz) return '';
-
-      // Parça bazlı çalış, boşlukları koru
-      const sonuc = temiz
-        .split(/(\s+)/)
-        .map(parca => {
-          if (/^\s+$/.test(parca)) return parca;
-          return restoreWord(parca);
-        })
-        .join('');
-
-      // Nihai sonuç HER ZAMAN büyük harf
-      return trUpper(sonuc.toLocaleLowerCase('tr-TR'));
-    }
+    // ── Ana analiz fonksiyonu ──────────────────────────────────────────────
 
     async function analiz() {
       document.getElementById('btn-analiz').disabled = true;
       document.getElementById('log').innerHTML = '';
-      _farklıKayitlar = [];
+      _guncellenecekler = [];
       log('🔍 Firestore\'dan kayıtlar alınıyor...', 'info');
 
       try {
         const snap = await db.collection('vatandaslar').get();
         log(`📦 Toplam ${snap.size} kayıt bulundu.`, 'info');
 
-        let farkli = 0, ayni = 0;
+        /*
+         * ADIM 1: Her benzersiz isim grubu için oy sayısını hesapla.
+         *
+         * Gruplama: anahtarOlustur() ile I/İ farkı yok sayılır.
+         * Her gruptaki farklı yazımlar ve kaç kayıtta geçtikleri tutulur.
+         *
+         * Yapı:
+         *   gruplar[anahtar] = {
+         *     yazimlar: Map<yazim, count>,
+         *     docler: [{ id, mevcutYazim }]
+         *   }
+         */
+        const gruplar = new Map();
+
         snap.forEach(doc => {
           const d = doc.data();
-          const mevcut = d.ISIM_SOYISIM || '';
-          const hedef  = duzeltBozukBuyuk(mevcut);
-          if (mevcut !== hedef) {
-            farkli++;
-            _farklıKayitlar.push({ id: doc.id, mevcut, hedef });
-            if (farkli <= 50) log(`⚠️ <b>${mevcut}</b> → <b>${hedef}</b>`, 'warn');
-          } else {
-            ayni++;
+          const mevcut = (d.ISIM_SOYISIM || '').replace(/\s+/g, ' ').trim();
+          if (!mevcut) return;
+
+          const anahtar = anahtarOlustur(mevcut);
+
+          if (!gruplar.has(anahtar)) {
+            gruplar.set(anahtar, { yazimlar: new Map(), docler: [] });
           }
+          const grup = gruplar.get(anahtar);
+          grup.yazimlar.set(mevcut, (grup.yazimlar.get(mevcut) || 0) + 1);
+          grup.docler.push({ id: doc.id, mevcut });
         });
 
-        if (farkli > 50) log(`... ve ${farkli - 50} kayıt daha`, 'warn');
-        log(`✅ Aynı: ${ayni} kayıt`, 'ok');
-        log(`⚠️ Düzeltilecek: ${farkli} kayıt`, farkli > 0 ? 'warn' : 'ok');
-        renderPreview(_farklıKayitlar);
+        /*
+         * ADIM 2: Her grup için kazananı belirle.
+         *
+         * Öncelik sırası:
+         *   1. En çok kayıtta geçen yazım (çoğunluk oyu)
+         *   2. Eşitlik varsa: tam Türkçe büyük harf versiyonu (tamBuyukHarf)
+         *
+         * Ardından kazanan yazımla uyuşmayan kayıtları _guncellenecekler'e ekle.
+         */
+        let grupSayisi = 0, degistirilecekGrup = 0;
 
-        if (farkli > 0) {
+        for (const [anahtar, grup] of gruplar) {
+          grupSayisi++;
+          const { yazimlar, docler } = grup;
+
+          // En yüksek oyu bul
+          let enCokSayisi = 0;
+          let kazanan = null;
+
+          for (const [yazim, sayac] of yazimlar) {
+            if (sayac > enCokSayisi) {
+              enCokSayisi = sayac;
+              kazanan = yazim;
+            } else if (sayac === enCokSayisi) {
+              // Eşitlikte tam Türkçe büyük harf versiyonunu tercih et
+              const yazimTam = tamBuyukHarf(yazim);
+              const kazananTam = tamBuyukHarf(kazanan);
+              // Eğer bu yazım zaten tam büyük harf ise onu seç
+              if (yazim === yazimTam && kazanan !== kazananTam) {
+                kazanan = yazim;
+              }
+            }
+          }
+
+          // Kazanan yazımla uyuşmayanları güncelleme listesine ekle
+          const toplamSayisi = docler.length;
+          for (const { id, mevcut } of docler) {
+            if (mevcut !== kazanan) {
+              _guncellenecekler.push({
+                id,
+                mevcut,
+                hedef: kazanan,
+                kazananSayisi: enCokSayisi,
+                toplamSayisi
+              });
+            }
+          }
+
+          if (yazimlar.size > 1) {
+            degistirilecekGrup++;
+            // Konsola en fazla 30 grup göster
+            if (degistirilecekGrup <= 30) {
+              const yazimListesi = [...yazimlar.entries()]
+                .map(([y, s]) => `"${y}" (${s})`)
+                .join(' | ');
+              log(`⚠️ Grup: ${yazimListesi} → <b>${kazanan}</b>`, 'warn');
+            }
+          }
+        }
+
+        if (degistirilecekGrup > 30) {
+          log(`... ve ${degistirilecekGrup - 30} grup daha`, 'warn');
+        }
+
+        log(`📊 ${grupSayisi} benzersiz isim grubu işlendi.`, 'info');
+        log(`⚠️ Farklı yazım bulunan grup: ${degistirilecekGrup}`, degistirilecekGrup > 0 ? 'warn' : 'ok');
+        log(`⚠️ Güncellenecek kayıt: ${_guncellenecekler.length}`, _guncellenecekler.length > 0 ? 'warn' : 'ok');
+
+        renderPreview(_guncellenecekler);
+
+        if (_guncellenecekler.length > 0) {
           document.getElementById('btn-duzenle').disabled = false;
           log(`👆 Ön izlemeyi kontrol et, sonra "Tüm İsimleri Düzelt" butonuna tıkla.`, 'info');
         } else {
-          log('🎉 Tüm isimler zaten doğru — düzeltme gerekmez!', 'ok');
+          log('🎉 Tüm isimler zaten tutarlı — düzeltme gerekmez!', 'ok');
           document.getElementById('btn-analiz').disabled = false;
         }
       } catch(e) {
@@ -271,9 +268,11 @@
       }
     }
 
+    // ── Firestore yazma ────────────────────────────────────────────────────
+
     async function duzenle() {
-      if (!_farklıKayitlar.length) { log('⚠️ Önce analiz et.', 'warn'); return; }
-      if (!confirm(`${_farklıKayitlar.length} kayıt Firestore'da güncellenecek. Emin misiniz?`)) return;
+      if (!_guncellenecekler.length) { log('⚠️ Önce analiz et.', 'warn'); return; }
+      if (!confirm(`${_guncellenecekler.length} kayıt Firestore'da güncellenecek. Emin misiniz?`)) return;
 
       document.getElementById('btn-duzenle').disabled = true;
       document.getElementById('btn-analiz').disabled = true;
@@ -282,8 +281,8 @@
       const BATCH_SIZE = 400;
       let tamam = 0, hata = 0;
 
-      for (let i = 0; i < _farklıKayitlar.length; i += BATCH_SIZE) {
-        const grup = _farklıKayitlar.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < _guncellenecekler.length; i += BATCH_SIZE) {
+        const grup = _guncellenecekler.slice(i, i + BATCH_SIZE);
         const batch = db.batch();
         grup.forEach(({ id, hedef }) => {
           batch.update(db.collection('vatandaslar').doc(id), { ISIM_SOYISIM: hedef });
@@ -291,7 +290,7 @@
         try {
           await batch.commit();
           tamam += grup.length;
-          prog(`Güncellendi: ${tamam} / ${_farklıKayitlar.length}`);
+          prog(`Güncellendi: ${tamam} / ${_guncellenecekler.length}`);
         } catch(e) {
           hata += grup.length;
           log(`❌ Batch ${i}-${i+BATCH_SIZE} hatası: ` + e.message, 'err');
