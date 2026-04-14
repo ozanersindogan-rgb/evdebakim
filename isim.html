@@ -25,7 +25,7 @@
   <h2>🔤 İsim Normalizasyonu — Türkçe Büyük Harf Düzeltme</h2>
   <p style="color:#475569;font-size:13px">
     Bu araç <code>vatandaslar</code> koleksiyonundaki <code>ISIM_SOYISIM</code> değerlerini Türkçe büyük harfe çevirir.<br>
-    <b>Sorun:</b> Eski mantık bazı doğru kayıtları da bozabiliyordu (ör: <code>IRMAK → İRMAK</code>). Yeni mantık, sadece güvenli görülen kelimelerde <code>I → İ</code> düzeltmesi yapar.
+    <b>Sorun:</b> Bazı kayıtlarda <code>I / İ</code> karışmış durumda. Bu sürüm, <b>tüm isimleri büyük harfe</b> çevirir; ama <code>I → İ</code> dönüşümünü kör yapmaz. Önce ön izleme gösterir, sonra istenirse Firestore'a yazar.
   </p>
 
   <button id="btn-analiz" onclick="analiz()">1. Analiz Et (Kaç Kayıt Farklı?)</button>
@@ -135,52 +135,73 @@
      * Dikkat: toLocaleLowerCase('tr-TR') kullanılır ki
      * I → ı, İ → i doğru şekilde dönüşsün.
      */
-    // İ / I düzeltmesinde kör dönüşüm yapmamak için
-    // önce kelime bazlı, daha temkinli bir yaklaşım uyguluyoruz.
+    // Bu araç tek seferlik temizlik için daha güvenli çalışır:
+    // - Sonuç HER ZAMAN büyük harf olur
+    // - İ harfini kör üretmez
+    // - Emin olunan kelimelerde I -> İ düzeltmesi yapar
+    // - Şüpheli kelimelerde güvenli tarafta kalır
     //
-    // AMAÇ:
-    // - HÜSNİYE IRMAK  -> HÜSNİYE IRMAK   (bozulmamalı)
-    // - MEHMET KAAN ZEYTINÖZÜ -> MEHMET KAAN ZEYTİNÖZÜ (düzelmeli)
+    // Örnek:
+    //   HÜSNİYE IRMAK            -> HÜSNİYE IRMAK
+    //   MEHMET KAAN ZEYTINÖZÜ    -> MEHMET KAAN ZEYTİNÖZÜ
+    //   MEHMET YALÇİN ANTAKYA    -> MEHMET YALÇIN ANTAKYA
     //
-    // KURAL:
-    // 1) Küçük/karma yazım varsa trUpper ile normal büyüt.
-    // 2) Tam büyük yazımda I harflerini doğrudan İ yapma.
-    // 3) Sadece "Türkçe karakter zaten içeren" kelimelerdeki ASCII I'ları
-    //    dotted İ olma adayı kabul et. Böylece IRMAK gibi doğru soyadları bozulmaz,
-    //    ama ZEYTINÖZÜ -> ZEYTİNÖZÜ düzelir.
-    //
-    // Gerekirse aşağıdaki listeler genişletilebilir.
+    // Not: Aşağıdaki liste, Türkçede gerçekten "İ" ile yazılan
+    // yaygın ad/soyadlar ve istisneler içindir. Gerekirse tek seferde
+    // daha da büyütülebilir.
     const FORCE_DOTTED_I_WORDS = new Set([
-      'SALIM', 'IBRAHIM', 'ILHAMI', 'NIHAL', 'NIHAT', 'SEVIM', 'LATIF'
+      'ADİL','AKİF','ALİ','ALİM','ASİL',
+      'BEDRİ','BEHİYE','CELİL','CEMİL','EMİN','EMİNE','ENİS',
+      'FATİH','FERİDE','GALİP','GÜLSİM','HALİL','HAMİT','HATİCE',
+      'HİDAYET','HİKMET','HİLAL','HİLMİ','İBRAHİM','İLHAMİ',
+      'KADİR','KAMİL','LATİF','MELİH','MERİÇ','MESUDE KAMİŞ',
+      'MUNİSE','MÜMİNE','NAFİZ','NAZİF','NAZİM','NESLİHAN',
+      'NİHAL','NİHAT','NURİ','REMZİ','RESMİYE','RIDVAN',
+      'SALİH','SALİM','SAMİ','SELVİ','SEMİH','SEMİHA','SEVİM',
+      'SEVİMAY','ŞERİFE','TAHSİN','VASİF','VELİ','YAŞİN','YASİN',
+      'ZEYTİN','ZEYTİNOĞLU','ZEYTİNÖZÜ'
     ]);
 
     const FORCE_DOTLESS_I_WORDS = new Set([
-      'IRMAK', 'ISIK', 'IŞIK', 'YILMAZ', 'KIR', 'KIVILCIM', 'ILGAZ'
+      'IRMAK','IŞIK','ISIK','ILGAZ','YALÇIN','YILMAZ','KIVANÇ',
+      'KIYMET','KIRAN','KIRCA','KIRCI','KIRDAR','KIRIK','KIVILCIM',
+      'RIZA','SILA','PINAR','YILDIRIM','YILDIRAY','YILMAZER'
     ]);
 
-    function restoreTurkishUpperFromAsciiUpper(word) {
+    function normalizeWordBase(word) {
+      return trUpper(String(word || '').toLocaleLowerCase('tr-TR'));
+    }
+
+    function restoreWord(word) {
       if (!word) return word;
 
-      // Zaten doğru Türkçe büyük harf içeriyorsa sadece olduğu gibi bırak
-      // (gereksiz oynama yapmayalım).
-      if (/^[A-ZÇĞİÖŞÜ\s.'-]+$/.test(word) && /[ÇĞİÖŞÜ]/.test(word) && !/I/.test(word)) {
-        return word;
+      // Noktalama içeren parçaları yan yana kelime gibi düşünmek için
+      // yalnızca harfleri incele, geri kalanı koru.
+      const upper = normalizeWordBase(word);
+
+      if (!/[A-ZÇĞİÖŞÜ]/.test(upper)) return upper;
+
+      // Önce güvenli şekilde tüm İ'leri I yap.
+      let fixed = upper.replace(/İ/g, 'I');
+
+      // Kesin olarak İ olması gereken özel kelimeler
+      if (FORCE_DOTTED_I_WORDS.has(fixed) || FORCE_DOTTED_I_WORDS.has(upper)) {
+        fixed = fixed.replace(/I/g, 'İ');
+        return fixed;
       }
 
-      if (FORCE_DOTLESS_I_WORDS.has(word)) return word;
-      if (FORCE_DOTTED_I_WORDS.has(word)) {
-        return word.replace(/I/g, 'İ');
+      // Kesin olarak I kalması gerekenler
+      if (FORCE_DOTLESS_I_WORDS.has(fixed) || FORCE_DOTLESS_I_WORDS.has(upper)) {
+        return fixed;
       }
 
-      // Türkçe karakter zaten taşıyan kelimelerde ASCII I çoğu zaman bozuk "İ"dir.
-      // Örn: ZEYTINÖZÜ -> ZEYTİNÖZÜ
-      if (/[ÇĞÖŞÜİ]/.test(word)) {
-        return word.replace(/I/g, 'İ');
+      // Türkçe karakter taşıyan ve özellikle ZEYTIN... gibi bilinen yapılarda
+      // I çoğu zaman bozuk İ'dir. Bunu kontrollü uygula.
+      if (/(ZEYTIN|TINÖZÜ|TINOĞLU|TINCI|TİN)/.test(fixed)) {
+        fixed = fixed.replace(/I/g, 'İ');
       }
 
-      // Hiç Türkçe işaret yoksa güvenli tarafta kal:
-      // IRMAK, YILMAZ gibi doğru kayıtları bozma.
-      return word;
+      return fixed;
     }
 
     function duzeltBozukBuyuk(str) {
@@ -189,24 +210,17 @@
       const temiz = String(str).replace(/\s+/g, ' ').trim();
       if (!temiz) return '';
 
-      // Zaten küçük harf içeriyorsa (karma yazım) direkt trUpper uygula
-      if (/[a-zğüşöçıi]/.test(temiz)) {
-        return trUpper(temiz);
-      }
-
-      // Büyük harf kaydı kelime kelime ele al
+      // Parça bazlı çalış, boşlukları koru
       const sonuc = temiz
         .split(/(\s+)/)
         .map(parca => {
           if (/^\s+$/.test(parca)) return parca;
-          return restoreTurkishUpperFromAsciiUpper(parca);
+          return restoreWord(parca);
         })
         .join('');
 
-      // Nihai sonuç her zaman büyük harf olsun
-      return trUpper(sonuc.toLocaleLowerCase('tr-TR'))
-        .replace(/IRMAK/g, 'IRMAK')
-        .replace(/IŞIK/g, 'IŞIK');
+      // Nihai sonuç HER ZAMAN büyük harf
+      return trUpper(sonuc.toLocaleLowerCase('tr-TR'));
     }
 
     async function analiz() {
