@@ -1,6 +1,9 @@
 // ── TC / DOĞUM TARİHİ TAMAMLAMA SAYFASI ──────────────────────────────────
 
-let _idData = []; // vatandaslar_bilgi'den TC eksik kayıtlar
+let _idData = [];       // TC eksik kayıtlar
+let _idTumData = [];    // Tüm vatandaşlar (bilgi koleksiyonu)
+let _idAktifSekme = 'eksik'; // 'eksik' | 'tumVatandaslar'
+let _idTumArama = '';
 
 // ════════════════════════════════════════════
 //  SAYFA GÖSTERİLDİĞİNDE ÇAĞRILIR
@@ -20,21 +23,78 @@ async function idTamamlaYukle() {
       return tc.length !== 11;
     });
 
-    _idTamamlaRender();
+    // Tüm vatandaşlar — ada göre sırala
+    _idTumData = [...tumKayitlar].sort((a, b) =>
+      (a.AD_SOYAD || '').localeCompare(b.AD_SOYAD || '', 'tr')
+    );
+
+    _idSayfaRender();
   } catch (e) {
     wrap.innerHTML = `<div style="padding:20px;color:var(--danger)">❌ Yükleme hatası: ${e.message}</div>`;
   }
 }
 
 // ════════════════════════════════════════════
-//  LİSTE RENDER
+//  ANA ÇERÇEVE (sekmeler + içerik)
 // ════════════════════════════════════════════
-function _idTamamlaRender() {
+function _idSayfaRender() {
   const wrap = document.getElementById('id-tamamla-wrap');
   if (!wrap) return;
 
+  const sekmeStil = (id) => {
+    const aktif = _idAktifSekme === id;
+    return aktif
+      ? 'padding:9px 20px;border-radius:8px 8px 0 0;border:1.5px solid var(--border,#e2e8f0);border-bottom:2px solid #fff;background:#fff;font-size:12px;font-weight:900;cursor:pointer;color:#1d4ed8;margin-bottom:-1px;position:relative;z-index:2'
+      : 'padding:9px 20px;border-radius:8px 8px 0 0;border:1.5px solid transparent;background:#f1f5f9;font-size:12px;font-weight:700;cursor:pointer;color:#64748b;margin-bottom:-1px';
+  };
+
+  wrap.innerHTML = `
+    <!-- Sekmeler -->
+    <div style="display:flex;gap:4px;border-bottom:1.5px solid var(--border,#e2e8f0);margin-bottom:0">
+      <button onclick="_idSekmeGec('eksik')" style="${sekmeStil('eksik')}">
+        ⚠️ TC Eksik
+        <span style="background:${_idAktifSekme==='eksik'?'#fcd34d':'#e2e8f0'};color:${_idAktifSekme==='eksik'?'#92400e':'#64748b'};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:900;margin-left:6px">
+          ${_idData.length}
+        </span>
+      </button>
+      <button onclick="_idSekmeGec('tumVatandaslar')" style="${sekmeStil('tumVatandaslar')}">
+        👥 Tüm Vatandaşlar
+        <span style="background:${_idAktifSekme==='tumVatandaslar'?'#dbeafe':'#e2e8f0'};color:${_idAktifSekme==='tumVatandaslar'?'#1d4ed8':'#64748b'};border-radius:10px;padding:1px 7px;font-size:10px;font-weight:900;margin-left:6px">
+          ${_idTumData.length}
+        </span>
+      </button>
+    </div>
+
+    <!-- Sekme içeriği -->
+    <div id="id-sekme-icerik" style="border:1.5px solid var(--border,#e2e8f0);border-top:none;border-radius:0 8px 8px 8px;padding:18px;background:#fff">
+    </div>
+  `;
+
+  _idSekmeIcerikRender();
+}
+
+function _idSekmeGec(sekme) {
+  _idAktifSekme = sekme;
+  _idSayfaRender();
+}
+
+function _idSekmeIcerikRender() {
+  if (_idAktifSekme === 'eksik') {
+    _idTamamlaRender();
+  } else {
+    _idTumVatandaslarRender();
+  }
+}
+
+// ════════════════════════════════════════════
+//  SEKMe 1 — TC EKSİK LİSTESİ
+// ════════════════════════════════════════════
+function _idTamamlaRender() {
+  const cont = document.getElementById('id-sekme-icerik');
+  if (!cont) return;
+
   if (!_idData.length) {
-    wrap.innerHTML = `
+    cont.innerHTML = `
       <div style="padding:40px;text-align:center">
         <div style="font-size:40px;margin-bottom:12px">🎉</div>
         <div style="font-size:16px;font-weight:800;color:var(--ok,#16a34a)">Tüm kayıtların TC numarası girilmiş!</div>
@@ -49,7 +109,7 @@ function _idTamamlaRender() {
     hizmetler.forEach(h => { hizmetSayac[h] = (hizmetSayac[h] || 0) + 1; });
   });
 
-  wrap.innerHTML = `
+  cont.innerHTML = `
     <!-- Özet -->
     <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;align-items:center">
       <div style="background:#fef9c3;border:1.5px solid #fcd34d;color:#92400e;border-radius:10px;padding:10px 16px;font-size:13px;font-weight:800">
@@ -120,7 +180,249 @@ function _idTamamlaRender() {
 }
 
 // ════════════════════════════════════════════
-//  SATIR BAZLI HIZLI DÜZENLE (inline modal)
+//  SEKMe 2 — TÜM VATANDAŞLAR
+// ════════════════════════════════════════════
+function _idTumVatandaslarRender() {
+  const cont = document.getElementById('id-sekme-icerik');
+  if (!cont) return;
+
+  // Arama filtresi
+  const arama = _idTumArama.trim().toUpperCase();
+  const filtreli = arama
+    ? _idTumData.filter(r =>
+        (r.AD_SOYAD||'').toUpperCase().includes(arama) ||
+        String(r.TC||'').includes(arama) ||
+        (r.MAHALLE||'').toUpperCase().includes(arama)
+      )
+    : _idTumData;
+
+  // Boş TC sayısı
+  const bosTC = _idTumData.filter(r => String(r.TC||'').replace(/\D/g,'').length !== 11).length;
+
+  cont.innerHTML = `
+    <!-- Üst bar -->
+    <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px;align-items:center">
+      <div style="background:#dbeafe;border:1.5px solid #93c5fd;color:#1d4ed8;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800">
+        👥 Toplam: ${_idTumData.length}
+      </div>
+      <div style="background:#fef9c3;border:1.5px solid #fcd34d;color:#92400e;border-radius:10px;padding:8px 14px;font-size:12px;font-weight:800">
+        ⚠️ TC Eksik: ${bosTC}
+      </div>
+      <!-- Arama -->
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <input
+          id="id-tum-arama"
+          type="text"
+          placeholder="Ad, TC veya Mahalle ara…"
+          value="${_esc(_idTumArama)}"
+          oninput="_idTumAramaGuncelle(this.value)"
+          style="padding:7px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none;min-width:220px"
+          onfocus="this.style.borderColor='#1d4ed8'"
+          onblur="this.style.borderColor='#e2e8f0'"
+        >
+        ${arama ? `<button onclick="_idTumAramaGuncelle('')" style="padding:7px 11px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;font-size:12px;cursor:pointer">✕</button>` : ''}
+      </div>
+    </div>
+
+    ${arama && filtreli.length === 0 ? `
+      <div style="padding:32px;text-align:center;color:#94a3b8;font-size:13px">Sonuç bulunamadı.</div>
+    ` : `
+    <!-- Tablo -->
+    <div style="border-radius:10px;border:1.5px solid var(--border,#e2e8f0);overflow:hidden;max-height:580px;overflow-y:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:var(--primary,#1d4ed8);color:#fff;position:sticky;top:0;z-index:1">
+            <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;white-space:nowrap">#</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase">Ad Soyad</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase">Hizmet</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase">Mahalle</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase">TC</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase">Doğum Tarihi</th>
+            <th style="padding:9px 10px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase">Düzenle</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtreli.map((r, i) => {
+            const hizmetler = Array.isArray(r.HIZMETLER) ? r.HIZMETLER : (r.HIZMET ? [r.HIZMET] : []);
+            const tc = String(r.TC||'').replace(/\D/g,'');
+            const tcEksik = tc.length !== 11;
+            return `
+            <tr style="${i%2===0?'background:#fff':'background:#f8fafc'}${tcEksik?' outline:2px solid #fef08a;outline-offset:-2px;':''}" title="${tcEksik?'TC numarası eksik/hatalı':''}">
+              <td style="padding:7px 10px;color:#94a3b8;font-weight:700">${i+1}</td>
+              <td style="padding:7px 10px;font-weight:800">${_esc(r.AD_SOYAD||'—')}</td>
+              <td style="padding:7px 10px">${hizmetler.map(h=>`<span style="background:#f0f9ff;color:#0369a1;border-radius:5px;padding:1px 7px;font-size:10px;font-weight:800">${_esc(h)}</span>`).join(' ')}</td>
+              <td style="padding:7px 10px;font-size:11px">${_esc(r.MAHALLE||'—')}</td>
+              <td style="padding:7px 10px;font-family:'Courier New',monospace">
+                ${tc
+                  ? (tcEksik
+                      ? `<span style="color:#f97316;font-weight:700">${tc} <span style="font-size:9px;color:#94a3b8">(eksik)</span></span>`
+                      : `<span style="color:#16a34a;font-weight:700">${tc}</span>`)
+                  : '<span style="color:#dc2626;font-weight:800">Yok</span>'}
+              </td>
+              <td style="padding:7px 10px;color:${r.DOGUM_TARIHI?'#0f172a':'#dc2626'};font-weight:${r.DOGUM_TARIHI?'600':'800'}">
+                ${_esc(r.DOGUM_TARIHI||'Yok')}
+              </td>
+              <td style="padding:7px 10px">
+                <button onclick="idTumDuzenle('${r._fbId}')"
+                  style="background:${tcEksik?'#fef9c3':'#f1f5f9'};border:1.5px solid ${tcEksik?'#fcd34d':'#e2e8f0'};border-radius:7px;padding:3px 10px;font-size:11px;font-weight:700;cursor:pointer">
+                  ✏️ Düzenle
+                </button>
+              </td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    `}
+  `;
+}
+
+function _idTumAramaGuncelle(val) {
+  _idTumArama = val;
+  _idTumVatandaslarRender();
+  // odağı koru
+  const inp = document.getElementById('id-tum-arama');
+  if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+}
+
+// ════════════════════════════════════════════
+//  TÜM VATANDAŞLAR — DÜZENLE MODALİ
+// ════════════════════════════════════════════
+function idTumDuzenle(fbId) {
+  // Her iki listede de arayalım (eksik listesinde veya tümünde olabilir)
+  const r = _idTumData.find(x => x._fbId === fbId);
+  if (!r) return;
+
+  const eskiModal = document.getElementById('id-tum-modal');
+  if (eskiModal) eskiModal.remove();
+
+  const tc = String(r.TC||'').replace(/\D/g,'');
+
+  const modal = document.createElement('div');
+  modal.id = 'id-tum-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,.2)">
+      <div style="font-size:15px;font-weight:900;color:#1d4ed8;margin-bottom:6px">✏️ TC & Doğum Tarihi Düzenle</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:14px">${_esc(r.AD_SOYAD||'')} · ${_esc(r.MAHALLE||'')}</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div>
+          <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">TC Kimlik No (11 hane)</label>
+          <input id="idtm-tc" type="text" maxlength="11" inputmode="numeric"
+            value="${tc}"
+            style="width:100%;padding:9px 12px;border:1.5px solid ${tc.length===11?'#86efac':'#e2e8f0'};border-radius:8px;font-size:14px;font-family:'Courier New',monospace;letter-spacing:.1em;outline:none;box-sizing:border-box"
+            oninput="this.value=this.value.replace(/\\D/g,'').slice(0,11);_idTmValide()"
+            onfocus="this.style.borderColor='#1d4ed8'"
+            onblur="_idTmValide()">
+          <div id="idtm-tc-hint" style="font-size:10px;margin-top:3px;color:${tc.length===11?'#16a34a':'#94a3b8'}">
+            ${tc.length===11?'✅ Geçerli TC':tc.length>0?tc.length+'/11 rakam':'11 rakam girilmesi gerekiyor'}
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">Doğum Tarihi</label>
+          <input id="idtm-dogum" type="date" value="${r.DOGUM_TARIHI||''}"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box"
+            onfocus="this.style.borderColor='#1d4ed8'"
+            onblur="this.style.borderColor='#e2e8f0'">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:20px;justify-content:flex-end">
+        <button onclick="document.getElementById('id-tum-modal').remove()"
+          style="padding:8px 16px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;font-size:12px;font-weight:700;cursor:pointer">
+          İptal
+        </button>
+        <button id="idtm-btn" onclick="idTumKaydet('${fbId}')"
+          style="padding:8px 18px;background:#1d4ed8;color:#fff;border:none;border-radius:8px;font-size:12px;font-weight:800;cursor:pointer">
+          ✅ Kaydet
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  setTimeout(() => { document.getElementById('idtm-tc')?.focus(); }, 100);
+}
+
+function _idTmValide() {
+  const tc = document.getElementById('idtm-tc')?.value || '';
+  const hint = document.getElementById('idtm-tc-hint');
+  const input = document.getElementById('idtm-tc');
+  if (!hint) return;
+  if (tc.length === 11) {
+    hint.textContent = '✅ Geçerli TC';
+    hint.style.color = '#16a34a';
+    if (input) input.style.borderColor = '#86efac';
+  } else {
+    hint.textContent = tc.length > 0 ? `${tc.length}/11 rakam` : '11 rakam girilmesi gerekiyor';
+    hint.style.color = '#94a3b8';
+    if (input) input.style.borderColor = '#e2e8f0';
+  }
+}
+
+async function idTumKaydet(fbId) {
+  const r = _idTumData.find(x => x._fbId === fbId);
+  if (!r) return;
+
+  const tc = (document.getElementById('idtm-tc')?.value || '').trim();
+  const dogum = (document.getElementById('idtm-dogum')?.value || '').trim();
+
+  if (tc && tc.length !== 11) {
+    showToast('⚠️ TC 11 hane olmalı'); return;
+  }
+
+  const btn = document.getElementById('idtm-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+
+  try {
+    const guncelleme = {};
+    if (tc) guncelleme.TC = tc;
+    if (dogum) guncelleme.DOGUM_TARIHI = dogum;
+    if (!Object.keys(guncelleme).length) {
+      showToast('Değişiklik yok');
+      document.getElementById('id-tum-modal')?.remove();
+      return;
+    }
+
+    // vatandaslar_bilgi güncelle
+    await firebase.firestore().collection('vatandaslar_bilgi').doc(fbId).update(guncelleme);
+
+    // vatandaslar koleksiyonunda aynı isimli tüm kayıtlara yansıt
+    const isim = r.AD_SOYAD || '';
+    const snap = await firebase.firestore().collection('vatandaslar').where('ISIM_SOYISIM','==',isim).get();
+    let guncellenen = 0;
+    for (const doc of snap.docs) {
+      await doc.ref.update(guncelleme);
+      guncellenen++;
+    }
+
+    // allData güncelle
+    if (typeof allData !== 'undefined') {
+      allData.forEach(rec => {
+        if ((rec.ISIM_SOYISIM||'').toUpperCase() === isim.toUpperCase()) {
+          if (tc) rec.TC = tc;
+          if (dogum) rec.DOGUM_TARIHI = dogum;
+        }
+      });
+    }
+
+    // Yerel veri güncelle
+    Object.assign(r, guncelleme);
+
+    // Eksik listesini güncelle: TC artık geçerliyse çıkar
+    if (tc && tc.length === 11) {
+      _idData = _idData.filter(x => x._fbId !== fbId);
+    }
+
+    document.getElementById('id-tum-modal')?.remove();
+    _idSayfaRender(); // sekme sayaçları da güncellensin
+    showToast(`✅ Kaydedildi${guncellenen ? ' — ' + guncellenen + ' aya yansıtıldı' : ''}`);
+  } catch (e) {
+    showToast('❌ Hata: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✅ Kaydet'; }
+  }
+}
+
+// ════════════════════════════════════════════
+//  SEKMe 1 — SATIR BAZLI HIZLI DÜZENLE (inline modal)
 // ════════════════════════════════════════════
 function idSatirDuzenle(fbId) {
   const r = _idData.find(x => x._fbId === fbId);
@@ -143,7 +445,7 @@ function idSatirDuzenle(fbId) {
           <input id="idqm-tc" type="text" maxlength="11" inputmode="numeric"
             value="${String(r.TC||'').replace(/\D/g,'')}"
             style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:'Courier New',monospace;letter-spacing:.1em;outline:none"
-            oninput="this.value=this.value.replace(/\D/g,'').slice(0,11);_idQmValide()"
+            oninput="this.value=this.value.replace(/\\D/g,'').slice(0,11);_idQmValide()"
             onfocus="this.style.borderColor='#1d4ed8'"
             onblur="this.style.borderColor='#e2e8f0'">
           <div id="idqm-tc-hint" style="font-size:10px;color:#94a3b8;margin-top:3px">11 rakam girilmesi gerekiyor</div>
@@ -231,8 +533,12 @@ async function idQuickKaydet(fbId) {
     // Listeden çıkar (TC artık geçerli)
     if (tc && tc.length === 11) _idData = _idData.filter(x => x._fbId !== fbId);
 
+    // Tüm veri listesini de güncelle
+    const tumRec = _idTumData.find(x => x._fbId === fbId);
+    if (tumRec) Object.assign(tumRec, guncelleme);
+
     document.getElementById('id-quick-modal')?.remove();
-    _idTamamlaRender();
+    _idSayfaRender();
     showToast(`✅ Kaydedildi${guncellenen ? ' — ' + guncellenen + ' aya yansıtıldı' : ''}`);
   } catch (e) {
     showToast('❌ Hata: ' + e.message);
@@ -271,8 +577,6 @@ function idExcelIndir() {
     { wch: 14 }, // DOGUM_TARIHI
   ];
 
-  // TC ve DOGUM_TARIHI sütunlarını sarı yap (not: xlsx tam renk desteği için pro gerekir, ama border yapabiliriz)
-  // Başlık satırını kalın yap
   const range = XLSX.utils.decode_range(ws['!ref']);
   for (let C = range.s.c; C <= range.e.c; C++) {
     const cellAddr = XLSX.utils.encode_cell({ r: 0, c: C });
@@ -299,6 +603,7 @@ async function idExcelYukle(input) {
     try {
       const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
       const ws = wb.Sheets[wb.SheetNames[0]];
+
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
 
       if (!rows.length) { showToast('⚠️ Excel boş'); return; }
@@ -391,7 +696,6 @@ async function _idYuklemeUygula(islenecek) {
 
   if (!islenecek.length) { showToast('İşlenecek kayıt yok'); return; }
 
-  const toast_el = document.getElementById('toast');
   let tamam = 0, hata = 0;
 
   for (const item of islenecek) {
@@ -408,7 +712,7 @@ async function _idYuklemeUygula(islenecek) {
       await firebase.firestore().collection('vatandaslar_bilgi').doc(item.fbId).update(guncelleme);
 
       // vatandaslar'daki tüm aylara yansıt
-      const bilgiRec = _idData.find(x => x._fbId === item.fbId);
+      const bilgiRec = _idTumData.find(x => x._fbId === item.fbId);
       if (bilgiRec) {
         const isim = bilgiRec.AD_SOYAD || item.ad;
         const snap = await firebase.firestore().collection('vatandaslar').where('ISIM_SOYISIM','==',isim).get();
@@ -425,7 +729,7 @@ async function _idYuklemeUygula(islenecek) {
         }
 
         Object.assign(bilgiRec, guncelleme);
-        // TC geçerliyse listeden çıkar
+        // TC geçerliyse eksik listesinden çıkar
         if (tc) _idData = _idData.filter(x => x._fbId !== item.fbId);
       }
       tamam++;
@@ -435,7 +739,7 @@ async function _idYuklemeUygula(islenecek) {
     }
   }
 
-  _idTamamlaRender();
+  _idSayfaRender();
   showToast(`✅ ${tamam} kayıt güncellendi${hata ? ` — ${hata} hata` : ''}`);
 }
 
