@@ -154,6 +154,7 @@
       'BEDRİ','BEHİYE','CELİL','CEMİL','EMİN','EMİNE','ENİS',
       'FATİH','FERİDE','GALİP','GÜLSİM','HALİL','HAMİT','HATİCE',
       'HİDAYET','HİKMET','HİLAL','HİLMİ','İBRAHİM','İLHAMİ',
+      'İSMAİL','İSMAİL','İSMET',
       'KADİR','KAMİL','LATİF','MELİH','MERİÇ','MESUDE KAMİŞ',
       'MUNİSE','MÜMİNE','NAFİZ','NAZİF','NAZİM','NESLİHAN',
       'NİHAL','NİHAT','NURİ','REMZİ','RESMİYE','RIDVAN',
@@ -197,6 +198,11 @@
 
       // Türkçe karakter taşıyan ve özellikle ZEYTIN... gibi bilinen yapılarda
       // I çoğu zaman bozuk İ'dir. Bunu kontrollü uygula.
+      if (/^(ISMAIL|İSMAİL|ISMET|ISMAIL|ILHAMI|IBRAHIM|SALIM|NAZIM|NIHAT|NIHAL)$/.test(fixed)) {
+        fixed = fixed.replace(/I/g, 'İ');
+        return fixed;
+      }
+
       if (/(ZEYTIN|TINÖZÜ|TINOĞLU|TINCI|TİN)/.test(fixed)) {
         fixed = fixed.replace(/I/g, 'İ');
       }
