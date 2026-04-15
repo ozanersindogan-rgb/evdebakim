@@ -106,12 +106,19 @@
     }
 
     /*
-     * Karşılaştırma anahtarı: I ve İ farkını yok say.
-     * Böylece "DANDIN" ile "DANDİN" aynı grup sayılır.
+     * Karşılaştırma anahtarı: tüm Türkçe karakter varyantlarını yok say.
+     * Büyük/küçük harf, noktalı/noktasız I, şapkalı harfler hepsi aynı sayılır.
+     * Böylece "DANDIN", "DANDİN", "Dandın", "dandın" aynı grupta buluşur.
      */
     function anahtarOlustur(str) {
       return String(str || '')
-        .replace(/İ/g, 'I')   // İ → I (karşılaştırma için)
+        .toLocaleLowerCase('tr-TR')   // önce Türkçe küçük harfe çevir
+        .replace(/[iı]/g, 'i')        // i ve ı → i
+        .replace(/[uü]/g, 'u')        // u ve ü → u
+        .replace(/[oö]/g, 'o')        // o ve ö → o
+        .replace(/[gğ]/g, 'g')        // g ve ğ → g
+        .replace(/[sş]/g, 's')        // s ve ş → s
+        .replace(/[cç]/g, 'c')        // c ve ç → c
         .replace(/\s+/g, ' ')
         .trim();
     }
@@ -219,10 +226,19 @@
             }
           }
 
+          // Tek yazım olsa bile tamBuyukHarf() ile karşılaştır.
+          // Örn: grupta sadece "YALÇİNKAYA" var ama doğrusu "YALÇINKAYA" — düzelt.
+          const tamHali = tamBuyukHarf(kazanan);
+          if (kazanan !== tamHali) {
+            kazanan = tamHali;
+          }
+
           // Kazanan yazımla uyuşmayanları güncelleme listesine ekle
           const toplamSayisi = docler.length;
+          let grupDegisti = false;
           for (const { id, mevcut } of docler) {
             if (mevcut !== kazanan) {
+              grupDegisti = true;
               _guncellenecekler.push({
                 id,
                 mevcut,
@@ -233,9 +249,8 @@
             }
           }
 
-          if (yazimlar.size > 1) {
+          if (grupDegisti) {
             degistirilecekGrup++;
-            // Konsola en fazla 30 grup göster
             if (degistirilecekGrup <= 30) {
               const yazimListesi = [...yazimlar.entries()]
                 .map(([y, s]) => `"${y}" (${s})`)
