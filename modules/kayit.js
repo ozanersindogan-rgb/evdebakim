@@ -521,9 +521,36 @@ function gkIsimSecildi() {
       }
     }
   }
+  gkUyariGuncelle();
 }
 
-function gkEngelDegisti() {
+function gkUyariGuncelle() {
+  // TC uyarısı
+  const tcEl = document.getElementById('gk-tc');
+  const tcUyari = document.getElementById('gk-tc-uyari');
+  if (tcUyari && tcEl) {
+    if (!tcEl.value.trim()) {
+      tcUyari.textContent = '⚠️ DAHA SONRA DOLDURUN';
+      tcUyari.style.display = 'block';
+    } else {
+      tcUyari.style.display = 'none';
+    }
+  }
+  // Engel uyarısı
+  const engelEl = document.getElementById('gk-engel');
+  const engelUyari = document.getElementById('gk-engel-uyari');
+  if (engelUyari && engelEl) {
+    if (!engelEl.value) {
+      engelUyari.textContent = '⚠️ DAHA SONRA DOLDURUN';
+      engelUyari.style.display = 'block';
+    } else {
+      engelUyari.style.display = 'none';
+    }
+  }
+}
+window.gkUyariGuncelle = gkUyariGuncelle;
+
+
   const v = document.getElementById('gk-engel')?.value;
   const w = document.getElementById('gk-engel-extra-wrap');
   if (w) w.classList.toggle('hidden', v !== 'Var');
@@ -579,7 +606,6 @@ async function gkKaydet() {
 
   if (!isim) { _gkIslemDevam = false; showToast('Vatandas adi zorunlu'); return; }
   if (!tarih) { _gkIslemDevam = false; showToast('Tarih zorunlu'); return; }
-  if (!engel) { _gkIslemDevam = false; showToast('❌ Engel durumu zorunlu'); return; }
 
   // İleri tarih kontrolü
   const bugunStr = new Date().toISOString().split('T')[0];
@@ -1036,7 +1062,6 @@ async function saveRec(){
 
   if(!isim||!mah){showToast('⚠️ İsim ve mahalle zorunlu');return;}
   if(!seciliHizmetler.length){showToast('⚠️ En az bir hizmet seçin');return;}
-  if(!engel){showToast('❌ Engel durumu zorunlu');return;}
   const zatenOlanlar = seciliHizmetler.filter(h=>allData.some(r=>r.ISIM_SOYISIM&&r.ISIM_SOYISIM.toUpperCase()===isim&&r['HİZMET']===h&&(r.DURUM||'').toUpperCase()==='AKTİF'));
   if(zatenOlanlar.length){showToast(`⚠️ Zaten kayıtlı hizmet var: ${zatenOlanlar.join(', ')}`);return;}
   const ay=document.getElementById('f-ay').value;

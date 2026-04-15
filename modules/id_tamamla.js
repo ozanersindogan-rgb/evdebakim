@@ -297,6 +297,8 @@ function idTumDuzenle(fbId) {
   if (eskiModal) eskiModal.remove();
 
   const tc = String(r.TC||'').replace(/\D/g,'');
+  const engelVal = r.ENGEL || '';
+  const engelAcVal = r.ENGEL_ACIKLAMA || '';
 
   const modal = document.createElement('div');
   modal.id = 'id-tum-modal';
@@ -321,6 +323,25 @@ function idTumDuzenle(fbId) {
         <div>
           <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">Doğum Tarihi</label>
           <input id="idtm-dogum" type="date" value="${r.DOGUM_TARIHI||''}"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box"
+            onfocus="this.style.borderColor='#1d4ed8'"
+            onblur="this.style.borderColor='#e2e8f0'">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">Engel Durumu</label>
+          <select id="idtm-engel" onchange="_idTmEngelDegisti()"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box"
+            onfocus="this.style.borderColor='#1d4ed8'"
+            onblur="this.style.borderColor='#e2e8f0'">
+            <option value="">Seçin...</option>
+            <option value="Var" ${engelVal==='Var'?'selected':''}>Var</option>
+            <option value="Yok" ${engelVal==='Yok'?'selected':''}>Yok</option>
+          </select>
+        </div>
+        <div id="idtm-engel-ac-wrap" style="display:${engelVal==='Var'?'block':'none'}">
+          <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">Engel Açıklaması</label>
+          <input id="idtm-engel-ac" type="text" value="${_esc(engelAcVal)}"
+            placeholder="Ör: %40 hareket kısıtlılığı"
             style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none;box-sizing:border-box"
             onfocus="this.style.borderColor='#1d4ed8'"
             onblur="this.style.borderColor='#e2e8f0'">
@@ -358,12 +379,20 @@ function _idTmValide() {
   }
 }
 
+function _idTmEngelDegisti() {
+  const v = document.getElementById('idtm-engel')?.value;
+  const w = document.getElementById('idtm-engel-ac-wrap');
+  if (w) w.style.display = v === 'Var' ? 'block' : 'none';
+}
+
 async function idTumKaydet(fbId) {
   const r = _idTumData.find(x => x._fbId === fbId);
   if (!r) return;
 
   const tc = (document.getElementById('idtm-tc')?.value || '').trim();
   const dogum = (document.getElementById('idtm-dogum')?.value || '').trim();
+  const engel = (document.getElementById('idtm-engel')?.value || '').trim();
+  const engelAc = (document.getElementById('idtm-engel-ac')?.value || '').trim();
 
   if (tc && tc.length !== 11) {
     showToast('⚠️ TC 11 hane olmalı'); return;
@@ -376,6 +405,7 @@ async function idTumKaydet(fbId) {
     const guncelleme = {};
     if (tc) guncelleme.TC = tc;
     if (dogum) guncelleme.DOGUM_TARIHI = dogum;
+    if (engel) { guncelleme.ENGEL = engel; guncelleme.ENGEL_ACIKLAMA = engel === 'Var' ? engelAc : ''; }
     if (!Object.keys(guncelleme).length) {
       showToast('Değişiklik yok');
       document.getElementById('id-tum-modal')?.remove();
@@ -400,6 +430,7 @@ async function idTumKaydet(fbId) {
         if ((rec.ISIM_SOYISIM||'').toUpperCase() === isim.toUpperCase()) {
           if (tc) rec.TC = tc;
           if (dogum) rec.DOGUM_TARIHI = dogum;
+          if (engel) { rec.ENGEL = engel; rec.ENGEL_ACIKLAMA = engel === 'Var' ? engelAc : ''; }
         }
       });
     }
@@ -435,6 +466,8 @@ function idSatirDuzenle(fbId) {
   const modal = document.createElement('div');
   modal.id = 'id-quick-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:3000;display:flex;align-items:center;justify-content:center';
+  const engelQVal = r.ENGEL || '';
+  const engelQAcVal = r.ENGEL_ACIKLAMA || '';
   modal.innerHTML = `
     <div style="background:#fff;border-radius:14px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,.2)">
       <div style="font-size:15px;font-weight:900;color:#1d4ed8;margin-bottom:16px">🪪 TC & Doğum Tarihi Ekle</div>
@@ -453,6 +486,25 @@ function idSatirDuzenle(fbId) {
         <div>
           <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">Doğum Tarihi</label>
           <input id="idqm-dogum" type="date" value="${r.DOGUM_TARIHI||''}"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none"
+            onfocus="this.style.borderColor='#1d4ed8'"
+            onblur="this.style.borderColor='#e2e8f0'">
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">Engel Durumu</label>
+          <select id="idqm-engel" onchange="_idQmEngelDegisti()"
+            style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none"
+            onfocus="this.style.borderColor='#1d4ed8'"
+            onblur="this.style.borderColor='#e2e8f0'">
+            <option value="">Seçin...</option>
+            <option value="Var" ${engelQVal==='Var'?'selected':''}>Var</option>
+            <option value="Yok" ${engelQVal==='Yok'?'selected':''}>Yok</option>
+          </select>
+        </div>
+        <div id="idqm-engel-ac-wrap" style="display:${engelQVal==='Var'?'block':'none'}">
+          <label style="font-size:11px;font-weight:800;color:#64748b;text-transform:uppercase;display:block;margin-bottom:4px">Engel Açıklaması</label>
+          <input id="idqm-engel-ac" type="text" value="${_esc(engelQAcVal)}"
+            placeholder="Ör: %40 hareket kısıtlılığı"
             style="width:100%;padding:9px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:13px;outline:none"
             onfocus="this.style.borderColor='#1d4ed8'"
             onblur="this.style.borderColor='#e2e8f0'">
@@ -488,11 +540,19 @@ function _idQmValide() {
   }
 }
 
+function _idQmEngelDegisti() {
+  const v = document.getElementById('idqm-engel')?.value;
+  const w = document.getElementById('idqm-engel-ac-wrap');
+  if (w) w.style.display = v === 'Var' ? 'block' : 'none';
+}
+
 async function idQuickKaydet(fbId) {
   const r = _idData.find(x => x._fbId === fbId);
   if (!r) return;
   const tc = (document.getElementById('idqm-tc')?.value || '').trim();
   const dogum = (document.getElementById('idqm-dogum')?.value || '').trim();
+  const engel = (document.getElementById('idqm-engel')?.value || '').trim();
+  const engelAc = (document.getElementById('idqm-engel-ac')?.value || '').trim();
 
   if (tc && tc.length !== 11) {
     showToast('⚠️ TC 11 hane olmalı'); return;
@@ -505,6 +565,7 @@ async function idQuickKaydet(fbId) {
     const guncelleme = {};
     if (tc) guncelleme.TC = tc;
     if (dogum) guncelleme.DOGUM_TARIHI = dogum;
+    if (engel) { guncelleme.ENGEL = engel; guncelleme.ENGEL_ACIKLAMA = engel === 'Var' ? engelAc : ''; }
     if (!Object.keys(guncelleme).length) { showToast('Değişiklik yok'); document.getElementById('id-quick-modal')?.remove(); return; }
 
     // vatandaslar_bilgi güncelle
@@ -525,6 +586,7 @@ async function idQuickKaydet(fbId) {
         if ((rec.ISIM_SOYISIM||'').toUpperCase() === isim.toUpperCase()) {
           if (tc) rec.TC = tc;
           if (dogum) rec.DOGUM_TARIHI = dogum;
+          if (engel) { rec.ENGEL = engel; rec.ENGEL_ACIKLAMA = engel === 'Var' ? engelAc : ''; }
         }
       });
     }
