@@ -550,11 +550,12 @@ function gkUyariGuncelle() {
 }
 window.gkUyariGuncelle = gkUyariGuncelle;
 
-
+function gkEngelDegisti() {
   const v = document.getElementById('gk-engel')?.value;
   const w = document.getElementById('gk-engel-extra-wrap');
   if (w) w.classList.toggle('hidden', v !== 'Var');
 }
+window.gkEngelDegisti = gkEngelDegisti;
 
 function _gkKaydetBtn() {
   return document.querySelector('[onclick="gkKaydet()"]');
