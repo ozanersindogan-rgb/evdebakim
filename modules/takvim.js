@@ -224,34 +224,57 @@ function renderPlan() {
   const hizFiltre = document.getElementById('plan-hizmet-fil')?.value || '';
   const onFiltre = document.getElementById('plan-oncelik-fil')?.value || '';
 
-  // Her aktif vatandaş için son ziyaret tarihini ve ortalama periyodu hesapla
-  const vatandas = {};
+  // Her aktif vatandaş için tüm ayların tarihlerini birleştirerek son ziyareti hesapla
+  // Önce tüm kayıtları key bazında grupla (birden fazla ay kaydı olabilir)
+  const vatandasKayitlar = {};
   allData.forEach(r => {
     if (r.DURUM !== 'AKTİF') return;
     if (r['HİZMET'] === 'TEMİZLİK') return;
     const key = r.ISIM_SOYISIM + '|' + r['HİZMET'];
-    const tarihler = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
-                      r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2]
-      .filter(Boolean)
-      .map(t => parseDate(t))
-      .filter(d => d !== null)
-      .sort((a,b) => a-b);
+    if (!vatandasKayitlar[key]) vatandasKayitlar[key] = { kayitlar: [], enGuncelR: r };
+    vatandasKayitlar[key].kayitlar.push(r);
+  });
 
-    if (!tarihler.length) return;
-    const sonZiyaret = tarihler[tarihler.length - 1];
+  const vatandas = {};
+  Object.entries(vatandasKayitlar).forEach(([key, { kayitlar }]) => {
+    // Tüm ayların tarih alanlarını birleştir
+    const tumTarihler = [];
+    kayitlar.forEach(r => {
+      [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5,
+       r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2]
+        .filter(Boolean)
+        .forEach(t => {
+          const d = parseDate(t);
+          if (d) tumTarihler.push(d);
+        });
+    });
+
+    if (!tumTarihler.length) return;
+
+    // Tekrar eden tarihleri kaldır, sırala
+    const benzersiz = [...new Map(tumTarihler.map(d => [d.getTime(), d])).values()]
+      .sort((a, b) => a - b);
+
+    const sonZiyaret = benzersiz[benzersiz.length - 1];
+
+    // En güncel kaydı (en son AY değerine sahip) temsil kaydı olarak seç
+    const AY_SIRA = window.AY_SIRA || [];
+    const enGuncelR = kayitlar.reduce((best, r) => {
+      return AY_SIRA.indexOf(r.AY) >= AY_SIRA.indexOf(best.AY) ? r : best;
+    }, kayitlar[0]);
 
     // Ortalama periyot hesapla (tarihler arası fark ortalaması)
     let periyot = 14; // varsayılan 2 hafta
-    if (tarihler.length >= 2) {
+    if (benzersiz.length >= 2) {
       const farklari = [];
-      for (let i = 1; i < tarihler.length; i++) {
-        farklari.push((tarihler[i] - tarihler[i-1]) / (1000*60*60*24));
+      for (let i = 1; i < benzersiz.length; i++) {
+        farklari.push((benzersiz[i] - benzersiz[i-1]) / (1000*60*60*24));
       }
       const ort = farklari.reduce((a,b) => a+b, 0) / farklari.length;
       periyot = Math.round(ort);
-    } else if (tarihler.length === 1) {
+    } else if (benzersiz.length === 1) {
       // Tek ziyaret varsa hizmet tipine göre tahmin
-      const h = r['HİZMET'] || '';
+      const h = enGuncelR['HİZMET'] || '';
       if (h === 'KADIN BANYO' || h === 'ERKEK BANYO') periyot = 7;
       else if (h === 'KUAFÖR') periyot = 21;
       else if (h === 'TEMİZLİK') periyot = 14;
@@ -261,9 +284,7 @@ function renderPlan() {
     const sonrakiTarih = new Date(sonZiyaret);
     sonrakiTarih.setDate(sonrakiTarih.getDate() + periyot);
 
-    if (!vatandas[key]) {
-      vatandas[key] = { r, sonZiyaret, sonrakiTarih, periyot, tarihSayisi: tarihler.length };
-    }
+    vatandas[key] = { r: enGuncelR, sonZiyaret, sonrakiTarih, periyot, tarihSayisi: benzersiz.length };
   });
 
   const tumPlanlar = Object.values(vatandas);
