@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kuaför Durum Yönetimi</title>
+  <style>
+    :root{
+      --bg:#f6f8fb; --card:#ffffff; --line:#e5e7eb; --text:#0f172a; --muted:#64748b;
+      --primary:#1A237E; --primary2:#1565C0; --danger:#dc2626; --success:#16a34a; --warn:#d97706;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    .hidden{display:none!important}
+    .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+    .login-card,.app-card{background:var(--card);border-radius:24px;box-shadow:0 12px 40px rgba(15,23,42,.08);border:1px solid var(--line)}
+    .login-card{width:460px;max-width:95vw;padding:34px}
+    .logo{width:70px;height:70px;border-radius:18px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;font-size:32px;font-weight:900}
+    .title{text-align:center;font-size:24px;font-weight:900;margin:0}.sub{text-align:center;color:var(--muted);font-size:13px;margin:6px 0 26px}
+    .label{font-size:12px;font-weight:800;letter-spacing:.08em;color:#94a3b8;margin:0 0 8px}
+    .users{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+    .user{border:2px solid var(--line);border-radius:18px;padding:14px;cursor:pointer;display:flex;gap:12px;align-items:center;transition:.15s}
+    .user:hover{transform:translateY(-1px)}
+    .user.selected{border-color:var(--primary);background:#eef4ff}
+    .avatar{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:18px}
+    .user-name{font-weight:800;font-size:14px}.user-role{font-size:12px;color:var(--muted)}
+    input,select,button,textarea{font:inherit}
+    .input,.select,.textarea{width:100%;border:1.5px solid var(--line);border-radius:14px;padding:12px 14px;background:#fff}
+    .textarea{min-height:84px;resize:vertical}
+    .input:focus,.select:focus,.textarea:focus{outline:none;border-color:var(--primary)}
+    .row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 180px}
+    .btn{border:none;border-radius:14px;padding:12px 16px;font-weight:800;cursor:pointer}
+    .btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
+    .btn.secondary{background:#eef2ff;color:var(--primary)}
+    .btn.danger{background:var(--danger);color:#fff}
+    .btn.success{background:var(--success);color:#fff}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    .err{color:#dc2626;font-size:13px;min-height:18px;margin-top:8px}
+
+    .shell{max-width:1400px;margin:0 auto;padding:18px}
+    .topbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap}
+    .brand{display:flex;align-items:center;gap:12px}.brand-badge{width:48px;height:48px;border-radius:16px;background:linear-gradient(135deg,var(--primary),var(--primary2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:22px}
+    .brand h1{margin:0;font-size:24px}.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+    .who{background:#fff;border:1px solid var(--line);border-radius:16px;padding:10px 14px;font-size:13px}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+    .app-card{padding:16px}
+    .col-12{grid-column:span 12}.col-8{grid-column:span 8}.col-4{grid-column:span 4}
+    .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}.stat{background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px;text-align:center}.stat .n{font-size:28px;font-weight:900;color:var(--primary)}.stat .l{font-size:12px;color:var(--muted);margin-top:4px}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end}.toolbar .field{min-width:160px;flex:1 1 180px}
+    .section-title{font-size:18px;font-weight:900;margin:0 0 12px}
+    .muted{color:var(--muted);font-size:13px}
+    .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:18px;background:#fff}
+    table{width:100%;border-collapse:collapse;min-width:1220px}
+    th,td{padding:10px 12px;border-bottom:1px solid #f1f5f9;text-align:left;vertical-align:top}
+    th{background:#f8fafc;font-size:12px;color:#475569;text-transform:uppercase;letter-spacing:.05em;position:sticky;top:0;z-index:1}
+    tr:hover td{background:#fbfdff}
+    .badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:800;white-space:nowrap}
+    .AKTİF{background:#dcfce7;color:#166534}.PASİF{background:#e2e8f0;color:#475569}.BEKLEME{background:#fef3c7;color:#92400e}.İPTAL{background:#fee2e2;color:#991b1b}.VEFAT{background:#ede9fe;color:#5b21b6}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}.small{padding:8px 10px;border-radius:10px;font-size:12px}
+    .statusline{margin-top:10px;font-size:13px;font-weight:700}
+    .statusline.ok{color:var(--success)} .statusline.err{color:var(--danger)} .statusline.info{color:var(--primary)}
+    .panel-note{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:12px 14px;border-radius:14px;font-size:13px}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:1000}
+    .modal{width:720px;max-width:96vw;background:#fff;border-radius:22px;padding:20px;border:1px solid var(--line);box-shadow:0 20px 50px rgba(0,0,0,.2)}
+    .modal h3{margin:0 0 8px}.modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    .xbtn{background:#f1f5f9;border:none;border-radius:10px;width:36px;height:36px;font-size:20px;cursor:pointer}
+    @media (max-width: 980px){.col-8,.col-4{grid-column:span 12}.stats{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width: 640px){.users{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}.login-card{padding:24px}.brand h1{font-size:20px}}
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="login-wrap">
+    <div class="login-card">
+      <div class="logo">✂️</div>
+      <h1 class="title">Kuaför Durum Yönetimi</h1>
+      <p class="sub">Sisteme giriş yapar, kuaför kişilerini Firestore’dan çeker ve değişikliği doğrudan veritabanına yazar.</p>
+
+      <div class="label">KULLANICI</div>
+      <div class="users" id="userGrid"></div>
+
+      <div class="label">ŞİFRE</div>
+      <input id="passwordInput" class="input" type="password" placeholder="Şifrenizi girin" />
+      <div id="loginError" class="err"></div>
+
+      <div class="row" style="margin-top:12px">
+        <button id="loginBtn" class="btn primary">Giriş Yap</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="appScreen" class="hidden">
+    <div class="shell">
+      <div class="topbar">
+        <div class="brand">
+          <div class="brand-badge">✂️</div>
+          <div>
+            <h1>Kuaför Durum Yönetimi</h1>
+            <p>Canlı Firebase verisi ile çalışır.</p>
+          </div>
+        </div>
+        <div class="actions">
+          <div class="who"><b id="whoName">-</b><br><span id="whoRole">-</span></div>
+          <button class="btn secondary" id="refreshBtn">Yenile</button>
+          <button class="btn danger" id="logoutBtn">Çıkış</button>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="col-12">
+          <div class="stats" id="stats"></div>
+        </div>
+
+        <div class="col-8 app-card">
+          <h2 class="section-title">Kayıtlar</h2>
+          <div class="toolbar">
+            <div class="field">
+              <div class="label">AY</div>
+              <select id="monthFilter" class="select"></select>
+            </div>
+            <div class="field">
+              <div class="label">ARAMA</div>
+              <input id="searchInput" class="input" placeholder="İsim, mahalle..." />
+            </div>
+            <div class="field">
+              <div class="label">DURUM FİLTRESİ</div>
+              <select id="statusFilter" class="select">
+                <option value="">Hepsi</option>
+                <option>AKTİF</option>
+                <option>PASİF</option>
+                <option>BEKLEME</option>
+                <option>İPTAL</option>
+                <option>VEFAT</option>
+              </select>
+            </div>
+            <div class="field" style="max-width:220px">
+              <button class="btn success" id="bulkBtn" style="width:100%">Toplu Durum Değiştir</button>
+            </div>
+          </div>
+          <div class="statusline info" id="tableInfo">Hazır.</div>
+          <div class="table-wrap" style="margin-top:12px">
+            <table>
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="masterCheck"></th>
+                  <th>İsim Soyisim</th>
+                  <th>Mahalle</th>
+                  <th>Ay</th>
+                  <th>Durum</th>
+                  <th>İptal Nedeni</th>
+                  <th>İptal Tarihi</th>
+                  <th>Not</th>
+                  <th>Kaydet</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="col-4 app-card">
+          <h2 class="section-title">Nasıl çalışır?</h2>
+          <div class="panel-note">
+            Bu araç <b>vatandaslar</b> koleksiyonunda <b>HİZMET = KUAFÖR</b> kayıtlarını çeker.<br><br>
+            Satırdaki alanları değiştirip <b>Kaydet</b> dediğinde değişiklik doğrudan Firebase Firestore’a yazılır.
+          </div>
+          <div style="height:12px"></div>
+          <div class="muted">
+            Güncellenen alanlar:<br>
+            <b>DURUM</b>, <b>IPTAL_NEDEN</b>, <b>IPTAL_TARIHI</b>, <b>NOT1</b>
+          </div>
+          <div style="height:14px"></div>
+          <div class="label">SON İŞLEM</div>
+          <div id="lastAction" class="statusline info">Henüz işlem yapılmadı.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="bulkModalWrap">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h3>Toplu Durum Değiştir</h3>
+          <div class="muted">Seçili kayıtların durumunu tek seferde değiştirir.</div>
+        </div>
+        <button class="xbtn" id="closeBulk">×</button>
+      </div>
+      <div class="row">
+        <div>
+          <div class="label">YENİ DURUM</div>
+          <select id="bulkStatus" class="select">
+            <option>AKTİF</option>
+            <option>PASİF</option>
+            <option>BEKLEME</option>
+            <option>İPTAL</option>
+            <option>VEFAT</option>
+          </select>
+        </div>
+        <div>
+          <div class="label">İPTAL TARİHİ</div>
+          <input id="bulkDate" type="date" class="input" />
+        </div>
+      </div>
+      <div style="height:12px"></div>
+      <div>
+        <div class="label">İPTAL NEDENİ / AÇIKLAMA</div>
+        <textarea id="bulkReason" class="textarea" placeholder="Gerekirse yazın"></textarea>
+      </div>
+      <div id="bulkInfo" class="statusline info">Seçili kayıt bekleniyor.</div>
+      <div class="actions" style="margin-top:14px">
+        <button class="btn success" id="applyBulk">Seçili Kayıtlara Uygula</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCc0AhkPaIzmUewk_szFLmxqfMMmMctnHw",
+      authDomain: "evdebakim-ca02e.firebaseapp.com",
+      projectId: "evdebakim-ca02e",
+      storageBucket: "evdebakim-ca02e.firebasestorage.app",
+      messagingSenderId: "708187732533",
+      appId: "1:708187732533:web:34d1fea5bb82bfad2b0f7c"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const USERS = [
+      { email:'ozan.ersin@kusadasi.bel.tr', ad:'Ozan Ersin DOĞAN', rol:'Birim Sorumlusu', uid:'SBIyovehB5RAkSkhc05bIm88PJs2', color:'linear-gradient(135deg,#1A237E,#1565C0)' },
+      { email:'safak.sayar@kusadasi.bel.tr', ad:'Şafak SAYAR', rol:'Temizlik - Banyo', uid:'Fpk3BcokNFU4NM1XL0JQsMP9ygM2', color:'linear-gradient(135deg,#0e7490,#0284c7)' },
+      { email:'sezgin.tas@kusadasi.bel.tr', ad:'Sezgin TAŞ', rol:'Kuaför', uid:'wksJ9Tf3djhgp4of4DxC29rEdiL2', color:'linear-gradient(135deg,#15803d,#16a34a)' },
+      { email:'aysegul.tulgan@kusadasi.bel.tr', ad:'Ayşegül TULĞAN', rol:'Hemşire', uid:'LBntADGnP2MHVecmn4jAnFRPW222', color:'linear-gradient(135deg,#7c3aed,#9333ea)' }
+    ];
+    const MONTHS = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+    const STATUSES = ['AKTİF','PASİF','BEKLEME','İPTAL','VEFAT'];
+
+    let selectedEmail = '';
+    let allRows = [];
+    let filteredRows = [];
+    let unsubscribe = null;
+
+    const $ = id => document.getElementById(id);
+    function trUpper(v){ return String(v ?? '').trim().toLocaleUpperCase('tr-TR'); }
+    function esc(v){ return String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s])); }
+    function todayIso(){ const d=new Date(); return d.toISOString().slice(0,10); }
+    function thisMonthName(){ return MONTHS[new Date().getMonth()] || 'NİSAN'; }
+    function badge(status){ const s=trUpper(status || ''); return s?`<span class="badge ${s}">${esc(s)}</span>`:'—'; }
+    function loginError(msg=''){ $('loginError').textContent = msg; }
+    function setInfo(msg, cls='info'){ const el=$('tableInfo'); el.textContent=msg; el.className='statusline '+cls; }
+    function setLastAction(msg, cls='info'){ const el=$('lastAction'); el.textContent=msg; el.className='statusline '+cls; }
+
+    function renderUserCards(){
+      $('userGrid').innerHTML = USERS.map((u,i)=>`
+        <div class="user ${i===0?'selected':''}" data-email="${u.email}">
+          <div class="avatar" style="background:${u.color}">${u.ad.charAt(0)}</div>
+          <div><div class="user-name">${esc(u.ad)}</div><div class="user-role">${esc(u.rol)}</div></div>
+        </div>
+      `).join('');
+      selectedEmail = USERS[0].email;
+      document.querySelectorAll('.user').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          document.querySelectorAll('.user').forEach(x=>x.classList.remove('selected'));
+          el.classList.add('selected');
+          selectedEmail = el.dataset.email;
+          loginError('');
+        });
+      });
+    }
+
+    function renderMonths(){
+      $('monthFilter').innerHTML = '<option value="">Tüm aylar</option>' + MONTHS.map(m=>`<option value="${m}">${m}</option>`).join('');
+      $('monthFilter').value = thisMonthName();
+    }
+
+    async function doLogin(){
+      const pass = $('passwordInput').value;
+      if(!selectedEmail){ loginError('Kullanıcı seçin.'); return; }
+      if(!pass){ loginError('Şifre girin.'); return; }
+      $('loginBtn').disabled = true;
+      $('loginBtn').textContent = 'Giriş yapılıyor...';
+      loginError('');
+      try{
+        await auth.signInWithEmailAndPassword(selectedEmail, pass);
+      }catch(e){
+        loginError(e.code === 'auth/invalid-credential' ? 'Şifre hatalı.' : ('Giriş hatası: ' + e.message));
+      }finally{
+        $('loginBtn').disabled = false;
+        $('loginBtn').textContent = 'Giriş Yap';
+      }
+    }
+
+    function showApp(user){
+      $('loginScreen').classList.add('hidden');
+      $('appScreen').classList.remove('hidden');
+      const profile = USERS.find(x=>x.uid===user.uid) || USERS.find(x=>x.email===user.email) || { ad:user.email || 'Kullanıcı', rol:'-' };
+      $('whoName').textContent = profile.ad;
+      $('whoRole').textContent = profile.rol;
+    }
+
+    function showLogin(){
+      $('appScreen').classList.add('hidden');
+      $('loginScreen').classList.remove('hidden');
+      if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+      allRows = []; filteredRows = [];
+      renderTable(); renderStats();
+    }
+
+    function attachLiveQuery(){
+      if (unsubscribe) unsubscribe();
+      setInfo('Kayıtlar yükleniyor...', 'info');
+      unsubscribe = db.collection('vatandaslar')
+        .where('HİZMET', '==', 'KUAFÖR')
+        .onSnapshot((snap)=>{
+          allRows = snap.docs.map(doc => ({ _fbId: doc.id, ...doc.data() }));
+          allRows.sort((a,b)=> trUpper(a.ISIM_SOYISIM).localeCompare(trUpper(b.ISIM_SOYISIM), 'tr'));
+          applyFilters();
+          setInfo(`Canlı bağlantı aktif. ${filteredRows.length} kayıt gösteriliyor.`, 'ok');
+        }, (err)=>{
+          console.error(err);
+          setInfo('Kayıtlar alınamadı: ' + err.message, 'err');
+        });
+    }
+
+    function applyFilters(){
+      const month = trUpper($('monthFilter').value);
+      const text = trUpper($('searchInput').value);
+      const status = trUpper($('statusFilter').value);
+      filteredRows = allRows.filter(r => {
+        const ay = trUpper(r.AY);
+        const durum = trUpper(r.DURUM);
+        const blob = [r.ISIM_SOYISIM, r.MAHALLE, r.NOT1, r.IPTAL_NEDEN].map(trUpper).join(' ');
+        return (!month || ay === month) && (!status || durum === status) && (!text || blob.includes(text));
+      });
+      renderStats();
+      renderTable();
+      $('bulkInfo').textContent = `${selectedIds().length} kayıt seçili.`;
+    }
+
+    function renderStats(){
+      const pool = filteredRows.length ? filteredRows : allRows;
+      const counts = { TOPLAM: pool.length, AKTİF:0, PASİF:0, BEKLEME:0, İPTAL:0, VEFAT:0 };
+      pool.forEach(r => { const d = trUpper(r.DURUM); if (counts[d] !== undefined) counts[d]++; });
+      $('stats').innerHTML = Object.entries(counts).map(([k,v])=>`<div class="stat"><div class="n">${v}</div><div class="l">${k}</div></div>`).join('');
+    }
+
+    function renderTable(){
+      const body = $('tableBody');
+      if(!filteredRows.length){
+        body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:28px;color:#64748b">Kayıt bulunamadı.</td></tr>';
+        return;
+      }
+      body.innerHTML = filteredRows.map(r=>{
+        const statusOptions = STATUSES.map(s=>`<option value="${s}" ${trUpper(r.DURUM)===s?'selected':''}>${s}</option>`).join('');
+        const note = esc(r.NOT1 || '');
+        const reason = esc(r.IPTAL_NEDEN || '');
+        const dateVal = /\d{4}-\d{2}-\d{2}/.test(String(r.IPTAL_TARIHI||'')) ? r.IPTAL_TARIHI : '';
+        return `
+        <tr data-id="${r._fbId}">
+          <td><input type="checkbox" class="row-check" value="${r._fbId}"></td>
+          <td><b>${esc(r.ISIM_SOYISIM || '')}</b></td>
+          <td>${esc(r.MAHALLE || '')}</td>
+          <td>${esc(r.AY || '')}</td>
+          <td>
+            <div style="margin-bottom:6px">${badge(r.DURUM)}</div>
+            <select class="select row-status">
+              ${statusOptions}
+            </select>
+          </td>
+          <td><input class="input row-reason" value="${reason}" placeholder="İptal nedeni"></td>
+          <td><input class="input row-date" type="date" value="${dateVal}"></td>
+          <td><input class="input row-note" value="${note}" placeholder="Not"></td>
+          <td><button class="btn primary small save-row">Kaydet</button><div class="save-msg muted"></div></td>
+        </tr>`;
+      }).join('');
+
+      body.querySelectorAll('.save-row').forEach(btn => btn.addEventListener('click', onSaveRow));
+      body.querySelectorAll('.row-check').forEach(ch => ch.addEventListener('change', ()=> $('bulkInfo').textContent = `${selectedIds().length} kayıt seçili.`));
+    }
+
+    async function onSaveRow(e){
+      const tr = e.target.closest('tr');
+      const id = tr.dataset.id;
+      const status = trUpper(tr.querySelector('.row-status').value);
+      const reasonEl = tr.querySelector('.row-reason');
+      const dateEl = tr.querySelector('.row-date');
+      const noteEl = tr.querySelector('.row-note');
+      const msgEl = tr.querySelector('.save-msg');
+
+      const payload = {
+        DURUM: status,
+        IPTAL_NEDEN: reasonEl.value.trim(),
+        IPTAL_TARIHI: dateEl.value || '',
+        NOT1: noteEl.value.trim()
+      };
+      if (status !== 'İPTAL') {
+        payload.IPTAL_NEDEN = status === 'VEFAT' ? (payload.IPTAL_NEDEN || 'VEFAT') : payload.IPTAL_NEDEN;
+        if (status === 'AKTİF' || status === 'PASİF' || status === 'BEKLEME') {
+          payload.IPTAL_TARIHI = '';
+        }
+      }
+
+      e.target.disabled = true;
+      msgEl.textContent = 'Kaydediliyor...';
+      try{
+        await db.collection('vatandaslar').doc(id).update(payload);
+        msgEl.textContent = 'Kaydedildi';
+        setLastAction(`Kayıt güncellendi: ${tr.children[1].innerText} → ${status}`, 'ok');
+      }catch(err){
+        console.error(err);
+        msgEl.textContent = 'Hata: ' + err.message;
+        setLastAction('Kaydetme hatası: ' + err.message, 'err');
+      }finally{
+        e.target.disabled = false;
+      }
+    }
+
+    function selectedIds(){
+      return Array.from(document.querySelectorAll('.row-check:checked')).map(x=>x.value);
+    }
+
+    function openBulk(){
+      const n = selectedIds().length;
+      $('bulkInfo').textContent = `${n} kayıt seçili.`;
+      $('bulkModalWrap').style.display = 'flex';
+    }
+    function closeBulk(){ $('bulkModalWrap').style.display = 'none'; }
+
+    async function applyBulkChanges(){
+      const ids = selectedIds();
+      if(!ids.length){ $('bulkInfo').textContent = 'Önce kayıt seçin.'; return; }
+      const status = trUpper($('bulkStatus').value);
+      const reason = $('bulkReason').value.trim();
+      const date = $('bulkDate').value || '';
+      $('applyBulk').disabled = true;
+      $('bulkInfo').textContent = `Kaydediliyor... (${ids.length})`;
+      let ok = 0, fail = 0;
+      for(const id of ids){
+        const payload = { DURUM: status, IPTAL_NEDEN: reason, IPTAL_TARIHI: date };
+        if (status !== 'İPTAL' && (status === 'AKTİF' || status === 'PASİF' || status === 'BEKLEME')) payload.IPTAL_TARIHI = '';
+        try { await db.collection('vatandaslar').doc(id).update(payload); ok++; }
+        catch(err){ console.error(err); fail++; }
+      }
+      $('applyBulk').disabled = false;
+      $('bulkInfo').textContent = `Tamamlandı. Başarılı: ${ok}, Hatalı: ${fail}`;
+      setLastAction(`Toplu güncelleme yapıldı. Başarılı: ${ok}, Hatalı: ${fail}`, fail ? 'err' : 'ok');
+      if (!fail) setTimeout(closeBulk, 700);
+    }
+
+    $('loginBtn').addEventListener('click', doLogin);
+    $('passwordInput').addEventListener('keydown', e => { if(e.key === 'Enter') doLogin(); });
+    $('refreshBtn').addEventListener('click', attachLiveQuery);
+    $('logoutBtn').addEventListener('click', ()=> auth.signOut());
+    $('searchInput').addEventListener('input', applyFilters);
+    $('statusFilter').addEventListener('change', applyFilters);
+    $('monthFilter').addEventListener('change', applyFilters);
+    $('bulkBtn').addEventListener('click', openBulk);
+    $('closeBulk').addEventListener('click', closeBulk);
+    $('applyBulk').addEventListener('click', applyBulkChanges);
+    $('bulkModalWrap').addEventListener('click', e => { if(e.target === $('bulkModalWrap')) closeBulk(); });
+    $('masterCheck').addEventListener('change', (e)=>{
+      document.querySelectorAll('.row-check').forEach(ch => ch.checked = e.target.checked);
+      $('bulkInfo').textContent = `${selectedIds().length} kayıt seçili.`;
+    });
+
+    auth.onAuthStateChanged(user => {
+      if(user){ showApp(user); attachLiveQuery(); }
+      else { showLogin(); }
+    });
+
+    renderUserCards();
+    renderMonths();
+  </script>
+</body>
+</html>
