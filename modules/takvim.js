@@ -955,15 +955,22 @@ function rdvKuaforIsimleri() {
 // ── İsim arama dropdown ──
 function rdvIsimFiltrele(val) {
   const dropdown = document.getElementById('rdv-isim-dropdown');
-  if (!dropdown) return;
+  const input    = document.getElementById('rdv-isim-input');
+  if (!dropdown || !input) return;
   const q = (val || '').trim().toUpperCase();
   const isimler = rdvKuaforIsimleri();
   const filtre = q ? isimler.filter(n => n.toUpperCase().includes(q)) : isimler;
 
   if (!filtre.length) { dropdown.style.display = 'none'; return; }
 
+  // position:fixed — tüm overflow:hidden atalarından kaçar
+  const rect = input.getBoundingClientRect();
+  dropdown.style.top   = (rect.bottom + 4) + 'px';
+  dropdown.style.left  = rect.left + 'px';
+  dropdown.style.width = rect.width + 'px';
+
   dropdown.innerHTML = filtre.slice(0, 30).map(n =>
-    `<div onclick="rdvIsimSec('${n.replace(/'/g,"\\'")}'"
+    `<div onclick="rdvIsimSec('${n.replace(/'/g,"\\'")}');"
       style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;font-weight:600"
       onmouseover="this.style.background='#f0f4ff'"
       onmouseout="this.style.background='#fff'">${n}</div>`
