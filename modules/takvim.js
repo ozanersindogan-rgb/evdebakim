@@ -328,39 +328,40 @@ function renderPlan() {
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <thead>
         <tr style="background:#f8fafc">
-          <th style="padding:10px 14px;text-align:left;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">VAT ANDAŞ</th>
-          <th style="padding:10px 14px;text-align:left;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">HİZMET</th>
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">VATANDAŞ</th>
+          <th style="padding:10px 14px;text-align:left;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">MAHALLE</th>
           <th style="padding:10px 14px;text-align:left;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">SON ZİYARET</th>
-          <th style="padding:10px 14px;text-align:left;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">PERİYOT</th>
           <th style="padding:10px 14px;text-align:left;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">TAHMİNİ TARİH</th>
           <th style="padding:10px 14px;text-align:center;font-size:11px;color:#64748b;font-weight:800;border-bottom:1px solid #e2e8f0">DURUM</th>
         </tr>
       </thead>
-      <tbody>
-        ${gosteRilecek.map((p, i) => {
-          const hRenk = HIZMET_RENK_MAP[p.r['HİZMET']] || '#64748b';
-          const gecikme = Math.floor((bugun - p.sonrakiTarih) / (1000*60*60*24));
-          const kalan   = Math.floor((p.sonrakiTarih - bugun) / (1000*60*60*24));
-          const isAcil  = acil.includes(p);
-          const isBuHafta = buHafta.includes(p);
-          const rowBg = isAcil ? '#fff5f5' : isBuHafta ? '#fffbeb' : '#fff';
-          const durumHtml = isAcil
-            ? `<span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">${gecikme} gün gecikti</span>`
-            : isBuHafta
-            ? `<span style="background:#fef3c7;color:#d97706;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">${kalan} gün kaldı</span>`
-            : `<span style="background:#dcfce7;color:#16a34a;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">${kalan} gün kaldı</span>`;
-
-          return `<tr style="background:${i%2===0?rowBg:'#fafafa'};cursor:pointer" onclick="showDetail('${p.r.ISIM_SOYISIM.replace(/'/g,"\'")}','${p.r['HİZMET']}','${p.r.AY}')">
-            <td style="padding:10px 14px;font-weight:800;color:#0f172a;border-bottom:1px solid #f1f5f9">${p.r.ISIM_SOYISIM}<br><span style="font-size:10px;color:#94a3b8;font-weight:400">📍 ${p.r.MAHALLE}</span></td>
-            <td style="padding:10px 14px;border-bottom:1px solid #f1f5f9"><span style="background:${hRenk}18;color:${hRenk};font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px">${HIZMET_ICONS[p.r['HİZMET']]||''} ${p.r['HİZMET']}</span></td>
-            <td style="padding:10px 14px;font-size:12px;color:#475569;border-bottom:1px solid #f1f5f9">${p.sonZiyaret.toLocaleDateString('tr-TR')}</td>
-            <td style="padding:10px 14px;font-size:12px;color:#7c3aed;font-weight:700;border-bottom:1px solid #f1f5f9">~${p.periyot} günde bir<br><span style="font-size:10px;color:#94a3b8;font-weight:400">${p.tarihSayisi} ziyaret verisi</span></td>
-            <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9">${p.sonrakiTarih.toLocaleDateString('tr-TR')}</td>
-            <td style="padding:10px 14px;text-align:center;border-bottom:1px solid #f1f5f9">${durumHtml}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
+      <tbody id="plan-tbody"></tbody>
     </table>`;
+
+  const tbody = liste.querySelector('#plan-tbody');
+  gosteRilecek.forEach((p, i) => {
+    const gecikme = Math.floor((bugun - p.sonrakiTarih) / (1000*60*60*24));
+    const kalan   = Math.floor((p.sonrakiTarih - bugun) / (1000*60*60*24));
+    const isAcil  = acil.includes(p);
+    const isBuHafta = buHafta.includes(p);
+    const rowBg = isAcil ? '#fff5f5' : isBuHafta ? '#fffbeb' : '#fff';
+    const durumHtml = isAcil
+      ? `<span style="background:#fee2e2;color:#dc2626;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">${gecikme} gün gecikti</span>`
+      : isBuHafta
+      ? `<span style="background:#fef3c7;color:#d97706;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">${kalan} gün kaldı</span>`
+      : `<span style="background:#dcfce7;color:#16a34a;font-size:10px;font-weight:800;padding:3px 8px;border-radius:6px">${kalan} gün kaldı</span>`;
+
+    const tr = document.createElement('tr');
+    tr.style.cssText = `background:${i%2===0?rowBg:'#fafafa'};cursor:pointer`;
+    tr.innerHTML = `
+      <td style="padding:10px 14px;font-weight:800;color:#0f172a;border-bottom:1px solid #f1f5f9">${p.r.ISIM_SOYISIM}</td>
+      <td style="padding:10px 14px;font-size:12px;color:#475569;border-bottom:1px solid #f1f5f9">📍 ${p.r.MAHALLE||''}</td>
+      <td style="padding:10px 14px;font-size:12px;color:#475569;border-bottom:1px solid #f1f5f9">${p.sonZiyaret.toLocaleDateString('tr-TR')}</td>
+      <td style="padding:10px 14px;font-size:12px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9">${p.sonrakiTarih.toLocaleDateString('tr-TR')}</td>
+      <td style="padding:10px 14px;text-align:center;border-bottom:1px solid #f1f5f9">${durumHtml}</td>`;
+    tr.addEventListener('click', () => showDetail(p.r.ISIM_SOYISIM, p.r['HİZMET'], p.r.AY));
+    tbody.appendChild(tr);
+  });
 }
 
 
@@ -466,37 +467,44 @@ function renderUzunSure() {
     const bg   = x.gun>=9999?'#f5f3ff':x.gun>=90?'#fff5f5':x.gun>=60?'#fffbeb':'#fefce8';
     const gunLabel = x.gun >= 9999 ? 'Hiç gidilmedi' : x.gun + ' gün';
     const hRenk = HIZMET_RENK[x.r['HİZMET']] || '#64748b';
-    const isimEsc = (x.r.ISIM_SOYISIM || '').replace(/'/g, "\\'");
-    const hizEsc  = (x.r['HİZMET'] || '').replace(/'/g, "\\'");
-    // Son ziyaret için ay bilgisi de göster
     const tarihDetay = x.gun < 9999 ? x.tarihStr : '—';
-    return '<tr style="background:' + (i%2===0?'#fff':'#f8fafc') + ';cursor:pointer"'
-      + ' onclick="showDetail(\'' + isimEsc + '\',\'' + hizEsc + '\',\'' + (x.r.AY||'') + '\')">'
-      + '<td style="padding:9px 12px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9">' + (x.r.ISIM_SOYISIM||'') + '</td>'
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'background:' + (i%2===0?'#fff':'#f8fafc') + ';cursor:pointer';
+    tr.innerHTML = '<td style="padding:9px 12px;font-weight:700;color:#0f172a;border-bottom:1px solid #f1f5f9">' + (x.r.ISIM_SOYISIM||'') + '</td>'
       + '<td style="padding:9px 12px;border-bottom:1px solid #f1f5f9"><span style="background:' + hRenk + '18;color:' + hRenk + ';font-size:11px;font-weight:700;padding:2px 8px;border-radius:6px">' + (x.r['HİZMET']||'') + '</span></td>'
       + '<td style="padding:9px 12px;color:#475569;border-bottom:1px solid #f1f5f9">📍 ' + (x.r.MAHALLE||'') + '</td>'
       + '<td style="padding:9px 12px;color:#64748b;font-size:12px;border-bottom:1px solid #f1f5f9">' + tarihDetay + '</td>'
-      + '<td style="padding:9px 12px;text-align:center;border-bottom:1px solid #f1f5f9"><span style="background:' + bg + ';color:' + renk + ';font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;border:1px solid ' + renk + '30">' + gunLabel + '</span></td>'
-      + '</tr>';
+      + '<td style="padding:9px 12px;text-align:center;border-bottom:1px solid #f1f5f9"><span style="background:' + bg + ';color:' + renk + ';font-weight:800;font-size:12px;padding:3px 10px;border-radius:8px;border:1px solid ' + renk + '30">' + gunLabel + '</span></td>';
+    tr.addEventListener('click', () => showDetail(x.r.ISIM_SOYISIM, x.r['HİZMET'], x.r.AY||''));
+    return tr;
   }
 
-  const thead = '<thead><tr style="background:#f8fafc">'
-    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">İSİM</th>'
-    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">HİZMET</th>'
-    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">MAHALLE</th>'
-    + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">SON ZİYARET</th>'
-    + '<th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">GEÇEN SÜRE</th>'
-    + '</tr></thead>';
+  function tabloOlustur(satirlar) {
+    const tablo = document.createElement('table');
+    tablo.style.cssText = 'width:100%;border-collapse:collapse;font-size:13px';
+    const thead = document.createElement('thead');
+    thead.innerHTML = '<tr style="background:#f8fafc">'
+      + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">İSİM</th>'
+      + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">HİZMET</th>'
+      + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">MAHALLE</th>'
+      + '<th style="padding:8px 12px;text-align:left;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">SON ZİYARET</th>'
+      + '<th style="padding:8px 12px;text-align:center;font-size:11px;color:#64748b;font-weight:700;border-bottom:1px solid #e2e8f0">GEÇEN SÜRE</th>'
+      + '</tr>';
+    const tbody = document.createElement('tbody');
+    satirlar.forEach((x, i) => tbody.appendChild(satirOlustur(x, i)));
+    tablo.appendChild(thead);
+    tablo.appendChild(tbody);
+    return tablo;
+  }
 
   // ─── İKİ PANEL: Hiç Gidilmeyenler + Uzun Süredir ───
   // Panel 1: Hiç Gidilmeyenler
   if (elHic) {
+    elHic.innerHTML = '';
     if (!hicGidenler.length) {
       elHic.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Tümü ziyaret edildi ✅</div>';
     } else {
-      elHic.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' + thead + '<tbody>'
-        + hicGidenler.map((x,i) => satirOlustur(x,i)).join('')
-        + '</tbody></table>';
+      elHic.appendChild(tabloOlustur(hicGidenler));
     }
     const sayEl = document.getElementById('ch-hic-sayi');
     if (sayEl) sayEl.textContent = hicGidenler.length + ' kişi';
@@ -504,34 +512,36 @@ function renderUzunSure() {
 
   // Panel 2: 30+ Gün Ziyaret Edilmeyenler
   if (elUzun) {
+    elUzun.innerHTML = '';
     if (!uzunSuredir.length) {
       elUzun.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">30 günden uzun süre yok ✅</div>';
     } else {
-      elUzun.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px">' + thead + '<tbody>'
-        + uzunSuredir.map((x,i) => satirOlustur(x,i)).join('')
-        + '</tbody></table>';
+      elUzun.appendChild(tabloOlustur(uzunSuredir));
     }
     const sayEl2 = document.getElementById('ch-uzun-sayi');
     if (sayEl2) sayEl2.textContent = uzunSuredir.length + ' kişi';
   }
 
   // Geriye uyumluluk: eski tek element varsa oraya da yaz
-  let html = '';
-  if (hicGidenler.length) {
-    html += '<div style="margin-bottom:6px;padding:8px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#6d28d9">'
-      + '⚠️ Hiç Gidilmeyenler (' + hicGidenler.length + ' kişi)</div>'
-      + '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:20px">' + thead + '<tbody>'
-      + hicGidenler.map((x,i) => satirOlustur(x,i)).join('')
-      + '</tbody></table>';
+  if (el) {
+    el.innerHTML = '';
+    if (hicGidenler.length) {
+      const baslik1 = document.createElement('div');
+      baslik1.style.cssText = 'margin-bottom:6px;padding:8px 12px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#6d28d9';
+      baslik1.textContent = '⚠️ Hiç Gidilmeyenler (' + hicGidenler.length + ' kişi)';
+      el.appendChild(baslik1);
+      const t1 = tabloOlustur(hicGidenler);
+      t1.style.marginBottom = '20px';
+      el.appendChild(t1);
+    }
+    if (uzunSuredir.length) {
+      const baslik2 = document.createElement('div');
+      baslik2.style.cssText = 'margin-bottom:6px;padding:8px 12px;background:#fff5f5;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#dc2626';
+      baslik2.textContent = '⏱ 30+ Gün Ziyaret Edilmeyenler (' + uzunSuredir.length + ' kişi)';
+      el.appendChild(baslik2);
+      el.appendChild(tabloOlustur(uzunSuredir));
+    }
   }
-  if (uzunSuredir.length) {
-    html += '<div style="margin-bottom:6px;padding:8px 12px;background:#fff5f5;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;font-size:13px;font-weight:800;color:#dc2626">'
-      + '⏱ 30+ Gün Ziyaret Edilmeyenler (' + uzunSuredir.length + ' kişi)</div>'
-      + '<table style="width:100%;border-collapse:collapse;font-size:13px">' + thead + '<tbody>'
-      + uzunSuredir.map((x,i) => satirOlustur(x,i)).join('')
-      + '</tbody></table>';
-  }
-  el.innerHTML = html;
 }
 
 // ── EKİP MESAJLAŞMA ──
