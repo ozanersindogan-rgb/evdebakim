@@ -428,9 +428,13 @@
                   style="padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box">
               </div>
               <div style="min-width:160px">
-                <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">SAAT (İsteğe Bağlı)</label>
-                <input id="rdv-saat-input" type="time"
-                  style="padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box">
+                <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">PERIYOT (İsteğe Bağlı)</label>
+                <select id="rdv-saat-input"
+                  style="padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box;background:#fff">
+                  <option value="">— Belirtilmemiş —</option>
+                  <option value="sabah">🌅 Sabah</option>
+                  <option value="ogleden-sonra">🌤️ Öğleden Sonra</option>
+                </select>
               </div>
               <div style="flex:1;min-width:160px">
                 <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">NOT (İsteğe Bağlı)</label>
@@ -481,14 +485,8 @@
           <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px" id="plan-ozet-grid"></div>
           <div class="table-card">
             <div class="table-header" style="flex-wrap:wrap;gap:8px">
-              <span class="table-title">📋 Bu Hafta Ziyaret Edilmesi Önerilen Vatandaşlar</span>
+              <span class="table-title">✂️ Kuaför Ziyaret Önerileri</span>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <select id="plan-hizmet-fil" class="filter" onchange="renderPlan()">
-                  <option value="">Tüm Hizmetler</option>
-                  <option value="KADIN BANYO">Kadın Banyo</option>
-                  <option value="ERKEK BANYO">Erkek Banyo</option>
-                  <option value="KUAFÖR">Kuaför</option>
-                </select>
                 <select id="plan-oncelik-fil" class="filter" onchange="renderPlan()">
                   <option value="">Tüm Öncelikler</option>
                   <option value="acil">🔴 Gecikmiş</option>
