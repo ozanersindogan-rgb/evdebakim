@@ -229,7 +229,7 @@ function renderPlan() {
   const vatandasKayitlar = {};
   allData.forEach(r => {
     if (r.DURUM !== 'AKTİF') return;
-    if (r['HİZMET'] === 'TEMİZLİK') return;
+    if (r['HİZMET'] !== 'KUAFÖR') return; // Akıllı Plan sadece KUAFÖR gösterir
     const key = r.ISIM_SOYISIM + '|' + r['HİZMET'];
     if (!vatandasKayitlar[key]) vatandasKayitlar[key] = { kayitlar: [], enGuncelR: r };
     vatandasKayitlar[key].kayitlar.push(r);
@@ -1138,7 +1138,11 @@ function rdvRenderTakvim() {
       const buGunDate = new Date(_rdvYil, _rdvAy, gunSayac);
       const gecmis  = buGunDate < bugun;
       const bugunMu = buGunDate.getTime() === bugun.getTime();
-      const rdvlar  = (gunRdv[tarihStr] || []).sort((a,b)=>(a.saat||'').localeCompare(b.saat||''));
+      const rdvlar  = (gunRdv[tarihStr] || []).sort((a,b)=>{
+        const siraA = a.saat === 'sabah' ? 0 : a.saat === 'ogleden-sonra' ? 1 : 2;
+        const siraB = b.saat === 'sabah' ? 0 : b.saat === 'ogleden-sonra' ? 1 : 2;
+        return siraA - siraB;
+      });
 
       const bg     = bugunMu ? '#fffbeb' : gecmis ? '#fafafa' : '#fff';
       const border = bugunMu ? '2px solid #f59e0b' : '1px solid #f1f5f9';
@@ -1146,9 +1150,9 @@ function rdvRenderTakvim() {
 
       // İsim listesi (takvim hücresinde)
       const isimler = rdvlar.map(r => {
-        const saatStr = r.saat ? `<span style="color:#d97706;font-size:9px;font-weight:800">${r.saat} </span>` : '';
+        const perLabel = r.saat === 'sabah' ? '🌅 ' : r.saat === 'ogleden-sonra' ? '🌤️ ' : '';
         return `<div style="background:#fef3c7;border-radius:4px;padding:2px 5px;margin-bottom:2px;font-size:10px;font-weight:700;color:#92400e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer"
-          onclick="event.stopPropagation();rdvGunTikla('${tarihStr}')">${saatStr}${r.isim}</div>`;
+          onclick="event.stopPropagation();rdvGunTikla('${tarihStr}')">${perLabel}${r.isim}</div>`;
       }).join('');
 
       html += `<td onclick="rdvGunTikla('${tarihStr}')"
@@ -1180,7 +1184,13 @@ function rdvGunTikla(tarihStr) {
 
   const rdvlar = _rdvVeriler
     .filter(r => r.tarih === tarihStr)
-    .sort((a,b) => (a.saat||'').localeCompare(b.saat||''));
+    .sort((a,b) => {
+      const siraA = a.saat === 'sabah' ? 0 : a.saat === 'ogleden-sonra' ? 1 : 2;
+      const siraB = b.saat === 'sabah' ? 0 : b.saat === 'ogleden-sonra' ? 1 : 2;
+      return siraA - siraB;
+    });
+
+  const periyotLabel = s => s === 'sabah' ? '🌅 Sabah' : s === 'ogleden-sonra' ? '🌤️ Öğleden Sonra' : '';
 
   baslikEl.innerHTML = `✂️ ${gunAd}, ${tarihFmt} — <span style="color:#d97706;font-weight:700">${rdvlar.length} randevu</span>`;
 
@@ -1193,7 +1203,7 @@ function rdvGunTikla(tarihStr) {
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:13px;color:#0f172a">${r.isim}</div>
           <div style="font-size:11px;color:#64748b;margin-top:2px">
-            ${r.saat ? `<span style="font-weight:700;color:#d97706">⏰ ${r.saat}</span> · ` : ''}
+            ${r.saat ? `<span style="font-weight:700;color:#d97706">${periyotLabel(r.saat)}</span> · ` : ''}
             ${r.not ? `📝 ${r.not}` : 'Not yok'}
           </div>
           ${r.olusturan ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">Ekleyen: ${r.olusturan}</div>` : ''}
