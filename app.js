@@ -105,7 +105,7 @@ firebase.auth().onAuthStateChanged( user => {
     const _nv = document.getElementById('nav-yedekler');
     if(_nv) _nv.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
     const _na = document.getElementById('nav-ayarlar');
-    if(_na) _na.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
+    if(_na) _na.style.display = ''; // Tüm kullanıcılara açık
     waitForModulesAndInit();
     // Hemşire ziyaretlerini arka planda yükle (kişi kartları için)
     setTimeout(() => { if(typeof hmZiyaretlerYukle==='function') hmZiyaretlerYukle(); }, 3000);
@@ -382,7 +382,10 @@ async function _flushSaveQueue() {
         }
       } catch(e) {
         console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
-        item._lastError = (e.code || '') + ' ' + e.message;
+        const mesaj = (e.code === 'permission-denied')
+          ? 'Kayıt izni yok — lütfen sayfayı yenileyin veya yöneticinize bildirin'
+          : (e.code || '') + ' ' + e.message;
+        item._lastError = mesaj;
         failed.push(item);
       }
     }
@@ -391,7 +394,7 @@ async function _flushSaveQueue() {
       window._saveQueue = [...failed, ...window._saveQueue];
       _saveQueueToStorage(window._saveQueue);
       _saveGostergesi('hata', failed.length);
-      if (failed[0]._lastError) showToast('Kayit hatasi: ' + failed[0]._lastError);
+      if (failed[0]._lastError) showToast('❌ ' + failed[0]._lastError);
       clearTimeout(window._saveRetryTimer);
       window._saveRetryTimer = setTimeout(() => {
         window._flushRunning = false;
@@ -459,6 +462,8 @@ function refreshAll() {
   }
   const navYedek = document.getElementById('nav-yedekler');
   if(navYedek) navYedek.style.display = (currentUser?.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
+  const navAyarlar = document.getElementById('nav-ayarlar');
+  if(navAyarlar) navAyarlar.style.display = ''; // Tüm kullanıcılara açık
 }
 
 // ── İŞLEM LOGU SAYFASI ──
