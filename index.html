@@ -256,7 +256,7 @@
 
       <div class="topbar-right">
         <span class="date-badge" id="current-date"></span>
-        <button class="btn btn-sm" onclick="navTo('plan',null);setTimeout(renderPlan,100)" style="background:linear-gradient(135deg,#7c3aed,#9333ea);color:#fff;font-size:11px">🤖 Akıllı Plan</button>
+        <button class="btn btn-sm" onclick="navTo('plan',null);setTimeout(()=>{if(typeof renderPlan==='function')renderPlan();if(typeof rdvSayfaInit==='function')rdvSayfaInit();},100)" style="background:linear-gradient(135deg,#7c3aed,#9333ea);color:#fff;font-size:11px">🤖 Akıllı Plan</button>
         <button class="btn btn-primary btn-sm" onclick="navTo('yeni-vatandas',null)">+ Yeni Vatandaş</button>
         <button onclick="navTo('araclar',null)" title="Araçlar" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:5px 9px;font-size:15px;cursor:pointer;line-height:1;display:flex;align-items:center">🔑</button>
         <div id="user-badge" style="display:none;align-items:center;gap:8px;margin-left:2px">
@@ -422,6 +422,79 @@
             </div>
           </div>
           <div id="plan-liste"></div>
+        </div>
+
+        <!-- ─── KUAFÖR RANDEVU DEFTERİ ─── -->
+        <div style="margin-top:28px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+            <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:22px">✂️</div>
+            <div>
+              <div style="font-size:18px;font-weight:900;color:#0f172a">Kuaför Randevu Defteri</div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:2px">Kuaför hizmeti için tarih bazlı randevu planlama</div>
+            </div>
+          </div>
+
+          <!-- Randevu Ekleme Formu -->
+          <div class="table-card" style="margin-bottom:18px">
+            <div class="table-header">
+              <span class="table-title">📝 Yeni Randevu Ekle</span>
+            </div>
+            <div style="padding:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+              <div style="flex:1;min-width:200px">
+                <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">VATANDAŞ ADI</label>
+                <div style="position:relative">
+                  <input id="rdv-isim-input" type="text" placeholder="İsim yazın veya seçin..."
+                    autocomplete="off"
+                    oninput="rdvIsimFiltrele(this.value)"
+                    onfocus="rdvIsimFiltrele(this.value)"
+                    style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:inherit;box-sizing:border-box">
+                  <div id="rdv-isim-dropdown"
+                    style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:999;max-height:220px;overflow-y:auto"></div>
+                </div>
+              </div>
+              <div style="min-width:160px">
+                <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">TARİH</label>
+                <input id="rdv-tarih-input" type="date"
+                  style="padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box">
+              </div>
+              <div style="min-width:160px">
+                <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">SAAT (İsteğe Bağlı)</label>
+                <input id="rdv-saat-input" type="time"
+                  style="padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:inherit;width:100%;box-sizing:border-box">
+              </div>
+              <div style="flex:1;min-width:160px">
+                <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:6px">NOT (İsteğe Bağlı)</label>
+                <input id="rdv-not-input" type="text" placeholder="Randevu notu..."
+                  style="width:100%;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:13px;font-family:inherit;box-sizing:border-box">
+              </div>
+              <button onclick="rdvEkle()"
+                style="padding:10px 24px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;height:42px">
+                ➕ Ekle
+              </button>
+            </div>
+          </div>
+
+          <!-- Randevu Takvimi -->
+          <div class="table-card">
+            <div class="table-header" style="flex-wrap:wrap;gap:8px">
+              <span class="table-title">📆 Randevu Takvimi</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <button onclick="rdvAyDegistir(-1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:6px 12px;font-size:15px;cursor:pointer">‹</button>
+                <span id="rdv-takvim-baslik" style="font-size:14px;font-weight:900;color:#1A237E;min-width:140px;text-align:center"></span>
+                <button onclick="rdvAyDegistir(1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:6px 12px;font-size:15px;cursor:pointer">›</button>
+              </div>
+            </div>
+            <div id="rdv-takvim-grid" style="padding:0"></div>
+            <!-- Gün detay paneli -->
+            <div id="rdv-gun-detay" style="display:none;border-top:1.5px solid #f1f5f9;padding:16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <span id="rdv-gun-baslik" style="font-size:14px;font-weight:900;color:#0f172a"></span>
+                <button onclick="document.getElementById('rdv-gun-detay').style.display='none'"
+                  style="background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">×</button>
+              </div>
+              <div id="rdv-gun-liste"></div>
+            </div>
+          </div>
         </div>
       </div>
 
