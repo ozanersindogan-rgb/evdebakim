@@ -942,7 +942,7 @@ function rdvAyDegistir(delta) {
 
 // ── Kuaför vatandaşlarını allData'dan al ──
 function rdvKuaforIsimleri() {
-  if (typeof allData === 'undefined' || !Array.isArray(allData)) return [];
+  if (typeof allData === 'undefined' || !Array.isArray(allData) || allData.length === 0) return [];
   const set = new Set();
   allData.forEach(r => {
     if (r['HİZMET'] === 'KUAFÖR' && r.DURUM === 'AKTİF' && r.ISIM_SOYISIM) {
@@ -1187,6 +1187,21 @@ window.rdvEkle = rdvEkle;
 // ── Sayfa açıldığında randevuları yükle ve takvimi çiz ──
 async function rdvSayfaInit() {
   if (!_rdvYuklendi) await rdvYukle();
+
+  // allData henüz yüklenmediyse (Firestore async), yüklenene kadar bekle
+  if (typeof allData === 'undefined' || !Array.isArray(allData) || allData.length === 0) {
+    let deneme = 0;
+    await new Promise(resolve => {
+      const kontrol = setInterval(() => {
+        deneme++;
+        if ((Array.isArray(allData) && allData.length > 0) || deneme > 30) {
+          clearInterval(kontrol);
+          resolve();
+        }
+      }, 300);
+    });
+  }
+
   // Tarihi bugüne ayarla
   const tarihInput = document.getElementById('rdv-tarih-input');
   if (tarihInput && !tarihInput.value) {
