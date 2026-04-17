@@ -252,6 +252,12 @@ async function fbLoadData() {
     allDataOptimize();
     refreshAll();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
+
+    // allData yüklendi — randevu defteri sayfası açıksa isim dropdown'ını güncelle
+    const rdvInput = document.getElementById('rdv-isim-input');
+    if (rdvInput && typeof rdvIsimFiltrele === 'function') {
+      rdvIsimFiltrele(rdvInput.value);
+    }
   } catch (e) {
     console.error('fbLoadData hatası:', e);
     showToast('❌ Veriler yüklenemedi: ' + (e.message || e));
