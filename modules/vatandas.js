@@ -352,14 +352,28 @@ function showDetail(isim, hizmet, ay) {
     return mahalle + ' MAH. ' + a;
   })();
   const hz = r['HİZMET'] || '';
+  // Tüm ay kayıtlarından tarihleri birleştir (aynı hizmet türü)
+  const tumKayitlarHizmet = (Array.isArray(allData) ? allData : [])
+    .filter(x => _vkNorm(x?.ISIM_SOYISIM) === arananIsim && x['HİZMET'] === hz);
   const tarihler=[];
-  if(hz==='KUAFÖR'){
-    [['Sac',r.SAC1],['Sac',r.SAC2],['Tirnak',r.TIRNAK1],['Tirnak',r.TIRNAK2],['Sakal',r.SAKAL1],['Sakal',r.SAKAL2]].forEach(([tip,t])=>{if(t)tarihler.push({tip,tarih:t});});
-  } else {
-    const tip = hz==='KADIN BANYO'?'Kadin Banyo':hz==='ERKEK BANYO'?'Erkek Banyo':hz==='TEMİZLİK'?'Temizlik':hz||'Hizmet';
-    [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5].filter(Boolean).forEach(t=>tarihler.push({tip,tarih:t}));
-  }
-  tarihler.sort((a,b)=>b.tarih.localeCompare(a.tarih));
+  const tarihSet = new Set();
+  tumKayitlarHizmet.forEach(kayit => {
+    if(hz==='KUAFÖR'){
+      [['Saç',kayit.SAC1],['Saç',kayit.SAC2],['Tırnak',kayit.TIRNAK1],['Tırnak',kayit.TIRNAK2],['Sakal',kayit.SAKAL1],['Sakal',kayit.SAKAL2]].forEach(([tip,t])=>{
+        if(t && !tarihSet.has(t)){ tarihSet.add(t); tarihler.push({tip,tarih:t}); }
+      });
+    } else {
+      const tip = hz==='KADIN BANYO'?'Kadın Banyo':hz==='ERKEK BANYO'?'Erkek Banyo':hz==='TEMİZLİK'?'Temizlik':hz||'Hizmet';
+      [kayit.BANYO1,kayit.BANYO2,kayit.BANYO3,kayit.BANYO4,kayit.BANYO5].filter(Boolean).forEach(t=>{
+        if(!tarihSet.has(t)){ tarihSet.add(t); tarihler.push({tip,tarih:t}); }
+      });
+    }
+  });
+  tarihler.sort((a,b)=>{
+    const da = parseDate(a.tarih), db = parseDate(b.tarih);
+    if(da && db) return db - da;
+    return b.tarih.localeCompare(a.tarih);
+  });
   const durRenk={'AKTİF':'#C8E6C9|#1B5E20','İPTAL':'#FFCDD2|#B71C1C','VEFAT':'#CFD8DC|#263238','PASİF':'#ECEFF1|#546E7A','BEKLEME':'#FFF9C4|#F57F17'};
   const [dbg,dfg]=(durRenk[r.DURUM]||'#e2e8f0|#475569').split('|');
   const digerHizmetler=(Array.isArray(allData)?allData:[])
