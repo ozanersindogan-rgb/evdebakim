@@ -61,7 +61,7 @@ function stokCurrentUser() {
 
 function stokYetkiVar() {
   const uid = stokCurrentUser()?.uid;
-  return uid === STOK_ADMIN_UID || uid === STOK_DEPO_UID;
+  return !!uid; // Tüm giriş yapmış kullanıcılar yetkili
 }
 function stokDepoAdi() {
   return stokCurrentUser()?.ad || 'Ayşegül TULĞAN';
@@ -352,7 +352,7 @@ function stokOzetHTML(kategori) {
                 : r.durum==='az'
                 ? '<span style="background:#fffbeb;color:#d97706;border:1px solid #fde68a;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:800">🟡 Az</span>'
                 : '<span style="background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:800">🟢 Yeterli</span>';
-              const isAdmin = stokCurrentUser()?.uid === STOK_ADMIN_UID;
+              const isAdmin = !!stokCurrentUser()?.uid; // Tüm kullanıcılar düzenleyebilir
               const kalanGercek = r.kalan_override !== undefined && r.kalan_override !== null
                 ? r.kalan_override : r.kalan;
               const kalanRenk = kalanGercek <= 0 ? '#dc2626' : kalanGercek <= 10 ? '#d97706' : '#16a34a';
@@ -1622,7 +1622,7 @@ async function stokSeedYukle() {
 
 // ── Duplicate malzeme temizleyici ────────────────────────
 async function stokDuplicateTemizle(kategori) {
-  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) { showToast('⛔ Yetkiniz yok'); return; }
+  if (!stokCurrentUser()?.uid) { showToast('⛔ Giriş yapmanız gerekiyor'); return; }
   const logEl = document.getElementById('stok-temizle-log');
   if (logEl) logEl.textContent = '⏳ Kontrol ediliyor...';
 
@@ -1684,7 +1684,7 @@ window.stokBaslangicGuncelle = stokBaslangicGuncelle;
 
 // ── Kalan miktarı düzenle (sadece admin) ─────────────────
 function stokKalanDuzenle(fbId, ad, mevcutKalan, kategori) {
-  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) { showToast('⛔ Yetkiniz yok'); return; }
+  if (!stokCurrentUser()?.uid) { showToast('⛔ Giriş yapmanız gerekiyor'); return; }
 
   document.getElementById('stok-kalan-modal')?.remove();
 
@@ -1740,7 +1740,7 @@ function stokKalanDuzenle(fbId, ad, mevcutKalan, kategori) {
 }
 
 async function stokKalanKaydet(fbId, kategori) {
-  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) return;
+  if (!stokCurrentUser()?.uid) return;
   const val = document.getElementById('stok-kalan-input')?.value;
   if (val === '' || val === null) { stokKalanSifirla(fbId, kategori); return; }
   const miktar = parseInt(val);
@@ -1759,7 +1759,7 @@ async function stokKalanKaydet(fbId, kategori) {
 }
 
 async function stokKalanSifirla(fbId, kategori) {
-  if (stokCurrentUser()?.uid !== STOK_ADMIN_UID) return;
+  if (!stokCurrentUser()?.uid) return;
   try {
     await firebase.firestore().collection('stok_malzemeler').doc(fbId)
       .update({ kalan_override: firebase.firestore.FieldValue.delete() });

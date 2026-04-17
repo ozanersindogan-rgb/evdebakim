@@ -919,3 +919,282 @@ async function takvimKayitSil(fbId, tarihStr, hizmet, isim, alan) {
   if (ok) takvimGunTikla(tarihStr);
 }
 window.takvimKayitSil = takvimKayitSil;
+
+
+// ═══════════════════════════════════════════════════════════
+// KUAFÖR RANDEVU DEFTERİ
+// ═══════════════════════════════════════════════════════════
+
+let _rdvYil = new Date().getFullYear();
+let _rdvAy  = new Date().getMonth(); // 0-11
+let _rdvVeriler = []; // Firestore'dan yüklenen randevular
+let _rdvYuklendi = false;
+
+const RDV_KOLEKSIYON = 'kuafor_randevular';
+
+// ── Ay değiştir ──
+function rdvAyDegistir(delta) {
+  _rdvAy += delta;
+  if (_rdvAy > 11) { _rdvAy = 0; _rdvYil++; }
+  if (_rdvAy < 0)  { _rdvAy = 11; _rdvYil--; }
+  rdvRenderTakvim();
+}
+
+// ── Kuaför vatandaşlarını allData'dan al ──
+function rdvKuaforIsimleri() {
+  if (typeof allData === 'undefined' || !Array.isArray(allData)) return [];
+  const set = new Set();
+  allData.forEach(r => {
+    if (r['HİZMET'] === 'KUAFÖR' && r.DURUM === 'AKTİF' && r.ISIM_SOYISIM) {
+      set.add(r.ISIM_SOYISIM.trim());
+    }
+  });
+  return [...set].sort((a, b) => a.localeCompare(b, 'tr'));
+}
+
+// ── İsim arama dropdown ──
+function rdvIsimFiltrele(val) {
+  const dropdown = document.getElementById('rdv-isim-dropdown');
+  if (!dropdown) return;
+  const q = (val || '').trim().toUpperCase();
+  const isimler = rdvKuaforIsimleri();
+  const filtre = q ? isimler.filter(n => n.toUpperCase().includes(q)) : isimler;
+
+  if (!filtre.length) { dropdown.style.display = 'none'; return; }
+
+  dropdown.innerHTML = filtre.slice(0, 30).map(n =>
+    `<div onclick="rdvIsimSec('${n.replace(/'/g,"\\'")}'"
+      style="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid #f1f5f9;font-weight:600"
+      onmouseover="this.style.background='#f0f4ff'"
+      onmouseout="this.style.background='#fff'">${n}</div>`
+  ).join('');
+  dropdown.style.display = 'block';
+}
+
+function rdvIsimSec(isim) {
+  const input = document.getElementById('rdv-isim-input');
+  if (input) input.value = isim;
+  const dropdown = document.getElementById('rdv-isim-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+// Dropdown dışına tıklanınca kapat
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('#rdv-isim-input') && !e.target.closest('#rdv-isim-dropdown')) {
+    const dd = document.getElementById('rdv-isim-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
+// ── Firestore'dan randevuları yükle ──
+async function rdvYukle() {
+  try {
+    const snap = await firebase.firestore().collection(RDV_KOLEKSIYON).get();
+    _rdvVeriler = snap.docs.map(d => ({ _id: d.id, ...d.data() }));
+    _rdvYuklendi = true;
+  } catch(e) {
+    console.warn('[Randevu] Yükleme hatası:', e.message);
+    _rdvVeriler = [];
+  }
+}
+
+// ── Randevu ekle ──
+async function rdvEkle() {
+  const isimEl  = document.getElementById('rdv-isim-input');
+  const tarihEl = document.getElementById('rdv-tarih-input');
+  const saatEl  = document.getElementById('rdv-saat-input');
+  const notEl   = document.getElementById('rdv-not-input');
+
+  const isim  = (isimEl?.value || '').trim();
+  const tarih = tarihEl?.value || '';
+  const saat  = saatEl?.value || '';
+  const not   = (notEl?.value || '').trim();
+
+  if (!isim) { showToast('⚠️ Vatandaş adı giriniz'); return; }
+  if (!tarih) { showToast('⚠️ Tarih seçiniz'); return; }
+
+  try {
+    const yeni = {
+      isim,
+      tarih,   // YYYY-MM-DD
+      saat,    // HH:MM veya ''
+      not,
+      olusturan: (typeof currentUser !== 'undefined' && currentUser) ? currentUser.ad : '',
+      olusturmaTarihi: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    const docRef = await firebase.firestore().collection(RDV_KOLEKSIYON).add(yeni);
+    yeni._id = docRef.id;
+    yeni.olusturmaTarihi = new Date();
+    _rdvVeriler.push(yeni);
+
+    // Formu temizle
+    if (isimEl)  isimEl.value  = '';
+    if (saatEl)  saatEl.value  = '';
+    if (notEl)   notEl.value   = '';
+    // Tarihi koru (kullanıcı aynı güne birden fazla ekleyebilir)
+
+    showToast(`✅ ${isim} için randevu eklendi`);
+    rdvRenderTakvim();
+
+    // Eğer o gün detayı açıksa güncelle
+    const detay = document.getElementById('rdv-gun-detay');
+    if (detay && detay.style.display !== 'none') {
+      rdvGunTikla(tarih);
+    }
+  } catch(e) {
+    showToast('❌ Randevu eklenemedi: ' + e.message);
+  }
+}
+
+// ── Randevu sil ──
+async function rdvSil(rdvId, tarih) {
+  if (!confirm('Bu randevuyu silmek istiyor musunuz?')) return;
+  try {
+    await firebase.firestore().collection(RDV_KOLEKSIYON).doc(rdvId).delete();
+    _rdvVeriler = _rdvVeriler.filter(r => r._id !== rdvId);
+    showToast('🗑️ Randevu silindi');
+    rdvRenderTakvim();
+    rdvGunTikla(tarih);
+  } catch(e) {
+    showToast('❌ Silinemedi: ' + e.message);
+  }
+}
+window.rdvSil = rdvSil;
+
+// ── Takvim render ──
+function rdvRenderTakvim() {
+  const baslik = document.getElementById('rdv-takvim-baslik');
+  const grid   = document.getElementById('rdv-takvim-grid');
+  if (!baslik || !grid) return;
+
+  baslik.textContent = TR_AYLAR[_rdvAy] + ' ' + _rdvYil;
+
+  const bugun = new Date(); bugun.setHours(0,0,0,0);
+  const ilkGun = new Date(_rdvYil, _rdvAy, 1);
+  const sonGun = new Date(_rdvYil, _rdvAy + 1, 0);
+  let startOffset = ilkGun.getDay() - 1;
+  if (startOffset < 0) startOffset = 6;
+
+  // Bu aya ait randevuları topla
+  const gunRdv = {}; // 'YYYY-MM-DD' -> [randevu, ...]
+  _rdvVeriler.forEach(r => {
+    if (!r.tarih) return;
+    const [y, m] = r.tarih.split('-').map(Number);
+    if (y === _rdvYil && m === _rdvAy + 1) {
+      if (!gunRdv[r.tarih]) gunRdv[r.tarih] = [];
+      gunRdv[r.tarih].push(r);
+    }
+  });
+
+  // Takvim HTML
+  let html = '<table style="width:100%;border-collapse:collapse">';
+  html += '<thead><tr>' + TR_GUNLER.map(g =>
+    `<th style="padding:10px 4px;text-align:center;font-size:11px;font-weight:800;color:#64748b;border-bottom:1px solid #e2e8f0;background:#fafafa">${g}</th>`
+  ).join('') + '</tr></thead><tbody>';
+
+  let gunSayac = 1;
+  const toplamGun = sonGun.getDate();
+  const haftaSayisi = Math.ceil((startOffset + toplamGun) / 7);
+
+  for (let hafta = 0; hafta < haftaSayisi; hafta++) {
+    html += '<tr>';
+    for (let gun = 0; gun < 7; gun++) {
+      const hucreNo = hafta * 7 + gun;
+      if (hucreNo < startOffset || gunSayac > toplamGun) {
+        html += '<td style="padding:6px 3px;border:1px solid #f1f5f9;background:#fafafa;min-height:80px"></td>';
+        if (hucreNo >= startOffset) gunSayac++;
+        continue;
+      }
+
+      const tarihStr = `${_rdvYil}-${String(_rdvAy + 1).padStart(2,'0')}-${String(gunSayac).padStart(2,'0')}`;
+      const buGunDate = new Date(_rdvYil, _rdvAy, gunSayac);
+      const gecmis  = buGunDate < bugun;
+      const bugunMu = buGunDate.getTime() === bugun.getTime();
+      const rdvlar  = (gunRdv[tarihStr] || []).sort((a,b)=>(a.saat||'').localeCompare(b.saat||''));
+
+      const bg     = bugunMu ? '#fffbeb' : gecmis ? '#fafafa' : '#fff';
+      const border = bugunMu ? '2px solid #f59e0b' : '1px solid #f1f5f9';
+      const gunRenk = bugunMu ? '#92400e' : gecmis ? '#94a3b8' : '#0f172a';
+
+      // İsim listesi (takvim hücresinde)
+      const isimler = rdvlar.map(r => {
+        const saatStr = r.saat ? `<span style="color:#d97706;font-size:9px;font-weight:800">${r.saat} </span>` : '';
+        return `<div style="background:#fef3c7;border-radius:4px;padding:2px 5px;margin-bottom:2px;font-size:10px;font-weight:700;color:#92400e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer"
+          onclick="event.stopPropagation();rdvGunTikla('${tarihStr}')">${saatStr}${r.isim}</div>`;
+      }).join('');
+
+      html += `<td onclick="rdvGunTikla('${tarihStr}')"
+        style="padding:5px 4px;border:${border};background:${bg};vertical-align:top;cursor:pointer;min-height:80px;position:relative;transition:background .1s"
+        onmouseover="this.style.background='${bugunMu ? '#fef9c3' : '#f0f4ff'}'"
+        onmouseout="this.style.background='${bg}'">
+        <div style="font-size:12px;font-weight:${bugunMu?'900':'700'};color:${gunRenk};margin-bottom:4px;text-align:center">${gunSayac}</div>
+        ${isimler}
+        ${rdvlar.length > 0 ? `<div style="text-align:center;font-size:9px;color:#d97706;margin-top:2px;font-weight:700">${rdvlar.length} randevu</div>` : ''}
+      </td>`;
+      gunSayac++;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  grid.innerHTML = html;
+}
+
+// ── Gün detayı ──
+function rdvGunTikla(tarihStr) {
+  const detay   = document.getElementById('rdv-gun-detay');
+  const baslikEl = document.getElementById('rdv-gun-baslik');
+  const listeEl  = document.getElementById('rdv-gun-liste');
+  if (!detay || !listeEl) return;
+
+  const [y, m, g] = tarihStr.split('-').map(Number);
+  const tarihFmt = `${String(g).padStart(2,'0')}.${String(m).padStart(2,'0')}.${y}`;
+  const gunAd = new Date(y, m-1, g).toLocaleDateString('tr-TR', { weekday:'long' });
+
+  const rdvlar = _rdvVeriler
+    .filter(r => r.tarih === tarihStr)
+    .sort((a,b) => (a.saat||'').localeCompare(b.saat||''));
+
+  baslikEl.innerHTML = `✂️ ${gunAd}, ${tarihFmt} — <span style="color:#d97706;font-weight:700">${rdvlar.length} randevu</span>`;
+
+  if (!rdvlar.length) {
+    listeEl.innerHTML = `<div style="text-align:center;color:#94a3b8;padding:20px;font-size:13px">Bu gün için randevu yok</div>`;
+  } else {
+    listeEl.innerHTML = rdvlar.map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fafafa;border-radius:10px;margin-bottom:8px;border:1.5px solid #fde68a">
+        <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">✂️</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:13px;color:#0f172a">${r.isim}</div>
+          <div style="font-size:11px;color:#64748b;margin-top:2px">
+            ${r.saat ? `<span style="font-weight:700;color:#d97706">⏰ ${r.saat}</span> · ` : ''}
+            ${r.not ? `📝 ${r.not}` : 'Not yok'}
+          </div>
+          ${r.olusturan ? `<div style="font-size:10px;color:#94a3b8;margin-top:2px">Ekleyen: ${r.olusturan}</div>` : ''}
+        </div>
+        <button onclick="rdvSil('${r._id}','${tarihStr}')"
+          style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0">🗑️</button>
+      </div>`).join('');
+  }
+
+  detay.style.display = 'block';
+  detay.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+window.rdvGunTikla = rdvGunTikla;
+window.rdvIsimSec = rdvIsimSec;
+window.rdvIsimFiltrele = rdvIsimFiltrele;
+window.rdvAyDegistir = rdvAyDegistir;
+window.rdvEkle = rdvEkle;
+
+// ── Sayfa açıldığında randevuları yükle ve takvimi çiz ──
+async function rdvSayfaInit() {
+  if (!_rdvYuklendi) await rdvYukle();
+  // Tarihi bugüne ayarla
+  const tarihInput = document.getElementById('rdv-tarih-input');
+  if (tarihInput && !tarihInput.value) {
+    const bugun = new Date();
+    tarihInput.value = bugun.getFullYear() + '-' +
+      String(bugun.getMonth()+1).padStart(2,'0') + '-' +
+      String(bugun.getDate()).padStart(2,'0');
+  }
+  rdvRenderTakvim();
+}
+window.rdvSayfaInit = rdvSayfaInit;

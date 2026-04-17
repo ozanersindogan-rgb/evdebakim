@@ -383,7 +383,7 @@ function navTo(id, el) {
   if(id==='kisi-bilgi')     if(typeof kbYukle==='function')kbYukle();
   if(id==='takvim')         if(typeof renderTakvim==='function')renderTakvim();
   if(id==='sayi-ver')       if(typeof svRender==='function')svRender();
-  if(id==='plan')           if(typeof renderPlan==='function')renderPlan();
+  if(id==='plan')           { if(typeof renderPlan==='function')renderPlan(); if(typeof rdvSayfaInit==='function')rdvSayfaInit(); }
   if(id==='yedekler')       if(typeof yedekSayfaYukle==='function')yedekSayfaYukle();
   if(id==='ayarlar')        if(typeof ayarlarPersonelRender==='function')ayarlarPersonelRender();
   if(id==='personel-atama') if(typeof atamaRenderSayfa==='function')atamaRenderSayfa();
