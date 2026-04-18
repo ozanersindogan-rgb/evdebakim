@@ -368,11 +368,11 @@ async function hmKaydet() {
 // ── Ziyaret listesi render ─────────────────────────────────────
 function hmListeRender() {
   const tbl = document.getElementById('hm-liste-table');
-  if (!tbl) return;
+  const kartListeEl = document.getElementById('hm-kart-liste');
 
-  const ara = (document.getElementById('hm-fil-ara')?.value || '').toLowerCase();
-  const hizmet = document.getElementById('hm-fil-hizmet')?.value || '';
-  const tur = document.getElementById('hm-fil-tur')?.value || '';
+  const ara = (document.getElementById('hm-fil-ara')?.value || document.getElementById('hm-fil-ara2')?.value || '').toLowerCase();
+  const hizmet = document.getElementById('hm-fil-hizmet')?.value || document.getElementById('hm-fil-hizmet2')?.value || '';
+  const tur = document.getElementById('hm-fil-tur')?.value || document.getElementById('hm-fil-tur2')?.value || '';
 
   let liste = hmZiyaretler.filter(z => {
     if (ara && !(z.vatandas || '').toLowerCase().includes(ara)) return false;
@@ -381,15 +381,62 @@ function hmListeRender() {
     return true;
   });
 
-  document.getElementById('hm-liste-count').textContent = liste.length + ' kayıt';
+  const sayiStr = liste.length + ' kayıt';
+  const cntEl = document.getElementById('hm-liste-count');
+  const cntEl2 = document.getElementById('hm-liste-count2');
+  if (cntEl) cntEl.textContent = sayiStr;
+  if (cntEl2) cntEl2.textContent = sayiStr;
+
+  const HC = { 'KADIN BANYO': '#C2185B', 'ERKEK BANYO': '#1565C0', 'KUAFÖR': '#2E7D32', 'TEMİZLİK': '#E65100' };
+  const TUR_RENK = { 'İlk Ziyaret': '#7c3aed', 'Kontrol Ziyareti': '#0369a1', 'İzlem Ziyareti': '#0891b2' };
+
+  // ── Sağ panel: kart listesi (son 20, sabit yükseklikte) ──
+  if (kartListeEl) {
+    const son20 = liste.slice(0, 20);
+    if (!son20.length) {
+      kartListeEl.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:30px;font-size:13px">Kayıt bulunamadı</div>';
+    } else {
+      kartListeEl.innerHTML = son20.map(z => {
+        const gd = z.genel_durum || {};
+        const sorunlar = [
+          gd.bilincDurumu && gd.bilincDurumu !== 'Normal' ? gd.bilincDurumu : null,
+          gd.ruhsal && gd.ruhsal !== 'Uygun' ? gd.ruhsal : null,
+          gd.cilt && gd.cilt !== 'Normal' ? gd.cilt : null,
+          gd.banyoIhtiyac === 'Var' ? 'Banyo ihtiyacı' : null,
+        ].filter(Boolean);
+        const hRenk = HC[z.hizmet] || '#64748b';
+        const iyi = !sorunlar.length;
+        return `<div onclick="hmDetayAc('${z._fbId}')" style="
+          background:#fff;
+          border:1.5px solid ${iyi ? '#e2e8f0' : '#fecaca'};
+          border-radius:12px;
+          padding:12px 14px;
+          cursor:pointer;
+          transition:box-shadow .15s"
+          onmouseover="this.style.boxShadow='0 4px 14px rgba(0,0,0,.10)'"
+          onmouseout="this.style.boxShadow=''">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div style="font-size:13px;font-weight:800;color:#0f172a">${z.vatandas || '—'}</div>
+            <span style="font-size:10px;font-weight:700;color:#94a3b8">${z.ziyaret_tarihi || ''}</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:${sorunlar.length ? '6px' : '0'}">
+            <span style="background:${hRenk}18;color:${hRenk};font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px">${z.hizmet || ''}</span>
+            <span style="background:${TUR_RENK[z.ziyaret_turu]||'#64748b'}18;color:${TUR_RENK[z.ziyaret_turu]||'#64748b'};font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${z.ziyaret_turu || ''}</span>
+            ${z.hemsire ? `<span style="background:#f0fdf4;color:#16a34a;font-size:10px;padding:2px 8px;border-radius:20px">🏥 ${z.hemsire}</span>` : ''}
+          </div>
+          ${sorunlar.length ? `<div style="font-size:10px;color:#dc2626;font-weight:700">⚠️ ${sorunlar.join(' • ')}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // ── Sekme 2: tam tablo ──
+  if (!tbl) return;
 
   if (!liste.length) {
     tbl.innerHTML = '<tr><td colspan="7" class="no-data">Kayıt bulunamadı</td></tr>';
     return;
   }
-
-  const HC = { 'KADIN BANYO': '#C2185B', 'ERKEK BANYO': '#1565C0', 'KUAFÖR': '#2E7D32', 'TEMİZLİK': '#E65100' };
-  const TUR_RENK = { 'İlk Ziyaret': '#7c3aed', 'Kontrol Ziyareti': '#0369a1', 'İzlem Ziyareti': '#0891b2' };
 
   tbl.innerHTML = `
     <thead><tr style="background:var(--primary);color:#fff">
@@ -670,3 +717,215 @@ function hmKartBolumuHTML(isim, hizmet) {
     }).join('')}
   </div>`;
 }
+
+// ══════════════════════════════════════════════════════════════
+// SEKME YÖNETİMİ
+// ══════════════════════════════════════════════════════════════
+function hmSekmeAc(sekme) {
+  ['form','liste','gunluk'].forEach(s => {
+    const panel = document.getElementById('hm-tab-' + s);
+    const btn   = document.getElementById('hm-tab-btn-' + s);
+    if (!panel || !btn) return;
+    const aktif = s === sekme;
+    panel.style.display = aktif ? (s === 'form' ? 'grid' : 'block') : 'none';
+    btn.style.borderBottom = aktif ? '3px solid #1A237E' : '3px solid transparent';
+    btn.style.color = aktif ? '#1A237E' : '#94a3b8';
+    btn.style.fontWeight = aktif ? '800' : '700';
+  });
+  if (sekme === 'gunluk') {
+    if (!document.getElementById('hm-gunluk-tarih').value) hmGunlukBugun();
+    else hmGunlukRender();
+  }
+  if (sekme === 'liste') hmListeRender();
+}
+
+// ══════════════════════════════════════════════════════════════
+// GÜNLÜK TAKİP
+// ══════════════════════════════════════════════════════════════
+function hmGunlukBugun() {
+  const inp = document.getElementById('hm-gunluk-tarih');
+  if (!inp) return;
+  const bugun = new Date();
+  inp.value = bugun.getFullYear() + '-'
+    + String(bugun.getMonth()+1).padStart(2,'0') + '-'
+    + String(bugun.getDate()).padStart(2,'0');
+  hmGunlukRender();
+}
+
+function hmGunlukGunDegistir(delta) {
+  const inp = document.getElementById('hm-gunluk-tarih');
+  if (!inp) return;
+  const d = inp.value ? new Date(inp.value + 'T00:00:00') : new Date();
+  d.setDate(d.getDate() + delta);
+  inp.value = d.getFullYear() + '-'
+    + String(d.getMonth()+1).padStart(2,'0') + '-'
+    + String(d.getDate()).padStart(2,'0');
+  hmGunlukRender();
+}
+
+function hmGunlukRender() {
+  const tarihEl = document.getElementById('hm-gunluk-tarih');
+  const ozetEl  = document.getElementById('hm-gunluk-ozet');
+  const kartEl  = document.getElementById('hm-gunluk-kartlar');
+  const bosEl   = document.getElementById('hm-gunluk-bos');
+  if (!tarihEl || !ozetEl || !kartEl) return;
+
+  const tarih = tarihEl.value; // YYYY-MM-DD
+  if (!tarih) return;
+
+  const liste = hmZiyaretler.filter(z => z.ziyaret_tarihi === tarih);
+
+  // Özet sayaçlar
+  const HC = { 'KADIN BANYO': '#C2185B', 'ERKEK BANYO': '#1565C0', 'KUAFÖR': '#2E7D32', 'TEMİZLİK': '#E65100' };
+  const hizmetSayilari = {};
+  liste.forEach(z => {
+    hizmetSayilari[z.hizmet] = (hizmetSayilari[z.hizmet] || 0) + 1;
+  });
+
+  ozetEl.innerHTML = `
+    <div style="background:linear-gradient(135deg,#f0f4ff,#e8eeff);border:1.5px solid #c7d2fe;border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:28px;font-weight:900;color:#1A237E">${liste.length}</div>
+      <div style="font-size:11px;font-weight:700;color:#4338ca;margin-top:2px">Toplam Ziyaret</div>
+    </div>
+    ${['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'].map(h => `
+    <div style="background:#fff;border:1.5px solid ${HC[h]}30;border-radius:14px;padding:14px;text-align:center">
+      <div style="font-size:24px;font-weight:900;color:${HC[h]}">${hizmetSayilari[h] || 0}</div>
+      <div style="font-size:10px;font-weight:700;color:${HC[h]}cc;margin-top:2px">${h === 'KADIN BANYO' ? 'Kadın Banyo' : h === 'ERKEK BANYO' ? 'Erkek Banyo' : h === 'KUAFÖR' ? 'Kuaför' : 'Temizlik'}</div>
+    </div>`).join('')}`;
+
+  if (!liste.length) {
+    kartEl.innerHTML = '';
+    if (bosEl) bosEl.style.display = 'block';
+    return;
+  }
+  if (bosEl) bosEl.style.display = 'none';
+
+  const TUR_RENK = { 'İlk Ziyaret': '#7c3aed', 'Kontrol Ziyareti': '#0369a1', 'İzlem Ziyareti': '#0891b2' };
+
+  kartEl.innerHTML = liste
+    .sort((a, b) => (a.ziyaret_saati || '').localeCompare(b.ziyaret_saati || ''))
+    .map(z => {
+      const gd = z.genel_durum || {};
+      const sorunlar = [
+        gd.bilincDurumu && gd.bilincDurumu !== 'Normal' ? '🧠 ' + gd.bilincDurumu : null,
+        gd.ruhsal && gd.ruhsal !== 'Uygun' ? '💭 ' + gd.ruhsal : null,
+        gd.beslenme && gd.beslenme !== 'Yeterli' ? '🍽️ ' + gd.beslenme : null,
+        gd.hareket && gd.hareket !== 'Bağımsız' ? '🦽 ' + gd.hareket : null,
+        gd.cilt && gd.cilt !== 'Normal' ? '🩹 ' + gd.cilt : null,
+        gd.banyoIhtiyac === 'Var' ? '🚿 Banyo ihtiyacı' : null,
+        gd.kuaforIhtiyac === 'Var' ? '✂️ Kuaför ihtiyacı' : null,
+      ].filter(Boolean);
+      const hRenk = HC[z.hizmet] || '#64748b';
+      const tRenk = TUR_RENK[z.ziyaret_turu] || '#64748b';
+      const iyi = !sorunlar.length;
+
+      return `<div onclick="hmDetayAc('${z._fbId}')" style="
+        background:#fff;
+        border:1.5px solid ${iyi ? '#bbf7d0' : '#fecaca'};
+        border-radius:16px;
+        padding:16px;
+        cursor:pointer;
+        transition:box-shadow .15s, transform .1s;
+        box-shadow:0 2px 8px rgba(0,0,0,.06)"
+        onmouseover="this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'"
+        onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)';this.style.transform=''">
+
+        <!-- Üst: isim + durum -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px">
+          <div>
+            <div style="font-size:14px;font-weight:900;color:#0f172a;margin-bottom:2px">${z.vatandas || '—'}</div>
+            <div style="font-size:10px;color:#94a3b8">${z.ziyaret_saati ? '⏰ ' + z.ziyaret_saati : ''}</div>
+          </div>
+          <span style="background:${iyi ? '#dcfce7' : '#fee2e2'};color:${iyi ? '#16a34a' : '#dc2626'};font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;white-space:nowrap">
+            ${iyi ? '✓ Normal' : '⚠️ Dikkat'}
+          </span>
+        </div>
+
+        <!-- Rozetler -->
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+          <span style="background:${hRenk}18;color:${hRenk};font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px">${z.hizmet || ''}</span>
+          <span style="background:${tRenk}18;color:${tRenk};font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">${z.ziyaret_turu || ''}</span>
+          ${z.hemsire ? `<span style="background:#f0fdf4;color:#16a34a;font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px">🏥 ${z.hemsire}</span>` : ''}
+        </div>
+
+        <!-- Sorunlar -->
+        ${sorunlar.length ? `<div style="background:#fef2f2;border-radius:8px;padding:8px 10px;font-size:11px;color:#b91c1c;line-height:1.6">
+          ${sorunlar.join('  •  ')}
+        </div>` : ''}
+
+        <!-- Değerlendirme notu -->
+        ${z.degerlendirme ? `<div style="margin-top:8px;font-size:11px;color:#475569;border-top:1px solid #f1f5f9;padding-top:8px;line-height:1.5">
+          📝 ${z.degerlendirme.slice(0, 80)}${z.degerlendirme.length > 80 ? '…' : ''}
+        </div>` : ''}
+
+      </div>`;
+    }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// WHATSAPP PAYLAŞ — GÜNLÜK
+// ══════════════════════════════════════════════════════════════
+function hmWhatsappPaylasGunluk() {
+  const tarihEl = document.getElementById('hm-gunluk-tarih');
+  if (!tarihEl || !tarihEl.value) { showToast('⚠️ Önce tarih seçin'); return; }
+
+  const tarih = tarihEl.value; // YYYY-MM-DD
+  const [y, m, g] = tarih.split('-');
+  const tarihTR = `${g}.${m}.${y}`;
+
+  const liste = hmZiyaretler
+    .filter(z => z.ziyaret_tarihi === tarih)
+    .sort((a, b) => (a.ziyaret_saati || '99:99').localeCompare(b.ziyaret_saati || '99:99'));
+
+  if (!liste.length) { showToast('Bu gün için ziyaret kaydı yok'); return; }
+
+  const HC_EMOJI = { 'KADIN BANYO': '🚿', 'ERKEK BANYO': '🛁', 'KUAFÖR': '✂️', 'TEMİZLİK': '🧹' };
+
+  let metin = `🏥 *HEMŞİRE ZİYARET RAPORU*\n`;
+  metin += `📅 ${tarihTR}\n`;
+  metin += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+
+  liste.forEach((z, i) => {
+    const gd = z.genel_durum || {};
+    const sorunlar = [
+      gd.bilincDurumu && gd.bilincDurumu !== 'Normal' ? 'Bilinç: ' + gd.bilincDurumu : null,
+      gd.ruhsal && gd.ruhsal !== 'Uygun' ? 'Ruhsal: ' + gd.ruhsal : null,
+      gd.beslenme && gd.beslenme !== 'Yeterli' ? 'Beslenme: ' + gd.beslenme : null,
+      gd.cilt && gd.cilt !== 'Normal' ? 'Cilt: ' + gd.cilt : null,
+      gd.banyoIhtiyac === 'Var' ? 'Banyo ihtiyacı var' : null,
+      gd.kuaforIhtiyac === 'Var' ? 'Kuaför ihtiyacı var' : null,
+    ].filter(Boolean);
+
+    metin += `${i+1}. ${HC_EMOJI[z.hizmet] || '•'} *${z.vatandas || '—'}*\n`;
+    if (z.ziyaret_saati) metin += `   ⏰ ${z.ziyaret_saati}\n`;
+    metin += `   🔹 ${z.hizmet || ''} — ${z.ziyaret_turu || ''}\n`;
+    if (z.hemsire) metin += `   👩‍⚕️ ${z.hemsire}\n`;
+    if (sorunlar.length) metin += `   ⚠️ ${sorunlar.join(', ')}\n`;
+    if (z.degerlendirme) metin += `   📝 ${z.degerlendirme.slice(0,120)}\n`;
+    if (z.yonlendirmeler && z.yonlendirmeler.length) metin += `   📌 ${z.yonlendirmeler.join(', ')}\n`;
+    metin += '\n';
+  });
+
+  metin += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  metin += `📊 Toplam: ${liste.length} ziyaret\n`;
+  metin += `🏥 Kuşadası Belediyesi Evde Bakım`;
+
+  const encoded = encodeURIComponent(metin);
+  window.open('https://wa.me/?text=' + encoded, '_blank');
+}
+
+// hmListeRender'ı sekme 2 inputlarını da dinleyecek şekilde güncelle
+const _hmListeRenderOrig = hmListeRender;
+window.hmListeRender = function() {
+  _hmListeRenderOrig();
+  // Sekme 2 liste sayısını güncelle
+  const cnt2 = document.getElementById('hm-liste-count2');
+  const cnt1 = document.getElementById('hm-liste-count');
+  if (cnt2 && cnt1) cnt2.textContent = cnt1.textContent;
+};
+
+window.hmSekmeAc = hmSekmeAc;
+window.hmGunlukBugun = hmGunlukBugun;
+window.hmGunlukGunDegistir = hmGunlukGunDegistir;
+window.hmGunlukRender = hmGunlukRender;
+window.hmWhatsappPaylasGunluk = hmWhatsappPaylasGunluk;
