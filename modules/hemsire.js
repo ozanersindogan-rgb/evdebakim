@@ -889,19 +889,18 @@ function hmWhatsappPaylasGunluk() {
 
   const HC_EMOJI = { 'KADIN BANYO': '🚿', 'ERKEK BANYO': '🛁', 'KUAFÖR': '✂️', 'TEMİZLİK': '🧹' };
 
-  let metin = `🏥 *HEMŞİRE ZİYARET RAPORU*\n`;
-  metin += `📅 ${tarihTR}\n`;
-  metin += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+  let metin = `*HEMŞİRE ZİYARET RAPORU*\n`;
+  metin += `${tarihTR}\n`;
+  metin += `------------------------------\n\n`;
 
   liste.forEach((z, i) => {
-    const emoji = HC_EMOJI[z.hizmet] || '•';
     const saat = z.ziyaret_saati ? ` — ${z.ziyaret_saati}` : '';
-    metin += `${i+1}. ${emoji} *${z.vatandas || '—'}*${saat}\n`;
+    metin += `${i+1}. *${z.vatandas || '—'}*${saat}\n`;
   });
 
-  metin += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  metin += `📊 Toplam: ${liste.length} ziyaret\n`;
-  metin += `🏥 Kuşadası Belediyesi Evde Bakım`;
+  metin += `------------------------------\n`;
+  metin += `Toplam: ${liste.length} ziyaret\n`;
+  metin += `Kuşadası Belediyesi Evde Bakım`;
 
   const encoded = encodeURIComponent(metin);
   window.open('https://wa.me/?text=' + encoded, '_blank');
