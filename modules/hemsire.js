@@ -18,8 +18,16 @@ async function hmYukle() {
     hmListeRender();
     hmFormHizmetDoldur();
     hmHemsireAdiniDoldur();
+    // Sekme butonlarına addEventListener ile de bağla
+    ['form','liste','gunluk'].forEach(s => {
+      const btn = document.getElementById('hm-tab-btn-' + s);
+      if (btn) {
+        btn.onclick = null;
+        btn.addEventListener('click', () => hmSekmeAc(s));
+      }
+    });
   } catch (e) {
-    showToast('❌ Hemşire verileri yüklenemedi: ' + e.message);
+    showToast('\u274c Hem\u015fire verileri y\u00fcklenemedi: ' + e.message);
   }
 }
 
@@ -914,15 +922,6 @@ function hmWhatsappPaylasGunluk() {
   window.open('https://wa.me/?text=' + encoded, '_blank');
 }
 
-// hmListeRender'ı sekme 2 inputlarını da dinleyecek şekilde güncelle
-const _hmListeRenderOrig = hmListeRender;
-window.hmListeRender = function() {
-  _hmListeRenderOrig();
-  // Sekme 2 liste sayısını güncelle
-  const cnt2 = document.getElementById('hm-liste-count2');
-  const cnt1 = document.getElementById('hm-liste-count');
-  if (cnt2 && cnt1) cnt2.textContent = cnt1.textContent;
-};
 
 window.hmSekmeAc = hmSekmeAc;
 window.hmGunlukBugun = hmGunlukBugun;
