@@ -894,24 +894,9 @@ function hmWhatsappPaylasGunluk() {
   metin += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
 
   liste.forEach((z, i) => {
-    const gd = z.genel_durum || {};
-    const sorunlar = [
-      gd.bilincDurumu && gd.bilincDurumu !== 'Normal' ? 'Bilinç: ' + gd.bilincDurumu : null,
-      gd.ruhsal && gd.ruhsal !== 'Uygun' ? 'Ruhsal: ' + gd.ruhsal : null,
-      gd.beslenme && gd.beslenme !== 'Yeterli' ? 'Beslenme: ' + gd.beslenme : null,
-      gd.cilt && gd.cilt !== 'Normal' ? 'Cilt: ' + gd.cilt : null,
-      gd.banyoIhtiyac === 'Var' ? 'Banyo ihtiyacı var' : null,
-      gd.kuaforIhtiyac === 'Var' ? 'Kuaför ihtiyacı var' : null,
-    ].filter(Boolean);
-
-    metin += `${i+1}. ${HC_EMOJI[z.hizmet] || '•'} *${z.vatandas || '—'}*\n`;
-    if (z.ziyaret_saati) metin += `   ⏰ ${z.ziyaret_saati}\n`;
-    metin += `   🔹 ${z.hizmet || ''} — ${z.ziyaret_turu || ''}\n`;
-    if (z.hemsire) metin += `   👩‍⚕️ ${z.hemsire}\n`;
-    if (sorunlar.length) metin += `   ⚠️ ${sorunlar.join(', ')}\n`;
-    if (z.degerlendirme) metin += `   📝 ${z.degerlendirme.slice(0,120)}\n`;
-    if (z.yonlendirmeler && z.yonlendirmeler.length) metin += `   📌 ${z.yonlendirmeler.join(', ')}\n`;
-    metin += '\n';
+    const emoji = HC_EMOJI[z.hizmet] || '•';
+    const saat = z.ziyaret_saati ? ` — ${z.ziyaret_saati}` : '';
+    metin += `${i+1}. ${emoji} *${z.vatandas || '—'}*${saat}\n`;
   });
 
   metin += `━━━━━━━━━━━━━━━━━━━━━━━\n`;
