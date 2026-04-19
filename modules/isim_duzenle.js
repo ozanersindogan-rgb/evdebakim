@@ -226,153 +226,48 @@ function _idLogRender() {
 // ════════════════════════════════════════════
 //  TÜRKÇE KARAKTER TARAMA — TÜM ÖZEL KARAKTERLER
 // ════════════════════════════════════════════
+//
+// Yaklaşım: Tüm benzersiz isimleri listele.
+// Her kelimeye tıklayınca içindeki ASCII karakterlerin
+// Türkçe alternatifleri buton olarak çıkar.
+// Kullanıcı onaylayınca Firestore'a yazar.
 
-const _TR_VOWELS = {A:"kalin",I:"kalin",O:"kalin",U:"kalin",E:"ince","İ":"ince","Ö":"ince","Ü":"ince"};
+// ASCII → Türkçe alternatif haritası (her karakter için olası değişimler)
+const _TR_ALT = {
+  'I':  ['İ'],
+  'İ':  ['I'],
+  'G':  ['Ğ'],
+  'Ğ':  ['G'],
+  'S':  ['Ş'],
+  'Ş':  ['S'],
+  'C':  ['Ç'],
+  'Ç':  ['C'],
+  'O':  ['Ö'],
+  'Ö':  ['O'],
+  'U':  ['Ü'],
+  'Ü':  ['U'],
+};
 
-// ── ASCII karşılıkları olan Türkçe karakter çiftleri ──
-// Hata tipi: ASCII ile yazılmış ama Türkçe karakter olması gereken yerler
-// Tespite yönelik yaygın pattern'ler
-const _TR_PATTERNS = [
-  // GH → Ğ (DOGHAN → DOĞAN, AGHCA → AĞCA)
-  { re: /GH/g, fix: 'Ğ', tip: 'GH → Ğ' },
-  // Kelime sonu veya sessiz öncesi G → Ğ (YAGMUR, DOGDU, BAGCI)
-  // Bu çok agresif olur, sadece çok yaygın pattern'ler
-  // SH → Ş (ASHA → AŞA) — nadir
-  // Sonuç: G → Ğ, S → Ş, C → Ç, O → Ö, U → Ü için yaygın isim listesi kullan
-];
-
-// Sık yazım hatası yapılan isim dönüşümleri (kesin liste)
-const _TR_ISIM_ESLESTIR = [
-  // Ğ hataları
-  ['DAGHAN','DAĞAN'],['SOGHAN','SOĞAN'],
-  // Yaygın soyisimler — G yerine Ğ
-  ['YAGMUR','YAĞMUR'],['YAGIZ','YAĞIZ'],['CAGLA','ÇAĞLA'],['CAGRI','ÇAĞRI'],
-  ['OZGUR','ÖZGÜR'],['OZGUN','ÖZGÜN'],['OZGE','ÖZGE'],
-  ['TUGBA','TUĞBA'],['TUGCE','TUĞÇE'],['TUGRUL','TUĞRUL'],
-  ['BAGCI','BAĞCI'],['SAGLIK','SAĞLIK'],['DAGCI','DAĞCI'],
-  ['ERDOGAN','ERDOĞAN'],['DOGAN','DOĞAN'],['DOGRU','DOĞRU'],
-  ['AGUN','AĞUN'],['AGUS','AĞUŞ'],
-  // Ş hataları — S yerine Ş
-  ['SAHIN','ŞAHİN'],['SAHINS','ŞAHİNS'],
-  ['SIMSEK','ŞİMŞEK'],['SIMDI','ŞİMDİ'],
-  ['SEKER','ŞEKER'],['SENEL','ŞENEL'],['SENOL','ŞENOL'],
-  ['SULE','ŞÜLE'],['SULEN','ŞÜLEN'],['SULENAZ','ŞÜLENAZ'],
-  ['SIRIN','ŞİRİN'],['SIRMA','ŞİRMA'],
-  ['SUNAY','ŞÜNAY'],
-  // Ç hataları — C yerine Ç
-  ['CELIK','ÇELİK'],['CETIN','ÇETİN'],['CINAR','ÇINAR'],
-  ['CAKIR','ÇAKIR'],['CAKAR','ÇAKAR'],['CALI','ÇALI'],
-  ['CICEK','ÇİÇEK'],['CIGDEM','ÇİĞDEM'],['CILEK','ÇİLEK'],
-  ['CIMEN','ÇİMEN'],['CIFTCI','ÇİFTÇİ'],
-  ['COBAN','ÇOBAN'],['COKUN','ÇOKUN'],['COPUR','ÇOPUR'],
-  ['CUBUK','ÇUBUK'],['CUKUR','ÇUKUR'],
-  // Ö hataları — O yerine Ö
-  ['OZTÜRK','ÖZTÜRK'],['OZTURK','ÖZTÜRK'],['OZKAN','ÖZKAN'],
-  ['OZER','ÖZER'],['OZMEN','ÖZMEN'],['OZDEMIR','ÖZDEMİR'],
-  ['OZCELIK','ÖZÇELİK'],['OZKAYA','ÖZKAYA'],['OZAY','ÖZAY'],
-  ['OLMEZ','ÖLMEZ'],['ODABAS','ODABAŞ'],
-  // Ü hataları — U yerine Ü
-  ['UNAL','ÜNAL'],['UNVER','ÜNVER'],['UNLU','ÜNLÜ'],
-  ['URKMEZ','ÜRKMEZ'],['URÜN','ÜRÜN'],
-  ['YUKSEK','YÜKSEK'],['YUKSEL','YÜKSEL'],
-  ['GUNDUZ','GÜNDÜZ'],['GUNAY','GÜNAY'],['GUNER','GÜNER'],
-  ['GUZEL','GÜZEL'],['GUNEY','GÜNEY'],['GURKAN','GÜRKAN'],
-  ['TUNCAY','TUNÇAY'],['TURK','TÜRK'],['TURKER','TÜRKER'],
-  ['KUCUK','KÜÇÜK'],['KULAC','KULAÇ'],
-];
-
-// Kelime bazlı eşleştirme haritası
-const _TR_ESLESME_MAP = {};
-_TR_ISIM_ESLESTIR.forEach(([yanlis, dogru]) => {
-  _TR_ESLESME_MAP[yanlis] = dogru;
-});
-
-// I/İ sesli uyumu düzeltmesi (kelime bazlı)
-function _idTrDuzeltIi(word) {
-  if (!word || word !== word.toLocaleUpperCase('tr-TR')) return null;
-  const arr = word.split('');
-  let changed = false;
-  for (let i = 0; i < arr.length; i++) {
-    const ch = arr[i];
-    if (ch !== 'I' && ch !== 'İ') continue;
-    let prev = null, next = null;
-    for (let j = i-1; j >= 0; j--) if (_TR_VOWELS[arr[j]]) { prev = arr[j]; break; }
-    for (let j = i+1; j < arr.length; j++) if (_TR_VOWELS[arr[j]]) { next = arr[j]; break; }
-    const ref = prev || next;
-    if (!ref) continue;
-    if (ch === 'I' && _TR_VOWELS[ref] === 'ince')  { arr[i] = 'İ'; changed = true; }
-    if (ch === 'İ' && _TR_VOWELS[ref] === 'kalin' && ref !== 'İ') { arr[i] = 'I'; changed = true; }
-  }
-  return changed ? arr.join('') : null;
+// Bir kelimede Türkçe alternatifi olan karakter var mı?
+function _trHasAlt(word) {
+  return word.split('').some(ch => _TR_ALT[ch]);
 }
 
-// Bir kelime için tüm olası düzeltmeleri bul
-function _idTrDuzeltKelime(word) {
-  const upper = word.toLocaleUpperCase('tr-TR');
-  const sonuclar = [];
-
-  // 1) Kesin eşleşme listesi
-  if (_TR_ESLESME_MAP[upper] && _TR_ESLESME_MAP[upper] !== upper) {
-    sonuclar.push({ tip: 'karakter', orijinal: upper, oneri: _TR_ESLESME_MAP[upper] });
-  }
-
-  // 2) I/İ sesli uyumu
-  const iiDuz = _idTrDuzeltIi(upper);
-  if (iiDuz && iiDuz !== upper) {
-    // Eğer zaten karakter düzeltmesi önerdiyse onun üstünden I/İ uygula
-    const base = sonuclar.length ? sonuclar[0].oneri : upper;
-    const iiDuzBase = _idTrDuzeltIi(base);
-    if (iiDuzBase && iiDuzBase !== base) {
-      sonuclar.push({ tip: 'I/İ', orijinal: upper, oneri: iiDuzBase });
-    } else if (!sonuclar.length) {
-      sonuclar.push({ tip: 'I/İ', orijinal: upper, oneri: iiDuz });
-    }
-  }
-
-  return sonuclar;
-}
-
-// Tam isim için öneriler
-function _idTrSuggestName(name) {
-  const words = name.trim().split(/\s+/);
-  const oneriKelimeler = words.map(w => {
-    const duz = _idTrDuzeltKelime(w);
-    return duz.length ? duz[duz.length-1].oneri : w;
-  });
-  const suggested = oneriKelimeler.join(' ');
-  return suggested !== name ? { suggested, tip: '' } : null;
-}
-
-// Taranan liste
+// Taranan isim listesi: { original, current, onaylandi }
 let _idTrListe = [];
+let _idTrAcilanKelime = null; // "isimIdx_kelimeIdx" formatında
 
 function idTrTara() {
   const btn = document.getElementById('id-tr-tara-btn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Taranıyor...'; }
 
   const benzersiz = [...new Set(allData.map(r => r.ISIM_SOYISIM).filter(Boolean))].sort();
-  _idTrListe = [];
-
-  benzersiz.forEach(isim => {
-    const result = _idTrSuggestName(isim);
-    if (result) {
-      // Farkın ne olduğunu göster
-      const eskiKelimeler = isim.split(/\s+/);
-      const yeniKelimeler = result.suggested.split(/\s+/);
-      const farklar = [];
-      eskiKelimeler.forEach((w, i) => {
-        if (w !== yeniKelimeler[i]) {
-          farklar.push({ eski: w, yeni: yeniKelimeler[i] });
-        }
-      });
-      _idTrListe.push({
-        original: isim,
-        suggested: result.suggested,
-        farklar,
-        onaylandi: null
-      });
-    }
-  });
+  _idTrListe = benzersiz.map(isim => ({
+    original: isim,
+    current:  isim,
+    onaylandi: false // false = değişmemiş/bekliyor, true = kaydetmeye hazır
+  }));
+  _idTrAcilanKelime = null;
 
   if (btn) { btn.disabled = false; btn.textContent = 'Yeniden Tara'; }
   _idTrRender();
@@ -382,135 +277,218 @@ function _idTrRender() {
   const el = document.getElementById('id-tr-sonuc');
   if (!el) return;
 
-  const bekleyenler = _idTrListe.filter(x => x.onaylandi === null);
-  const onaylananlar = _idTrListe.filter(x => x.onaylandi === true);
-  const reddedilenler = _idTrListe.filter(x => x.onaylandi === false);
-
   if (!_idTrListe.length) {
-    el.innerHTML = '<div style="text-align:center;color:#16a34a;font-size:13px;padding:20px">✅ Sorunlu isim bulunamadı</div>';
+    el.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:13px;padding:20px">Henüz tarama yapılmadı</div>';
     return;
   }
 
-  let html = `
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-      <span style="background:#fef3c7;color:#92400e;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800">⏳ ${bekleyenler.length} bekliyor</span>
-      <span style="background:#dcfce7;color:#166534;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800">✓ ${onaylananlar.length} onaylandı</span>
-      <span style="background:#f1f5f9;color:#64748b;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:800">✗ ${reddedilenler.length} reddedildi</span>`;
+  const degisenler = _idTrListe.filter(x => x.current !== x.original);
+  const bekleyenler = degisenler.filter(x => !x.onaylandi);
+  const hazirlar    = degisenler.filter(x => x.onaylandi);
 
-  if (onaylananlar.length > 0) {
-    html += `<button onclick="idTrHepsiniKaydet()"
-      style="margin-left:auto;background:linear-gradient(135deg,#15803d,#16a34a);color:#fff;border:none;border-radius:9px;padding:8px 20px;font-size:12px;font-weight:800;cursor:pointer">
-      💾 Onaylananları Kaydet (${onaylananlar.length})
-    </button>`;
+  let html = `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+    <span style="font-size:12px;color:#64748b">${_idTrListe.length} benzersiz isim</span>`;
+  if (degisenler.length) {
+    html += `<span style="background:#fef3c7;color:#92400e;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700">${degisenler.length} değişiklik var</span>`;
   }
-  html += '</div>';
+  if (hazirlar.length) {
+    html += `<button onclick="idTrHepsiniKaydet()" style="margin-left:auto;background:linear-gradient(135deg,#15803d,#16a34a);color:#fff;border:none;border-radius:8px;padding:7px 18px;font-size:12px;font-weight:800;cursor:pointer">💾 Kaydet (${hazirlar.length})</button>`;
+  }
+  html += `<div style="font-size:11px;color:#94a3b8;margin-left:${hazirlar.length?'0':'auto'}">Bir kelimeye tıkla → karakter değiştir</div></div>`;
 
-  // Bekleyenler
-  if (bekleyenler.length) {
-    html += '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">';
-    bekleyenler.forEach((item, globalIdx) => {
-      const realIdx = _idTrListe.indexOf(item);
-      // Farkları vurgula
-      const farkHtml = item.farklar.map(f =>
-        `<span style="color:#dc2626;font-family:monospace;font-weight:700;text-decoration:line-through;opacity:.7">${f.eski}</span>`+
-        `<span style="margin:0 6px;color:#94a3b8">→</span>`+
-        `<span style="color:#15803d;font-family:monospace;font-weight:900">${f.yeni}</span>`
-      ).join('<span style="margin:0 8px;color:#d1d5db">|</span>');
+  // İsim listesi
+  html += '<div style="display:flex;flex-direction:column;gap:6px;max-height:520px;overflow-y:auto;padding-right:4px">';
 
-      html += `
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#fffbeb;border:1.5px solid #fde68a;border-radius:10px;padding:10px 14px">
-          <div style="flex:1;min-width:180px">
-            <div style="font-size:13px;margin-bottom:4px">${farkHtml}</div>
-            <div style="font-size:11px;color:#92400e;font-family:monospace">
-              ${item.original} &nbsp;→&nbsp; <b>${item.suggested}</b>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;flex-shrink:0">
-            <button onclick="idTrOnayla(${realIdx})"
-              style="background:linear-gradient(135deg,#15803d,#16a34a);color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:800;cursor:pointer">
-              ✓ Evet, Düzelt
-            </button>
-            <button onclick="idTrReddet(${realIdx})"
-              style="background:#f1f5f9;border:1px solid #e2e8f0;color:#64748b;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer">
-              ✗ Hayır
-            </button>
-          </div>
+  _idTrListe.forEach((item, nameIdx) => {
+    const degisti = item.current !== item.original;
+    const bg = degisti ? (item.onaylandi ? '#f0fdf4' : '#fffbeb') : '#f8fafc';
+    const border = degisti ? (item.onaylandi ? '#bbf7d0' : '#fde68a') : '#e2e8f0';
+
+    html += `<div style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">`;
+
+    // Sıra no
+    html += `<span style="font-size:11px;color:#94a3b8;min-width:28px;padding-top:2px">${nameIdx+1}.</span>`;
+
+    // Kelimeler — her kelime tıklanabilir
+    html += `<div style="flex:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center">`;
+    const kelimeler = item.current.split(/\s+/);
+    kelimeler.forEach((kelime, kelimeIdx) => {
+      const acilanKey = `${nameIdx}_${kelimeIdx}`;
+      const acik = _idTrAcilanKelime === acilanKey;
+      const orijKelime = item.original.split(/\s+/)[kelimeIdx] || kelime;
+      const kelimeDegisti = kelime !== orijKelime;
+
+      html += `<div style="position:relative;display:inline-block">`;
+      // Kelime butonu
+      html += `<button onclick="idTrKelimeTikla(${nameIdx},${kelimeIdx})" style="
+        background:${acik?'#1A237E':kelimeDegisti?'#dcfce7':'#fff'};
+        color:${acik?'#fff':kelimeDegisti?'#166534':'#0f172a'};
+        border:1.5px solid ${acik?'#1A237E':kelimeDegisti?'#86efac':'#e2e8f0'};
+        border-radius:7px;padding:4px 10px;font-size:13px;font-weight:800;
+        font-family:monospace;cursor:pointer;letter-spacing:0.04em;
+        transition:all .1s">${kelime}</button>`;
+
+      // Açık panel — karakter alternatifleri
+      if (acik) {
+        html += `<div style="position:absolute;top:calc(100% + 4px);left:0;z-index:999;background:#fff;border:2px solid #1A237E;border-radius:10px;padding:10px 12px;box-shadow:0 8px 24px rgba(0,0,0,.15);min-width:220px">`;
+        html += `<div style="font-size:10px;font-weight:800;color:#94a3b8;margin-bottom:8px;text-transform:uppercase">Karakter Değiştir</div>`;
+
+        // Her karakteri göster
+        const chars = kelime.split('');
+        let butonVar = false;
+        chars.forEach((ch, chIdx) => {
+          if (_TR_ALT[ch]) {
+            _TR_ALT[ch].forEach(alt => {
+              html += `<button onclick="idTrKarDegistir(${nameIdx},${kelimeIdx},${chIdx},'${alt}')" style="
+                display:block;width:100%;text-align:left;
+                background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:7px;
+                padding:7px 12px;margin-bottom:6px;cursor:pointer;font-size:13px;font-weight:700;
+                font-family:monospace" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#f8fafc'">
+                <span style="color:#dc2626">${ch}</span>
+                <span style="color:#94a3b8;margin:0 8px">→</span>
+                <span style="color:#16a34a">${alt}</span>
+                <span style="color:#94a3b8;font-size:11px;margin-left:6px">(${chIdx+1}. karakter)</span>
+              </button>`;
+              butonVar = true;
+            });
+          }
+        });
+
+        if (!butonVar) {
+          html += `<div style="font-size:12px;color:#94a3b8;padding:4px 0">Değiştirilebilir karakter yok</div>`;
+        }
+
+        // Sıfırla + Kapat
+        html += `<div style="display:flex;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid #f1f5f9">`;
+        if (kelimeDegisti) {
+          html += `<button onclick="idTrKelimeSifirla(${nameIdx},${kelimeIdx})" style="flex:1;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer">Sıfırla</button>`;
+        }
+        html += `<button onclick="idTrKapat()" style="flex:1;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:700;cursor:pointer">Kapat</button>`;
+        html += '</div></div>';
+      }
+      html += '</div>'; // position:relative
+    });
+    html += '</div>'; // kelimeler div
+
+    // Sağ: değişiklik varsa onayla/geri al
+    if (degisti) {
+      if (!item.onaylandi) {
+        html += `<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+          <button onclick="idTrOnayla(${nameIdx})" style="background:linear-gradient(135deg,#15803d,#16a34a);color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap">✓ Onayla</button>
+          <button onclick="idTrIsimSifirla(${nameIdx})" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">↺</button>
         </div>`;
-    });
-    html += '</div>';
-  }
+      } else {
+        html += `<div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+          <span style="background:#dcfce7;color:#166534;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:800">✓ Hazır</span>
+          <button onclick="idTrIsimSifirla(${nameIdx})" style="background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer">↺</button>
+        </div>`;
+      }
+    }
 
-  // Onaylananlar (kaydet bekleniyor)
-  if (onaylananlar.length) {
-    html += `<div style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-radius:10px;padding:10px 14px;margin-bottom:10px">
-      <div style="font-size:11px;font-weight:800;color:#166534;margin-bottom:8px;text-transform:uppercase">✓ Kaydetmeye Hazır</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">`;
-    onaylananlar.forEach(item => {
-      html += `<span style="background:#dcfce7;color:#166534;border-radius:6px;padding:3px 10px;font-size:12px;font-weight:700;font-family:monospace">${item.original} → ${item.suggested}</span>`;
-    });
-    html += '</div></div>';
-  }
+    html += '</div>'; // satır div
+  });
 
+  html += '</div>'; // liste
   el.innerHTML = html;
 }
 
-function idTrOnayla(idx) {
-  if (_idTrListe[idx]) _idTrListe[idx].onaylandi = true;
+function idTrKelimeTikla(nameIdx, kelimeIdx) {
+  const key = `${nameIdx}_${kelimeIdx}`;
+  _idTrAcilanKelime = (_idTrAcilanKelime === key) ? null : key;
   _idTrRender();
 }
 
-function idTrReddet(idx) {
-  if (_idTrListe[idx]) _idTrListe[idx].onaylandi = false;
+function idTrKapat() {
+  _idTrAcilanKelime = null;
+  _idTrRender();
+}
+
+function idTrKarDegistir(nameIdx, kelimeIdx, charIdx, yeniChar) {
+  const item = _idTrListe[nameIdx];
+  if (!item) return;
+  const kelimeler = item.current.split(/\s+/);
+  const arr = kelimeler[kelimeIdx].split('');
+  arr[charIdx] = yeniChar;
+  kelimeler[kelimeIdx] = arr.join('');
+  item.current = kelimeler.join(' ');
+  item.onaylandi = false;
+  // Panel açık kalsın — kullanıcı başka karakter de değiştirebilir
+  _idTrRender();
+}
+
+function idTrKelimeSifirla(nameIdx, kelimeIdx) {
+  const item = _idTrListe[nameIdx];
+  if (!item) return;
+  const kelimeler = item.current.split(/\s+/);
+  const origKelimeler = item.original.split(/\s+/);
+  kelimeler[kelimeIdx] = origKelimeler[kelimeIdx] || kelimeler[kelimeIdx];
+  item.current = kelimeler.join(' ');
+  item.onaylandi = false;
+  _idTrRender();
+}
+
+function idTrIsimSifirla(nameIdx) {
+  const item = _idTrListe[nameIdx];
+  if (!item) return;
+  item.current = item.original;
+  item.onaylandi = false;
+  _idTrAcilanKelime = null;
+  _idTrRender();
+}
+
+function idTrOnayla(nameIdx) {
+  const item = _idTrListe[nameIdx];
+  if (!item || item.current === item.original) return;
+  item.onaylandi = true;
+  _idTrAcilanKelime = null;
   _idTrRender();
 }
 
 async function idTrHepsiniKaydet() {
-  const onaylananlar = _idTrListe.filter(x => x.onaylandi === true);
-  if (!onaylananlar.length) return;
+  const hazirlar = _idTrListe.filter(x => x.onaylandi && x.current !== x.original);
+  if (!hazirlar.length) return;
 
   const btn = document.querySelector('[onclick="idTrHepsiniKaydet()"]');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Kaydediliyor...'; }
 
   let basarili = 0, hata = 0;
 
-  for (const item of onaylananlar) {
+  for (const item of hazirlar) {
     try {
-      // Firestore: vatandaslar
       const snap = await firebase.firestore()
         .collection('vatandaslar')
         .where('ISIM_SOYISIM', '==', item.original)
         .get();
       for (const doc of snap.docs) {
-        await doc.ref.update({ ISIM_SOYISIM: item.suggested });
+        await doc.ref.update({ ISIM_SOYISIM: item.current });
       }
-      // allData güncelle
       allData.forEach(r => {
-        if (r.ISIM_SOYISIM === item.original) r.ISIM_SOYISIM = item.suggested;
+        if (r.ISIM_SOYISIM === item.original) r.ISIM_SOYISIM = item.current;
       });
-      // vatandaslar_bilgi güncelle
       if (typeof kbData !== 'undefined') {
         const bilgiSnap = await firebase.firestore()
           .collection('vatandaslar_bilgi')
           .where('AD_SOYAD', '==', item.original)
           .get();
         for (const doc of bilgiSnap.docs) {
-          await doc.ref.update({ AD_SOYAD: item.suggested });
+          await doc.ref.update({ AD_SOYAD: item.current });
         }
         kbData.forEach(k => {
-          if ((k.AD_SOYAD || '') === item.original) k.AD_SOYAD = item.suggested;
+          if ((k.AD_SOYAD || '') === item.original) k.AD_SOYAD = item.current;
         });
       }
-      // Log
       _idRecs.unshift({
-        eskiIsim: item.original, yeniIsim: item.suggested,
+        eskiIsim: item.original, yeniIsim: item.current,
         eskiMah: '', yeniMah: '', isimDeg: true, mahDeg: false,
         guncellenen: snap.docs.length,
         zaman: new Date().toLocaleTimeString('tr-TR')
       });
-      item.onaylandi = 'kaydedildi';
+      // Orijinali güncelle, artık bu isim "düzeltilmiş"
+      item.original = item.current;
+      item.onaylandi = false;
       basarili++;
     } catch(e) {
-      console.error('TR düzeltme hatası:', item.original, e);
+      console.error('TR kayıt hatası:', item.original, e);
       hata++;
     }
   }
@@ -519,11 +497,14 @@ async function idTrHepsiniKaydet() {
   idUpdateIsimler();
   if (typeof filterVat === 'function') filterVat();
   _idTrRender();
-
-  showToast(`✅ ${basarili} isim düzeltildi${hata ? ` — ${hata} hata` : ''}`);
+  showToast(`✅ ${basarili} isim kaydedildi${hata ? ` — ${hata} hata` : ''}`);
 }
 
 window.idTrTara = idTrTara;
+window.idTrKelimeTikla = idTrKelimeTikla;
+window.idTrKapat = idTrKapat;
+window.idTrKarDegistir = idTrKarDegistir;
+window.idTrKelimeSifirla = idTrKelimeSifirla;
+window.idTrIsimSifirla = idTrIsimSifirla;
 window.idTrOnayla = idTrOnayla;
-window.idTrReddet = idTrReddet;
 window.idTrHepsiniKaydet = idTrHepsiniKaydet;
