@@ -205,7 +205,7 @@ function takvimWpPaylasGun(tarihStr) {
     kayitlar.forEach((r,i)=>{metin+=`${i+1}. ${r.ISIM_SOYISIM} - ${r.MAHALLE}\n`;});
     metin+='\n';
   });
-  metin+='_Evde Bakim Sistemi_';
+  metin+='_Evde Bakım Sistemi_';
   window.open('https://wa.me/?text='+encodeURIComponent(metin),'_blank');
 }
 
