@@ -388,6 +388,11 @@ async function _flushSaveQueue() {
         }
       } catch(e) {
         console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
+        // not-found: belge Firebase'de artık yok (silinmiş), tekrar denemek anlamsız — kuyruğu atla
+        if (e.code === 'not-found') {
+          console.warn('Belge bulunamadı, kuyruktan siliniyor:', item.fbId);
+          continue;
+        }
         const mesaj = (e.code === 'permission-denied')
           ? 'Kayıt izni yok — lütfen sayfayı yenileyin veya yöneticinize bildirin'
           : (e.code || '') + ' ' + e.message;
