@@ -45,6 +45,20 @@ function hmEngelDurumDegisti() {
   }
 }
 
+// ── Ziyaret türü değişince görüş alanını göster/gizle ─────────
+function hmTurDegisti() {
+  const tur = document.getElementById('hm-tur')?.value;
+  const panel = document.getElementById('hm-gorus-panel');
+  if (!panel) return;
+  const gorunur = tur === 'Kontrol Ziyareti' || tur === 'İzlem Ziyareti';
+  panel.style.display = gorunur ? '' : 'none';
+  if (!gorunur) {
+    const el = document.getElementById('hm-gorus');
+    if (el) el.value = '';
+  }
+}
+
+
 // ── Hemşire adını USERS_MAP'ten otomatik seç ──────────────────
 function hmHemsireAdiniDoldur() {
   const sel = document.getElementById('hm-hemsire');
@@ -193,7 +207,7 @@ function hmVatandasSecildi() {
       </div>
     </div>`;
 
-  // Önceki ziyaret sayısını göster
+  // Önceki ziyaret sayısını göster ve alanları otomatik doldur
   const oncekiZiyaretler = hmZiyaretler.filter(z =>
     z.vatandas === isim && z.hizmet === hizmet
   );
@@ -203,7 +217,35 @@ function hmVatandasSecildi() {
       <div style="background:#FFF9C4;border:1px solid #F9A825;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#795548">
         ℹ️ Bu vatandaş için <b>${oncekiZiyaretler.length}</b> önceki ziyaret kaydı var.
         Son ziyaret: <b>${son.ziyaret_tarihi || '—'}</b> (${son.ziyaret_turu || '—'})
+        <span style="color:#4a7c59;font-weight:700;margin-left:6px">↓ Alanlar son ziyaretten dolduruldu</span>
       </div>`;
+
+    // Son kayıttaki genel durum alanlarını otomatik doldur (düzenleme modunda değilse)
+    if (!hmDuzenleId) {
+      const gd = son.genel_durum || {};
+      const setVal = (id, val) => { const el = document.getElementById(id); if (el && val) el.value = val; };
+      setVal('hm-bilincDurumu',    gd.bilincDurumu);
+      setVal('hm-bilincAciklama',  gd.bilincAciklama);
+      setVal('hm-ruhsal',          gd.ruhsal);
+      setVal('hm-ruhsalAciklama',  gd.ruhsalAciklama);
+      setVal('hm-beslenme',        gd.beslenme);
+      setVal('hm-beslenmeAciklama',gd.beslenmeAciklama);
+      setVal('hm-hareket',         gd.hareket);
+      setVal('hm-hareketAciklama', gd.hareketAciklama);
+      setVal('hm-cilt',            gd.cilt);
+      setVal('hm-ciltAciklama',    gd.ciltAciklama);
+      setVal('hm-evHijyeni',       gd.evHijyeni);
+      setVal('hm-evHijyeniAciklama',gd.evHijyeniAciklama);
+      setVal('hm-banyoIhtiyac',    gd.banyoIhtiyac);
+      setVal('hm-kuaforIhtiyac',   gd.kuaforIhtiyac);
+      setVal('hm-aileNotu',        son.aile_notu);
+      // Yönlendirmeleri işaretle
+      if (son.yonlendirmeler && son.yonlendirmeler.length) {
+        document.querySelectorAll('#hm-yonlendirmeler input[type=checkbox]').forEach(cb => {
+          cb.checked = son.yonlendirmeler.includes(cb.value);
+        });
+      }
+    }
   }
 }
 
@@ -232,6 +274,10 @@ function hmFormTemizle() {
     if (el) el.value = '';
   });
   document.querySelectorAll('#hm-yonlendirmeler input[type=checkbox]').forEach(cb => cb.checked = false);
+  const gorusEl = document.getElementById('hm-gorus');
+  if (gorusEl) gorusEl.value = '';
+  const gorusPanel = document.getElementById('hm-gorus-panel');
+  if (gorusPanel) gorusPanel.style.display = 'none';
   const extra = document.getElementById('hm-engel-extra');
   if (extra) extra.style.display = 'none';
 
@@ -292,6 +338,7 @@ async function hmKaydet() {
     },
     aile_notu: getText('hm-aileNotu'),
     degerlendirme: getText('hm-degerlendirme'),
+    gorus: getText('hm-gorus'),
     yonlendirmeler,
     engel:          getVal('hm-engel'),
     engel_yuzde:    getVal('hm-engel-yuzde'),
@@ -538,6 +585,10 @@ function hmDetayAc(fbId) {
       <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase">Aile / Yakın Notu</div>
       <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:13px;color:#374151">${z.aile_notu}</div>
     </div>` : ''}
+    ${z.gorus ? `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:6px;text-transform:uppercase">💬 Görüş / Yapılan İşlem</div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px;font-size:13px;color:#1e40af">${z.gorus}</div>
+    </div>` : ''}
     ${z.degerlendirme ? `<div style="margin-bottom:14px">
       <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:6px;text-transform:uppercase">Değerlendirme ve Öneriler</div>
       <div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:13px;color:#374151">${z.degerlendirme}</div>
@@ -613,6 +664,9 @@ function hmDuzenle(fbId) {
   setVal('hm-kuaforIhtiyac', gd.kuaforIhtiyac);
   setVal('hm-aileNotu', z.aile_notu);
   setVal('hm-degerlendirme', z.degerlendirme);
+  setVal('hm-gorus', z.gorus);
+  // Görüş panelini ziyaret türüne göre göster
+  setTimeout(() => hmTurDegisti(), 200);
 
   setVal('hm-engel', z.engel);
   setVal('hm-engel-yuzde', z.engel_yuzde);
@@ -907,6 +961,7 @@ function hmWhatsappPaylasGunluk() {
 }
 
 
+window.hmTurDegisti = hmTurDegisti;
 window.hmSekmeAc = hmSekmeAc;
 window.hmGunlukBugun = hmGunlukBugun;
 window.hmGunlukGunDegistir = hmGunlukGunDegistir;
