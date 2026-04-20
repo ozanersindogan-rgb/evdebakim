@@ -104,6 +104,12 @@ firebase.auth().onAuthStateChanged( user => {
     // Yedekler menüsünü hemen göster (refreshAll beklemeden)
     const _nv = document.getElementById('nav-yedekler');
     if(_nv) _nv.style.display = (user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
+    // OZAN ARAÇLAR menüsü
+    const ozanSection = document.getElementById('nav-ozan-section');
+    const ozanMenu = document.getElementById('nav-ozan-menu');
+    const isOzan = user.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2';
+    if (ozanSection) ozanSection.style.display = isOzan ? '' : 'none';
+    if (ozanMenu) ozanMenu.style.display = isOzan ? '' : 'none';
     const _na = document.getElementById('nav-ayarlar');
     if(_na) _na.style.display = ''; // Tüm kullanıcılara açık
     waitForModulesAndInit();
@@ -988,3 +994,9 @@ function renderPlan() {
 }
 
 window.renderPlan = renderPlan;
+
+// ── OZAN ARAÇLAR — araç sayfasını yeni sekmede aç ────────────
+function ozanAracAc(url) {
+  window.open(url, '_blank');
+}
+window.ozanAracAc = ozanAracAc;
