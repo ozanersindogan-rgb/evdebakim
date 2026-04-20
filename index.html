@@ -650,6 +650,14 @@
             </div>
             <h3 id="hm-form-baslik">📋 Yeni Ziyaret Formu</h3>
 
+            <!-- Görüş / Yapılan İşlem (Kontrol veya İzlem ziyaretinde görünür) -->
+            <div id="hm-gorus-panel" style="display:none;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:12px;padding:14px;margin-bottom:16px">
+              <div style="font-size:11px;font-weight:800;color:#1d4ed8;text-transform:uppercase;margin-bottom:8px">💬 Görüş / Yapılan İşlem</div>
+              <textarea id="hm-gorus" class="form-input" rows="3"
+                placeholder="Önceki ziyaretten bu yana yapılan işlemler, gözlemler, değişiklikler..."
+                style="width:100%;resize:vertical;font-size:13px;line-height:1.6;min-height:80px"></textarea>
+            </div>
+
             <!-- Vatandaş Seçimi -->
             <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:16px">
               <div style="font-size:11px;font-weight:800;color:#94a3b8;text-transform:uppercase;margin-bottom:10px">Vatandaş Seçimi</div>
@@ -692,7 +700,7 @@
                 </div>
                 <div class="form-group">
                   <label>Ziyaret Türü</label>
-                  <select class="form-select" id="hm-tur">
+                  <select class="form-select" id="hm-tur" onchange="hmTurDegisti()">
                     <option value="İlk Ziyaret">İlk Ziyaret</option>
                     <option value="Kontrol Ziyareti">Kontrol Ziyareti</option>
                     <option value="İzlem Ziyareti">İzlem Ziyareti</option>
