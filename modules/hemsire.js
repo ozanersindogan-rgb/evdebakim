@@ -954,7 +954,7 @@ function hmWhatsappPaylasGunluk() {
 
   metin += `------------------------------\n`;
   metin += `Toplam: ${liste.length} ziyaret\n`;
-  metin += `Kuşadası Belediyesi Evde Bakım`;
+  metin += `Evde Bakım Sistemi`;
 
   const encoded = encodeURIComponent(metin);
   window.open('https://wa.me/?text=' + encoded, '_blank');
