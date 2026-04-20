@@ -366,6 +366,7 @@ const PAGE_TITLES = {
   export:'Veri Al','kisi-bilgi':'Vatandaş Adres - Telefon',
   takvim:'📆 Ziyaret Takvimi',plan:'🤖 Akıllı Planlama',
   yedekler:'💾 Yedekleme',ayarlar:'⚙️ Ayarlar',
+  'gunluk-periyot':'📅 Günlük Periyot',
 };
 function navTo(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -386,7 +387,7 @@ function navTo(id, el) {
   if(id==='plan')           { if(typeof renderPlan==='function')renderPlan(); if(typeof rdvSayfaInit==='function')rdvSayfaInit(); }
   if(id==='yedekler')       if(typeof yedekSayfaYukle==='function')yedekSayfaYukle();
   if(id==='ayarlar')        if(typeof ayarlarPersonelRender==='function')ayarlarPersonelRender();
-  if(id==='personel-atama') if(typeof atamaRenderSayfa==='function')atamaRenderSayfa();
+  if(id==='gunluk-periyot') if(typeof periyotYukle==='function')periyotYukle();
   if(id==='analiz')         if(typeof analizRender==='function')analizRender();
   if(id==='stok-temizlik')  if(typeof stokRender==='function')stokRender('temizlik');
   if(id==='stok-medikal')   if(typeof stokRender==='function')stokRender('medikal');
