@@ -253,6 +253,8 @@ async function fbLoadData() {
       if (!r.ADRES && bilgi.adres) r.ADRES = bilgi.adres;
       if (!r.DOGUM_TARIHI && bilgi.dogum) r.DOGUM_TARIHI = bilgi.dogum;
     });
+    // Personel atama verilerini yükle ve allData'ya uygula
+    if (typeof atamaYukle === 'function') await atamaYukle();
     allDataOptimize();
     refreshAll();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
@@ -477,8 +479,6 @@ function refreshAll() {
   }
   const navYedek = document.getElementById('nav-yedekler');
   if(navYedek) navYedek.style.display = (currentUser?.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
-    const navGunlukPeriyot = document.getElementById('nav-gunluk-periyot');
-    if(navGunlukPeriyot) navGunlukPeriyot.style.display = '';
   const navAyarlar = document.getElementById('nav-ayarlar');
   if(navAyarlar) navAyarlar.style.display = ''; // Tüm kullanıcılara açık
 }
@@ -700,6 +700,11 @@ async function saveEdit() {
   r.ADRES         = getV('ed-adres').trim();
   r.NOT1          = getV('ed-not1');
   r.NOT2          = getV('ed-not2');
+  if (r['HİZMET'] === 'KADIN BANYO') {
+    r.PERSONEL1 = getV('ed-personel1');
+    r.PERSONEL2 = getV('ed-personel2');
+    r.PERSONEL3 = getV('ed-personel3');
+  }
 
   if (isKuafor) {
     r.SAC1    = getV('ed-sac1');
