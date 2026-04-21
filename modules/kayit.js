@@ -1251,16 +1251,8 @@ function filterVat() {
     // Kolon dropdown filtreleri
     const ayOk = !_vatKolFiltre.ay || r.AY === _vatKolFiltre.ay;
     const durKolOk = !_vatKolFiltre.durum || r.DURUM === _vatKolFiltre.durum;
-    return hOk&&aOk&&sOk&&mOk&&dOk&&pOk&&ayOk&&durKolOk;
+    return hOk&&aOk&&sOk&&mOk&&dOk&&ayOk&&durKolOk;
   });
-  // KB stats panelini göster/gizle
-  const wrap = document.getElementById('kb-personel-stats-wrap');
-  if (wrap) wrap.style.display = vatHizmet==='KADIN BANYO' ? '' : 'none';
-  // EB stats panelini göster/gizle
-  // KF stats panelini göster/gizle
-  // Render stats
-  // TP stats panelini göster/gizle (vatandaşlar sayfasındaki temizlik)
-  }
   vatPage=1; renderVat();
 }
 
