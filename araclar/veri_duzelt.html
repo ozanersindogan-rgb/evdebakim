@@ -174,15 +174,16 @@ function cikisYap() { auth.signOut(); }
 // ── SABİTLER ──
 const AY_LISTESI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
 
-// Gerçek alan adları — Firestore'daki gibi (BANYO1..5, TIRNAK1..3, SAC1..2, SAKAL1..2, TEMIZLIK1..5)
+// Gerçek alan adları — Firestore'daki gibi
+// TEMİZLİK dahil tüm hizmetler tarihlerini BANYO1..5 alanlarına yazar
 const BANYO_ALANLARI    = [1,2,3,4,5].map(n => 'BANYO' + n);
 const KUAFOR_ALANLARI   = [
   ...[1,2,3].map(n => 'TIRNAK' + n),
   ...[1,2].map(n => 'SAC' + n),
   ...[1,2].map(n => 'SAKAL' + n),
 ];
-const TEMIZLIK_ALANLARI = [1,2,3,4,5].map(n => 'TEMIZLIK' + n);
-const TUM_TARIH_ALANLARI = [...BANYO_ALANLARI, ...KUAFOR_ALANLARI, ...TEMIZLIK_ALANLARI];
+const TEMIZLIK_ALANLARI = BANYO_ALANLARI; // TEMİZLİK de BANYO1..5 kullanıyor
+const TUM_TARIH_ALANLARI = [...BANYO_ALANLARI, ...KUAFOR_ALANLARI];
 
 let islemListesi = [], tumData = [], aktifFiltre = 'TUMU';
 
