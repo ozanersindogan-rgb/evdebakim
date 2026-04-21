@@ -7,19 +7,37 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: sans-serif; padding: 24px; max-width: 960px; margin: 0 auto; background: #f8fafc; color: #1e293b; }
   h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
-  p { font-size: 13px; color: #475569; margin-bottom: 16px; }
+  p.aciklama { font-size: 13px; color: #475569; margin-bottom: 16px; }
+
+  #login-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; max-width: 360px; margin: 60px auto; }
+  #login-box h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; text-align: center; }
+  #login-box input { width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; margin-bottom: 12px; outline: none; font-family: sans-serif; }
+  #login-box input:focus { border-color: #3b82f6; }
+  #btn-giris { width: 100%; padding: 10px; background: #3b82f6; color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: sans-serif; }
+  #btn-giris:hover { background: #2563eb; }
+  #btn-giris:disabled { background: #93c5fd; cursor: not-allowed; }
+  #login-err { color: #dc2626; font-size: 12px; margin-top: 10px; min-height: 18px; text-align: center; }
+
+  #main-box { display: none; }
+  .user-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 13px; color: #64748b; }
+  #btn-cikis { font-size: 12px; padding: 5px 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer; color: #64748b; font-family: sans-serif; }
+  #btn-cikis:hover { background: #f1f5f9; }
+
   .top-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
-  button { font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #1e293b; cursor: pointer; transition: background 0.15s; }
-  button:hover { background: #f1f5f9; }
-  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  .action { font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #1e293b; cursor: pointer; transition: background 0.15s; font-family: sans-serif; }
+  .action:hover { background: #f1f5f9; }
+  .action:disabled { opacity: 0.4; cursor: not-allowed; }
   #btn-tara { border-color: #3b82f6; color: #1d4ed8; }
   #btn-uygula { border-color: #ef4444; color: #b91c1c; }
   #btn-tumunu-sec { border-color: #22c55e; color: #15803d; font-size: 12px; padding: 7px 14px; }
+
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 16px; }
   .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
   .stat-label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
   .stat-val { font-size: 22px; font-weight: 600; color: #1e293b; }
+
   #log { font-size: 13px; color: #64748b; margin-bottom: 12px; min-height: 22px; }
+
   .list { display: flex; flex-direction: column; gap: 6px; }
   .kayit-kart { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; }
   .kayit-kart:hover { border-color: #94a3b8; }
@@ -27,11 +45,11 @@
   .kayit-info { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .isim { font-size: 13px; font-weight: 600; color: #1e293b; }
   .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
-  .b-hizmet  { background: #dbeafe; color: #1e40af; }
-  .b-yanlis  { background: #fee2e2; color: #991b1b; }
-  .b-dogru   { background: #dcfce7; color: #166534; }
-  .b-warn    { background: #fef9c3; color: #854d0e; }
-  .ok-arrow  { font-size: 14px; color: #94a3b8; }
+  .b-hizmet { background: #dbeafe; color: #1e40af; }
+  .b-yanlis { background: #fee2e2; color: #991b1b; }
+  .b-dogru  { background: #dcfce7; color: #166534; }
+  .b-warn   { background: #fef9c3; color: #854d0e; }
+  .ok-arrow { font-size: 14px; color: #94a3b8; }
   .sonuc-badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
   .s-ok   { background: #dcfce7; color: #166534; }
   .s-warn { background: #fef9c3; color: #854d0e; }
@@ -41,46 +59,104 @@
 </head>
 <body>
 
-<h2>🔧 Yanlış Ay Tarihi Düzeltme</h2>
-<p>Herhangi bir ayın kaydında başka aya ait tarih varsa tespit eder. İstediğinizi seçerek düzeltebilirsiniz.<br>
-BANYO, KUAFÖR ve TEMİZLİK hizmetlerinin tamamı taranır.</p>
-
-<div id="log">Tarama başlatılmadı.</div>
-
-<div class="top-bar">
-  <button id="btn-tara" onclick="tara()">🔍 Tara</button>
-  <button id="btn-tumunu-sec" onclick="tumunuSec()" style="display:none">Tümünü seç / kaldır</button>
-  <button id="btn-uygula" onclick="uygula()" style="display:none" disabled>✅ Seçilenleri düzelt</button>
+<!-- GİRİŞ EKRANI -->
+<div id="login-box">
+  <h3>🔐 Giriş Yap</h3>
+  <input type="email" id="inp-email" placeholder="E-posta" autocomplete="email" />
+  <input type="password" id="inp-sifre" placeholder="Şifre" autocomplete="current-password" />
+  <button id="btn-giris" onclick="girisYap()">Giriş Yap</button>
+  <div id="login-err"></div>
 </div>
 
-<div class="stats" id="stats" style="display:none">
-  <div class="stat"><div class="stat-label">Toplam kayıt</div><div class="stat-val" id="s-toplam">0</div></div>
-  <div class="stat"><div class="stat-label">Sorunlu alan</div><div class="stat-val" id="s-sorunlu">0</div></div>
-  <div class="stat"><div class="stat-label">Seçili</div><div class="stat-val" id="s-secili">0</div></div>
-</div>
+<!-- ANA EKRAN -->
+<div id="main-box">
+  <h2>🔧 Yanlış Ay Tarihi Düzeltme</h2>
+  <p class="aciklama">Herhangi bir ayın kaydında başka aya ait tarih varsa tespit eder. İstediğinizi seçerek düzeltebilirsiniz.<br>
+  BANYO, KUAFÖR ve TEMİZLİK hizmetlerinin tamamı taranır.</p>
 
-<div class="list" id="liste"></div>
+  <div class="user-bar">
+    <span id="user-label"></span>
+    <button id="btn-cikis" onclick="cikisYap()">Çıkış Yap</button>
+  </div>
+
+  <div id="log">Tarama başlatılmadı.</div>
+
+  <div class="top-bar">
+    <button class="action" id="btn-tara" onclick="tara()">🔍 Tara</button>
+    <button class="action" id="btn-tumunu-sec" onclick="tumunuSec()" style="display:none">Tümünü seç / kaldır</button>
+    <button class="action" id="btn-uygula" onclick="uygula()" style="display:none" disabled>✅ Seçilenleri düzelt</button>
+  </div>
+
+  <div class="stats" id="stats" style="display:none">
+    <div class="stat"><div class="stat-label">Toplam kayıt</div><div class="stat-val" id="s-toplam">0</div></div>
+    <div class="stat"><div class="stat-label">Sorunlu alan</div><div class="stat-val" id="s-sorunlu">0</div></div>
+    <div class="stat"><div class="stat-label">Seçili</div><div class="stat-val" id="s-secili">0</div></div>
+  </div>
+
+  <div class="list" id="liste"></div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
 
 <script>
-const FIREBASE_CONFIG = {
+firebase.initializeApp({
   apiKey: "AIzaSyCc0AhkPaIzmUewk_szFLmxqfMMmMctnHw",
   authDomain: "evdebakim-ca02e.firebaseapp.com",
   projectId: "evdebakim-ca02e",
   storageBucket: "evdebakim-ca02e.firebasestorage.app",
   messagingSenderId: "708187732533",
   appId: "1:708187732533:web:34d1fea5bb82bfad2b0f7c"
-};
+});
+const auth = firebase.auth();
+const db   = firebase.firestore();
 
-const AY_LISTESI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+auth.onAuthStateChanged(user => {
+  if (user) {
+    document.getElementById('login-box').style.display = 'none';
+    document.getElementById('main-box').style.display  = 'block';
+    document.getElementById('user-label').textContent  = '👤 ' + user.email;
+  } else {
+    document.getElementById('login-box').style.display = 'block';
+    document.getElementById('main-box').style.display  = 'none';
+  }
+});
+
+async function girisYap() {
+  const email = document.getElementById('inp-email').value.trim();
+  const sifre = document.getElementById('inp-sifre').value;
+  const errEl = document.getElementById('login-err');
+  errEl.textContent = '';
+  if (!email || !sifre) { errEl.textContent = 'E-posta ve şifre gerekli.'; return; }
+  const btn = document.getElementById('btn-giris');
+  btn.textContent = 'Giriş yapılıyor...';
+  btn.disabled = true;
+  try {
+    await auth.signInWithEmailAndPassword(email, sifre);
+  } catch(e) {
+    let msg = 'Giriş başarısız.';
+    if (['auth/user-not-found','auth/wrong-password','auth/invalid-credential'].includes(e.code)) msg = 'E-posta veya şifre hatalı.';
+    else if (e.code === 'auth/too-many-requests') msg = 'Çok fazla deneme. Lütfen bekleyin.';
+    errEl.textContent = msg;
+    btn.textContent = 'Giriş Yap';
+    btn.disabled = false;
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-box').style.display !== 'none') girisYap();
+});
+
+function cikisYap() { auth.signOut(); }
+
+// ── VERİ DÜZELTME ──
+const AY_LISTESI        = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
 const BANYO_ALANLARI    = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
 const KUAFOR_ALANLARI   = ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'];
 const TEMIZLIK_ALANLARI = ['TARIH1','TARIH2','TARIH3','TARIH4','TARIH5'];
 
-let db, islemListesi = [], tumData = [];
+let islemListesi = [], tumData = [];
 
 function hizmetAlanlari(hizmet) {
   if (!hizmet) return BANYO_ALANLARI;
@@ -124,8 +200,6 @@ async function tara() {
   setLog('Firestore\'dan yükleniyor...');
 
   try {
-    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-    db = firebase.firestore();
     const snap = await db.collection('vatandaslar').get();
     tumData = snap.docs.map(d => ({ _fbId: d.id, ...d.data() }));
   } catch(e) {
@@ -230,7 +304,7 @@ async function uygula() {
       }
       basarili++;
     } catch(e) {
-      sonucEl.innerHTML = '<span class="sonuc-badge s-err">❌ Hata</span>';
+      sonucEl.innerHTML = '<span class="sonuc-badge s-err">❌ ' + e.message + '</span>';
       basarisiz++;
     }
   }
