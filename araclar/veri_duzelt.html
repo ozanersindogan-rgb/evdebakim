@@ -9,7 +9,6 @@
   h2 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
   p.aciklama { font-size: 13px; color: #475569; margin-bottom: 16px; }
 
-  /* LOGIN */
   #login-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 32px; max-width: 360px; margin: 60px auto; }
   #login-box h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; text-align: center; }
   #login-box input { width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; margin-bottom: 12px; outline: none; font-family: sans-serif; }
@@ -19,13 +18,11 @@
   #btn-giris:disabled { background: #93c5fd; cursor: not-allowed; }
   #login-err { color: #dc2626; font-size: 12px; margin-top: 10px; min-height: 18px; text-align: center; }
 
-  /* MAIN */
   #main-box { display: none; }
   .user-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 13px; color: #64748b; }
   #btn-cikis { font-size: 12px; padding: 5px 12px; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer; color: #64748b; font-family: sans-serif; }
   #btn-cikis:hover { background: #f1f5f9; }
 
-  /* TOOLBAR */
   .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
   .btn { font-family: sans-serif; font-size: 13px; font-weight: 600; padding: 8px 16px; border-radius: 8px; border: 1.5px solid #cbd5e1; background: #fff; color: #1e293b; cursor: pointer; transition: background 0.15s; }
   .btn:hover { background: #f1f5f9; }
@@ -34,14 +31,12 @@
   #btn-uygula { border-color: #ef4444; color: #b91c1c; }
   #btn-tumunu-sec { border-color: #22c55e; color: #15803d; font-size: 12px; padding: 6px 12px; }
 
-  /* HİZMET FİLTRE TABLARI */
   .filtre-bar { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .filtre-tab { font-family: sans-serif; font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 99px; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; transition: all 0.15s; }
   .filtre-tab:hover { border-color: #94a3b8; color: #1e293b; }
   .filtre-tab.aktif { background: #1e293b; color: #fff; border-color: #1e293b; }
   .filtre-tab .sayi { font-size: 11px; margin-left: 4px; opacity: 0.7; }
 
-  /* STATS */
   .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 14px; }
   .stat { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
   .stat-label { font-size: 11px; color: #64748b; margin-bottom: 4px; }
@@ -49,7 +44,6 @@
 
   #log { font-size: 13px; color: #64748b; margin-bottom: 10px; min-height: 20px; }
 
-  /* KARTLAR */
   .list { display: flex; flex-direction: column; gap: 6px; }
   .kayit-kart { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; }
   .kayit-kart.gizli { display: none; }
@@ -66,11 +60,15 @@
   .b-olustur  { background: #fef3c7; color: #92400e; }
   .ok-arrow   { font-size: 13px; color: #94a3b8; }
   .sonuc-badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; font-weight: 600; white-space: nowrap; }
-  .s-ok     { background: #dcfce7; color: #166534; }
-  .s-olustur{ background: #fef3c7; color: #92400e; }
-  .s-warn   { background: #fef9c3; color: #854d0e; }
-  .s-err    { background: #fee2e2; color: #991b1b; }
+  .s-ok      { background: #dcfce7; color: #166534; }
+  .s-olustur { background: #fef3c7; color: #92400e; }
+  .s-warn    { background: #fef9c3; color: #854d0e; }
+  .s-err     { background: #fee2e2; color: #991b1b; }
   .empty { text-align: center; padding: 40px; color: #94a3b8; font-size: 14px; }
+
+  /* Debug paneli */
+  #debug-box { background: #1e293b; color: #94a3b8; font-family: monospace; font-size: 11px; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; max-height: 180px; overflow-y: auto; display: none; }
+  #btn-debug { border-color: #94a3b8; color: #64748b; font-size: 11px; padding: 5px 10px; }
 </style>
 </head>
 <body>
@@ -87,7 +85,7 @@
 <!-- ANA EKRAN -->
 <div id="main-box">
   <h2>🔧 Yanlış Ay Tarihi Düzeltme</h2>
-  <p class="aciklama">Herhangi bir ayın kaydında başka aya ait tarih varsa tespit eder. Hedef kayıt yoksa otomatik oluşturulur. İstediğinizi seçerek düzeltebilirsiniz.</p>
+  <p class="aciklama">Herhangi bir ayın kaydında başka aya ait tarih varsa tespit eder. Hedef kayıt yoksa otomatik oluşturulur.</p>
 
   <div class="user-bar">
     <span id="user-label"></span>
@@ -100,9 +98,12 @@
     <button class="btn" id="btn-tara" onclick="tara()">🔍 Tara</button>
     <button class="btn" id="btn-tumunu-sec" onclick="tumunuSec()" style="display:none">Tümünü seç / kaldır</button>
     <button class="btn" id="btn-uygula" onclick="uygula()" style="display:none" disabled>✅ Seçilenleri düzelt</button>
+    <button class="btn" id="btn-debug" onclick="toggleDebug()">🔎 Alan adlarını göster</button>
   </div>
 
-  <!-- HİZMET FİLTRE TABLARI -->
+  <!-- DEBUG: ilk kayıttaki alan adlarını gösterir -->
+  <div id="debug-box"></div>
+
   <div class="filtre-bar" id="filtre-bar" style="display:none">
     <button class="filtre-tab aktif" data-filtre="TUMU" onclick="filtreUygula(this)">Tümü <span class="sayi" id="f-tumu">0</span></button>
     <button class="filtre-tab" data-filtre="BANYO" onclick="filtreUygula(this)">🛁 Banyo <span class="sayi" id="f-banyo">0</span></button>
@@ -165,20 +166,23 @@ async function girisYap() {
     btn.textContent = 'Giriş Yap'; btn.disabled = false;
   }
 }
-
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login-box').style.display !== 'none') girisYap();
 });
 function cikisYap() { auth.signOut(); }
 
 // ── SABİTLER ──
-const AY_LISTESI        = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
-const BANYO_ALANLARI    = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
-const KUAFOR_ALANLARI   = ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'];
-const TEMIZLIK_ALANLARI = ['TARIH1','TARIH2','TARIH3','TARIH4','TARIH5'];
+const AY_LISTESI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+
+// Gerçek alan adları — Firestore'daki gibi
+const BANYO_ALANLARI    = [1,2,3,4,5].map(n => 'BANYO — ' + n + '. Ziyaret');
+const KUAFOR_ALANLARI   = [1,2,3,4,5].map(n => 'KUAFÖR — ' + n + '. Ziyaret');
+const TEMIZLIK_ALANLARI = [1,2,3,4,5].map(n => 'TEMİZLİK — ' + n + '. Ziyaret');
+const TUM_TARIH_ALANLARI = [...BANYO_ALANLARI, ...KUAFOR_ALANLARI, ...TEMIZLIK_ALANLARI];
 
 let islemListesi = [], tumData = [], aktifFiltre = 'TUMU';
 
+// Kayıttaki HİZMET alanına göre hangi alan grubunu tarıyacağız
 function hizmetAlanlari(hizmet) {
   if (!hizmet) return BANYO_ALANLARI;
   const h = hizmet.toUpperCase();
@@ -187,25 +191,38 @@ function hizmetAlanlari(hizmet) {
   return BANYO_ALANLARI;
 }
 
-function hizmetSinifi(hizmet) {
-  if (!hizmet) return 'b-banyo';
-  const h = hizmet.toUpperCase();
-  if (h.includes('KUAF')) return 'b-kuafor';
-  if (h.includes('TEM'))  return 'b-temizlik';
+// Tüm tarih alanlarını tara (HİZMET alanından bağımsız — bazı kayıtlarda HİZMET eksik olabilir)
+function kayittakiTarihAlanlari(kayit) {
+  return TUM_TARIH_ALANLARI.filter(alan => kayit[alan]);
+}
+
+function hizmetSinifi(alan) {
+  if (alan.includes('KUAF')) return 'b-kuafor';
+  if (alan.includes('TEM'))  return 'b-temizlik';
   return 'b-banyo';
 }
 
-function hizmetFiltresi(hizmet) {
-  if (!hizmet) return 'BANYO';
-  const h = hizmet.toUpperCase();
-  if (h.includes('KUAF')) return 'KUAFÖR';
-  if (h.includes('TEM'))  return 'TEMİZLİK';
+function hizmetFiltresiAlan(alan) {
+  if (alan.includes('KUAF')) return 'KUAFÖR';
+  if (alan.includes('TEM'))  return 'TEMİZLİK';
+  return 'BANYO';
+}
+
+function ilgiliAlanListesi(alan) {
+  if (alan.includes('KUAF')) return KUAFOR_ALANLARI;
+  if (alan.includes('TEM'))  return TEMIZLIK_ALANLARI;
+  return BANYO_ALANLARI;
+}
+
+function hizmetEtiketiAlan(alan) {
+  if (alan.includes('KUAF')) return 'KUAFÖR';
+  if (alan.includes('TEM'))  return 'TEMİZLİK';
   return 'BANYO';
 }
 
 function tarihtenAy(str) {
   if (!str) return null;
-  const p = str.split('.');
+  const p = String(str).trim().split('.');
   if (p.length < 2) return null;
   const idx = parseInt(p[1], 10) - 1;
   return AY_LISTESI[idx] || null;
@@ -213,9 +230,27 @@ function tarihtenAy(str) {
 
 function setLog(txt) { document.getElementById('log').textContent = txt; }
 
+// Debug: ilk birkaç kaydın alan adlarını göster
+function toggleDebug() {
+  const box = document.getElementById('debug-box');
+  if (box.style.display === 'none' || box.style.display === '') {
+    if (tumData.length === 0) { box.style.display = 'block'; box.textContent = 'Önce Tara butonuna basın.'; return; }
+    let out = '';
+    tumData.slice(0, 3).forEach((k, i) => {
+      out += '── Kayıt ' + (i+1) + ': ' + (k.ISIM_SOYISIM || k['İSİM SOYİSİM'] || '?') + ' ──\n';
+      Object.keys(k).filter(f => f !== '_fbId').forEach(f => {
+        out += '  ' + f + ': ' + k[f] + '\n';
+      });
+      out += '\n';
+    });
+    box.textContent = out;
+    box.style.display = 'block';
+  } else {
+    box.style.display = 'none';
+  }
+}
+
 function istatistikGuncelle() {
-  const gorunenSecili = [...document.querySelectorAll('.kayit-cb:checked')]
-    .filter(b => !b.closest('.kayit-kart').classList.contains('gizli')).length;
   const tumSecili = document.querySelectorAll('.kayit-cb:checked').length;
   document.getElementById('s-secili').textContent = tumSecili;
   document.getElementById('btn-uygula').disabled = tumSecili === 0;
@@ -232,11 +267,9 @@ function filtreUygula(el) {
   document.querySelectorAll('.filtre-tab').forEach(t => t.classList.remove('aktif'));
   el.classList.add('aktif');
   aktifFiltre = el.dataset.filtre;
-
   let gosterilen = 0;
   document.querySelectorAll('.kayit-kart').forEach(kart => {
-    const kHizmet = kart.dataset.hizmet;
-    const gizle = aktifFiltre !== 'TUMU' && kHizmet !== aktifFiltre;
+    const gizle = aktifFiltre !== 'TUMU' && kart.dataset.hizmet !== aktifFiltre;
     kart.classList.toggle('gizli', gizle);
     if (!gizle) gosterilen++;
   });
@@ -251,6 +284,7 @@ async function tara() {
   document.getElementById('stats').style.display = 'none';
   document.getElementById('filtre-bar').style.display = 'none';
   document.getElementById('liste').innerHTML = '';
+  document.getElementById('debug-box').style.display = 'none';
   islemListesi = [];
   aktifFiltre = 'TUMU';
 
@@ -267,34 +301,47 @@ async function tara() {
 
   setLog(tumData.length + ' kayıt yüklendi. Analiz ediliyor...');
 
-  for (const kayit of tumData) {
-    const kayitAy = kayit.AY;
-    if (!kayitAy) continue;
-    const hizmet = kayit['HİZMET'] || '';
-    const alanlar = hizmetAlanlari(hizmet);
+  // AY alan adını bul (büyük/küçük harf farklılığına karşı)
+  const ayAlanAdi = tumData.length > 0
+    ? Object.keys(tumData[0]).find(k => k.toUpperCase() === 'AY') || 'AY'
+    : 'AY';
 
-    for (const alan of alanlar) {
+  // ISIM_SOYISIM alan adını bul
+  const isimAlanAdi = tumData.length > 0
+    ? Object.keys(tumData[0]).find(k =>
+        k.replace(/\s/g,'').toUpperCase() === 'ISIMSOYISIM' ||
+        k.toUpperCase().includes('İSİM') ||
+        k.toUpperCase().includes('ISIM')
+      ) || 'ISIM_SOYISIM'
+    : 'ISIM_SOYISIM';
+
+  for (const kayit of tumData) {
+    const kayitAy = kayit[ayAlanAdi];
+    if (!kayitAy) continue;
+
+    // Tüm tarih alanlarını tara
+    for (const alan of TUM_TARIH_ALANLARI) {
       const tarih = kayit[alan];
       if (!tarih) continue;
       const tarihAy = tarihtenAy(tarih);
       if (!tarihAy || tarihAy === kayitAy) continue;
 
+      // Doğru ay kaydını bul
       const dogruKayit = tumData.find(r =>
-        r.ISIM_SOYISIM === kayit.ISIM_SOYISIM &&
-        r['HİZMET'] === hizmet &&
-        r.AY === tarihAy &&
+        r[isimAlanAdi] === kayit[isimAlanAdi] &&
+        r[ayAlanAdi] === tarihAy &&
         r._fbId !== kayit._fbId
-      );
+      ) || null;
 
       islemListesi.push({
-        kayit, alan, tarih, tarihAy, kayitAy, hizmet,
-        dogruKayit: dogruKayit || null,
-        hizmetFiltre: hizmetFiltresi(hizmet)
+        kayit, alan, tarih, tarihAy,
+        kayitAy, dogruKayit,
+        isimAlanAdi, ayAlanAdi,
+        hizmetFiltre: hizmetFiltresiAlan(alan)
       });
     }
   }
 
-  // Filtre sayılarını hesapla
   const sayiBanyo    = islemListesi.filter(i => i.hizmetFiltre === 'BANYO').length;
   const sayiKuafor   = islemListesi.filter(i => i.hizmetFiltre === 'KUAFÖR').length;
   const sayiTemizlik = islemListesi.filter(i => i.hizmetFiltre === 'TEMİZLİK').length;
@@ -303,16 +350,16 @@ async function tara() {
   document.getElementById('f-kuafor').textContent   = sayiKuafor;
   document.getElementById('f-temizlik').textContent = sayiTemizlik;
 
-  document.getElementById('s-toplam').textContent    = tumData.length;
-  document.getElementById('s-sorunlu').textContent   = islemListesi.length;
-  document.getElementById('s-gosterilen').textContent= islemListesi.length;
-  document.getElementById('s-secili').textContent    = 0;
+  document.getElementById('s-toplam').textContent     = tumData.length;
+  document.getElementById('s-sorunlu').textContent    = islemListesi.length;
+  document.getElementById('s-gosterilen').textContent = islemListesi.length;
+  document.getElementById('s-secili').textContent     = 0;
   document.getElementById('stats').style.display = 'grid';
 
   const liste = document.getElementById('liste');
 
   if (islemListesi.length === 0) {
-    liste.innerHTML = '<div class="empty">✅ Sorunlu kayıt bulunamadı! Veri temiz.</div>';
+    liste.innerHTML = '<div class="empty">✅ Sorunlu kayıt bulunamadı. Veri temiz görünüyor.<br><small style="color:#cbd5e1">Emin değilseniz "Alan adlarını göster" butonuna tıklayın.</small></div>';
     setLog('Tarama tamamlandı.');
     document.getElementById('btn-tara').disabled = false;
     return;
@@ -329,8 +376,8 @@ async function tara() {
     kart.innerHTML =
       '<input type="checkbox" class="kayit-cb" data-idx="' + i + '" onchange="istatistikGuncelle()" checked>' +
       '<div><div class="kayit-info">' +
-        '<span class="isim">' + (islem.kayit.ISIM_SOYISIM || '—') + '</span>' +
-        '<span class="badge ' + hizmetSinifi(islem.hizmet) + '">' + (islem.hizmet || 'BANYO') + '</span>' +
+        '<span class="isim">' + (islem.kayit[islem.isimAlanAdi] || '—') + '</span>' +
+        '<span class="badge ' + hizmetSinifi(islem.alan) + '">' + hizmetEtiketiAlan(islem.alan) + '</span>' +
         '<span class="badge b-yanlis">' + islem.kayitAy + ' / ' + islem.alan + ' = ' + islem.tarih + '</span>' +
         '<span class="ok-arrow">→</span>' +
         hedefMetin +
@@ -339,11 +386,9 @@ async function tara() {
     liste.appendChild(kart);
   });
 
-  // Filtre tablarını göster, tümü aktif
   document.querySelectorAll('.filtre-tab').forEach(t => t.classList.remove('aktif'));
   document.querySelector('.filtre-tab[data-filtre="TUMU"]').classList.add('aktif');
   document.getElementById('filtre-bar').style.display = 'flex';
-
   istatistikGuncelle();
   document.getElementById('btn-uygula').style.display = 'inline-block';
   document.getElementById('btn-tumunu-sec').style.display = 'inline-block';
@@ -374,23 +419,19 @@ async function uygula() {
       // 2) Hedef kayıt yoksa oluştur
       if (!hedef) {
         const yeniData = {};
-        // Mevcut kaydın tüm alanlarını kopyala, tarih alanlarını boşalt, AY'ı güncelle
-        const tumAlanlar = [...BANYO_ALANLARI, ...KUAFOR_ALANLARI, ...TEMIZLIK_ALANLARI];
         for (const [k, v] of Object.entries(islem.kayit)) {
           if (k === '_fbId') continue;
-          if (tumAlanlar.includes(k)) yeniData[k] = ''; // tarih alanları boş
-          else yeniData[k] = v;
+          yeniData[k] = TUM_TARIH_ALANLARI.includes(k) ? '' : v;
         }
-        yeniData['AY'] = islem.tarihAy; // doğru ay
+        yeniData[islem.ayAlanAdi] = islem.tarihAy;
 
         const yeniRef = await db.collection('vatandaslar').add(yeniData);
-        // Bellekteki tumData'ya da ekle ki aynı oturumda referans alınabilsin
         hedef = { _fbId: yeniRef.id, ...yeniData };
         tumData.push(hedef);
       }
 
       // 3) Hedef kayıttaki uygun boş alana tarihi yaz
-      const alanlar = hizmetAlanlari(islem.hizmet);
+      const alanlar = ilgiliAlanListesi(islem.alan);
       const bosAlan = alanlar.find(f => !hedef[f]);
       if (bosAlan) {
         await db.collection('vatandaslar').doc(hedef._fbId).update({ [bosAlan]: islem.tarih });
