@@ -264,14 +264,21 @@ function buildRows() {
       };
     }
 
-    // TEMİZLİK: "1. HİZMET" ve "2. HİZMET" alanlarından toplanan tarihler
-    const sistemTarihler = [match['1. HİZMET'], match['2. HİZMET']]
-      .filter(Boolean);
+    // TEMİZLİK: TEMIZLIK1..5 alanlarından toplanan tarihler
+    const TEMIZLIK_ALANLARI = ['TEMIZLIK1','TEMIZLIK2','TEMIZLIK3','TEMIZLIK4','TEMIZLIK5'];
+    const sistemTarihler = TEMIZLIK_ALANLARI.map(a => match[a]).filter(Boolean);
 
-    // Excel tarihini sistemde ara
-    const excelNorm = ex.tarih.replace(/\./g,'');
-    const sistemNorm = sistemTarihler.map(t => t.replace(/\./g,''));
-    const tarihVar = sistemNorm.includes(excelNorm);
+    // Tarih normalizer: DD.MM.YYYY veya YYYY-MM-DD → DDMMYYYY
+    function normTarih(t) {
+      if (!t) return '';
+      const s = String(t).trim();
+      if (s.includes('-')) { const p = s.split('-'); return (p[2]||'') + (p[1]||'') + (p[0]||''); }
+      return s.replace(/\./g, '');
+    }
+
+    // Excel tarihini sistemde ara (format bağımsız)
+    const excelNorm = normTarih(ex.tarih);
+    const tarihVar = sistemTarihler.some(t => normTarih(t) === excelNorm);
 
     return {
       isim: ex.isim,
@@ -426,7 +433,7 @@ async function bulkProcess() {
         const snap = await ref.get();
         if (!snap.exists) { fail++; continue; }
         const data  = snap.data();
-        const slots = ['1. HİZMET', '2. HİZMET'];
+        const slots = ['TEMIZLIK1','TEMIZLIK2','TEMIZLIK3','TEMIZLIK4','TEMIZLIK5'];
         const bosSlot = slots.find(s => !data[s]);
         if (bosSlot) {
           await ref.update({ [bosSlot]: row.eksikTarih });
@@ -446,8 +453,8 @@ async function bulkProcess() {
           EKIP_BASI: row.ekipBasi || '',
           DURUM: 'AKTİF',
           NOT1: '',
-          '1. HİZMET': row.excelTarih,
-          '2. HİZMET': ''
+          TEMIZLIK1: row.excelTarih,
+          TEMIZLIK2: '', TEMIZLIK3: '', TEMIZLIK4: '', TEMIZLIK5: ''
         };
         const docRef = await db.collection('vatandaslar').add(yeni);
         yeni._fbId = docRef.id;
