@@ -174,10 +174,14 @@ function cikisYap() { auth.signOut(); }
 // ── SABİTLER ──
 const AY_LISTESI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
 
-// Gerçek alan adları — Firestore'daki gibi
-const BANYO_ALANLARI    = [1,2,3,4,5].map(n => 'BANYO — ' + n + '. Ziyaret');
-const KUAFOR_ALANLARI   = [1,2,3,4,5].map(n => 'KUAFÖR — ' + n + '. Ziyaret');
-const TEMIZLIK_ALANLARI = [1,2,3,4,5].map(n => 'TEMİZLİK — ' + n + '. Ziyaret');
+// Gerçek alan adları — Firestore'daki gibi (BANYO1..5, TIRNAK1..3, SAC1..2, SAKAL1..2, TEMIZLIK1..5)
+const BANYO_ALANLARI    = [1,2,3,4,5].map(n => 'BANYO' + n);
+const KUAFOR_ALANLARI   = [
+  ...[1,2,3].map(n => 'TIRNAK' + n),
+  ...[1,2].map(n => 'SAC' + n),
+  ...[1,2].map(n => 'SAKAL' + n),
+];
+const TEMIZLIK_ALANLARI = [1,2,3,4,5].map(n => 'TEMIZLIK' + n);
 const TUM_TARIH_ALANLARI = [...BANYO_ALANLARI, ...KUAFOR_ALANLARI, ...TEMIZLIK_ALANLARI];
 
 let islemListesi = [], tumData = [], aktifFiltre = 'TUMU';
@@ -197,35 +201,44 @@ function kayittakiTarihAlanlari(kayit) {
 }
 
 function hizmetSinifi(alan) {
-  if (alan.includes('KUAF')) return 'b-kuafor';
-  if (alan.includes('TEM'))  return 'b-temizlik';
+  if (KUAFOR_ALANLARI.includes(alan)) return 'b-kuafor';
+  if (TEMIZLIK_ALANLARI.includes(alan)) return 'b-temizlik';
   return 'b-banyo';
 }
 
 function hizmetFiltresiAlan(alan) {
-  if (alan.includes('KUAF')) return 'KUAFÖR';
-  if (alan.includes('TEM'))  return 'TEMİZLİK';
+  if (KUAFOR_ALANLARI.includes(alan)) return 'KUAFÖR';
+  if (TEMIZLIK_ALANLARI.includes(alan)) return 'TEMİZLİK';
   return 'BANYO';
 }
 
 function ilgiliAlanListesi(alan) {
-  if (alan.includes('KUAF')) return KUAFOR_ALANLARI;
-  if (alan.includes('TEM'))  return TEMIZLIK_ALANLARI;
+  if (KUAFOR_ALANLARI.includes(alan)) return KUAFOR_ALANLARI;
+  if (TEMIZLIK_ALANLARI.includes(alan)) return TEMIZLIK_ALANLARI;
   return BANYO_ALANLARI;
 }
 
 function hizmetEtiketiAlan(alan) {
-  if (alan.includes('KUAF')) return 'KUAFÖR';
-  if (alan.includes('TEM'))  return 'TEMİZLİK';
+  if (KUAFOR_ALANLARI.includes(alan)) return 'KUAFÖR';
+  if (TEMIZLIK_ALANLARI.includes(alan)) return 'TEMİZLİK';
   return 'BANYO';
 }
 
 function tarihtenAy(str) {
   if (!str) return null;
-  const p = String(str).trim().split('.');
-  if (p.length < 2) return null;
-  const idx = parseInt(p[1], 10) - 1;
-  return AY_LISTESI[idx] || null;
+  const s = String(str).trim();
+  let ay = null;
+  if (s.includes('-')) {
+    // ISO format: 2026-02-25
+    const p = s.split('-');
+    ay = p.length >= 2 ? parseInt(p[1], 10) : null;
+  } else if (s.includes('.')) {
+    // DD.MM.YYYY format: 25.02.2026
+    const p = s.split('.');
+    ay = p.length >= 2 ? parseInt(p[1], 10) : null;
+  }
+  if (!ay || ay < 1 || ay > 12) return null;
+  return AY_LISTESI[ay - 1];
 }
 
 function setLog(txt) { document.getElementById('log').textContent = txt; }
@@ -306,14 +319,15 @@ async function tara() {
     ? Object.keys(tumData[0]).find(k => k.toUpperCase() === 'AY') || 'AY'
     : 'AY';
 
-  // ISIM_SOYISIM alan adını bul
-  const isimAlanAdi = tumData.length > 0
-    ? Object.keys(tumData[0]).find(k =>
-        k.replace(/\s/g,'').toUpperCase() === 'ISIMSOYISIM' ||
-        k.toUpperCase().includes('İSİM') ||
-        k.toUpperCase().includes('ISIM')
-      ) || 'ISIM_SOYISIM'
-    : 'ISIM_SOYISIM';
+  // ISIM_SOYISIM alan adını bul (tüm kayıtlarda tutarlı olsun diye ilk dolu kaydı kullan)
+  let isimAlanAdi = 'ISIM_SOYISIM';
+  for (const k of tumData) {
+    const bulunan = Object.keys(k).find(f =>
+      f.replace(/[_\s]/g,'').toUpperCase() === 'ISIMSOYISIM' ||
+      f.replace(/[_\s]/g,'').toUpperCase() === 'İSİMSOYİSİM'
+    );
+    if (bulunan) { isimAlanAdi = bulunan; break; }
+  }
 
   for (const kayit of tumData) {
     const kayitAy = kayit[ayAlanAdi];
