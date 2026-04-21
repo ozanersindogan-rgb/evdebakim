@@ -86,15 +86,7 @@
 <!-- ANA İÇERİK -->
 <div class="container" id="mainSection" style="display:none">
   <div class="filters">
-    <div>
-      <label>Ekip Başı</label>
-      <select id="filterEkip" onchange="applyFilters()">
-        <option value="">Tümü</option>
-        <option value="Gülin">Gülin</option>
-        <option value="Hava">Hava</option>
-        <option value="Nihal">Nihal</option>
-      </select>
-    </div>
+
     <div>
       <label>Mahalle</label>
       <select id="filterMahalle" onchange="applyFilters()">
@@ -136,7 +128,6 @@
       <thead>
         <tr>
           <th class="check-col">Seç</th>
-          <th>EKİP BAŞI</th>
           <th>İSİM</th>
           <th>MAHALLE</th>
           <th>Excel'deki Tarih (Son Gidilme)</th>
@@ -227,10 +218,34 @@ async function loadFirestore() {
   document.getElementById('loadingMsg').style.display = 'block';
   document.getElementById('mainTable').style.display = 'none';
   try {
-    const snap = await db.collection('vatandaslar')
-      .where('HİZMET', '==', 'TEMİZLİK')
-      .get();
-    allFirestoreData = snap.docs.map(d => ({ _fbId: d.id, ...d.data() }));
+    // Tüm vatandaslar'ı çek, JS tarafında filtrele (TEMİZLİK + MART 2026)
+    const snap = await db.collection('vatandaslar').get();
+    allFirestoreData = snap.docs
+      .map(d => ({ _fbId: d.id, ...d.data() }))
+      .filter(r => {
+        const hizmet = (r['HİZMET'] || r['HIZMET'] || '').toLocaleUpperCase('tr-TR');
+        const ay     = (r['AY'] || '').toLocaleUpperCase('tr-TR');
+        return hizmet === 'TEMİZLİK' && ay === 'MART';
+      });
+    // DEBUG: konsola ilk kaydın tüm alan adlarını ve değerlerini yaz
+    if (allFirestoreData.length > 0) {
+      console.log('=== FIRESTORE İLK KAYIT ===');
+      console.log('Toplam eşleşen kayıt:', allFirestoreData.length);
+      const ilk = allFirestoreData[0];
+      Object.keys(ilk).forEach(k => console.log(JSON.stringify(k), '=', JSON.stringify(ilk[k])));
+
+      // Birol ERDOĞAN'ı özellikle bul
+      const birol = allFirestoreData.find(r => (r.ISIM_SOYISIM||'').toLocaleUpperCase('tr-TR').includes('BİROL'));
+      if (birol) {
+        console.log('=== BİROL KAYDININ ALANLARI ===');
+        Object.keys(birol).forEach(k => console.log(JSON.stringify(k), '=', JSON.stringify(birol[k])));
+      } else {
+        console.log('BİROL bulunamadı — tüm isimler:', allFirestoreData.map(r => r.ISIM_SOYISIM));
+      }
+    } else {
+      console.log('UYARI: allFirestoreData BOŞ — AY filtresi hiç kayıt döndürmedi');
+    }
+
     buildRows();
     applyFilters();
   } catch(e) {
@@ -297,13 +312,11 @@ function buildRows() {
 // FİLTRELEME & RENDER
 // ─────────────────────────────────────────────────────────
 function applyFilters() {
-  const ekip   = document.getElementById('filterEkip').value;
   const mah    = document.getElementById('filterMahalle').value;
   const durum  = document.getElementById('filterDurum').value;
   const isim   = document.getElementById('filterIsim').value.toLocaleLowerCase('tr-TR');
 
   filteredRows = allRows.filter(r => {
-    if (ekip  && r.ekipBasi !== ekip) return false;
     if (mah   && r.mahalle  !== mah)  return false;
     if (durum && r.durum    !== durum) return false;
     if (isim  && !r.isim.toLocaleLowerCase('tr-TR').includes(isim)) return false;
@@ -330,8 +343,6 @@ function updateSummary() {
   `;
 }
 
-const EKIP_RENK = { 'Gülin': '#8b5cf6', 'Hava': '#0ea5e9', 'Nihal': '#10b981', 'N': '#f59e0b' };
-
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   tbody.innerHTML = '';
@@ -345,14 +356,11 @@ function renderTable() {
     else if (row.durum === 'eksik') durumTag = '<span class="tag tag-missing">❌ Eksik Tarih</span>';
     else                            durumTag = '<span class="tag tag-yok">⚠ Sistemde Yok</span>';
 
-    const ekipRenk = EKIP_RENK[row.ekipBasi] || '#94a3b8';
-
     tbody.innerHTML += `
       <tr>
         <td class="check-col">
           ${canSelect ? `<input type="checkbox" ${isSelected?'checked':''} onchange="toggleRow(${i}, this)">` : ''}
         </td>
-        <td><span class="ekip-badge" style="background:${ekipRenk}">${row.ekipBasi}</span></td>
         <td><strong>${row.isim}</strong></td>
         <td style="color:#64748b;font-size:.82rem">${row.mahalle}</td>
         <td style="font-weight:600;color:#1e40af">${row.excelTarih}</td>
