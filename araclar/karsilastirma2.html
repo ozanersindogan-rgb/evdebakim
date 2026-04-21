@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>evdebakim – Excel/Firestore Karşılaştırma (Temizlik)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+  header { background: linear-gradient(135deg,#3b82f6,#6366f1); color: #fff; padding: 18px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.15rem; font-weight: 600; }
+  .badge { background: rgba(255,255,255,.22); padding: 3px 10px; border-radius: 20px; font-size: .75rem; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 20px 16px; }
+
+  #loginSection { background: #fff; border-radius: 12px; padding: 32px; max-width: 420px; margin: 40px auto; box-shadow: 0 4px 20px rgba(0,0,0,.1); }
+  #loginSection h2 { font-size: 1.1rem; margin-bottom: 18px; color: #3b82f6; }
+  input[type=email], input[type=password] { width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: .95rem; margin-bottom: 12px; }
+  .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: .9rem; font-weight: 600; transition: opacity .2s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #3b82f6; color: #fff; }
+  .btn-success { background: #10b981; color: #fff; }
+  .btn-warning { background: #f59e0b; color: #fff; }
+  .btn-sm { padding: 5px 12px; font-size: .8rem; }
+
+  .filters { background: #fff; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .filters label { font-size: .8rem; color: #64748b; display: block; margin-bottom: 4px; }
+  select { padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px; font-size: .9rem; background: #f8fafc; }
+
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: #fff; border-radius: 10px; padding: 14px 18px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .stat-card .num { font-size: 1.6rem; font-weight: 700; }
+  .stat-card .lbl { font-size: .75rem; color: #64748b; margin-top: 2px; }
+  .stat-card.red .num { color: #ef4444; }
+  .stat-card.orange .num { color: #f59e0b; }
+  .stat-card.green .num { color: #10b981; }
+  .stat-card.blue .num { color: #3b82f6; }
+
+  .table-wrap { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.06); overflow: hidden; }
+  .table-header { padding: 14px 20px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+  .table-header h3 { font-size: .95rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th { background: #f8fafc; padding: 10px 14px; text-align: left; font-weight: 600; color: #475569; border-bottom: 1.5px solid #e2e8f0; }
+  td { padding: 9px 14px; border-bottom: 1px solid #f1f5f9; }
+  tr:hover td { background: #f8fafc; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: .72rem; font-weight: 600; }
+  .tag-missing { background: #fee2e2; color: #dc2626; }
+  .tag-ok { background: #dcfce7; color: #16a34a; }
+  .tag-yok { background: #fef3c7; color: #d97706; }
+
+  .check-col input { width: 16px; height: 16px; cursor: pointer; }
+
+  .bulk-bar { background: #3b82f6; color: #fff; padding: 12px 20px; border-radius: 10px; margin-bottom: 12px; display: none; justify-content: space-between; align-items: center; }
+  .bulk-bar.show { display: flex; }
+
+  #loadingMsg { text-align: center; padding: 40px; color: #64748b; }
+  .error-msg { color: #ef4444; font-size: .85rem; margin-top: 8px; }
+
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 14px; padding: 28px; max-width: 520px; width: 90%; max-height: 80vh; overflow-y: auto; }
+  .modal h3 { font-size: 1rem; margin-bottom: 16px; }
+  .modal-list { list-style: none; font-size: .82rem; }
+  .modal-list li { padding: 6px 0; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; }
+  .modal-actions { margin-top: 18px; display: flex; gap: 10px; justify-content: flex-end; }
+
+  .ekip-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: .75rem; font-weight: 600; color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🧹 evdebakim – Temizlik / Firestore Karşılaştırma</h1>
+  </div>
+  <span class="badge" id="userBadge">Giriş yapılmadı</span>
+</header>
+
+<!-- LOGIN -->
+<div class="container" id="loginSection">
+  <h2>🔐 Firebase ile Giriş</h2>
+  <input type="email" id="email" placeholder="E-posta" value="ozan.ersin@kusadasi.bel.tr">
+  <input type="password" id="password" placeholder="Şifre">
+  <button class="btn btn-primary" onclick="doLogin()">Giriş Yap</button>
+  <p class="error-msg" id="loginError"></p>
+</div>
+
+<!-- ANA İÇERİK -->
+<div class="container" id="mainSection" style="display:none">
+  <div class="filters">
+
+    <div>
+      <label>Mahalle</label>
+      <select id="filterMahalle" onchange="applyFilters()">
+        <option value="">Tümü</option>
+      </select>
+    </div>
+    <div>
+      <label>Durum</label>
+      <select id="filterDurum" onchange="applyFilters()">
+        <option value="">Tümü</option>
+        <option value="eksik">Eksik (tarih sistemde yok)</option>
+        <option value="ok">Tamam</option>
+        <option value="yok">Sistemde kayıt yok</option>
+      </select>
+    </div>
+    <div>
+      <label>İsim Ara</label>
+      <input type="text" id="filterIsim" placeholder="İsim..." style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.9rem;background:#f8fafc" oninput="applyFilters()">
+    </div>
+    <button class="btn btn-primary" onclick="loadFirestore()">🔄 Yenile</button>
+  </div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="bulk-bar" id="bulkBar">
+    <span id="bulkCount">0 seçili</span>
+    <button class="btn btn-success btn-sm" onclick="showBulkModal()">✅ Seçilileri Sisteme İşle</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="table-header">
+      <h3>Karşılaştırma Sonuçları – <span style="color:#0ea5e9;font-size:.85rem">TEMİZLİK</span> &nbsp;|&nbsp; <span style="color:#64748b;font-size:.8rem">MART 2026</span></h3>
+      <label style="font-size:.82rem;color:#64748b;cursor:pointer">
+        <input type="checkbox" id="selectAll" onchange="toggleSelectAll()"> Tümünü Seç (eksik + yok)
+      </label>
+    </div>
+    <div id="loadingMsg">⏳ Firestore verisi yükleniyor...</div>
+    <table id="mainTable" style="display:none">
+      <thead>
+        <tr>
+          <th class="check-col">Seç</th>
+          <th>İSİM</th>
+          <th>MAHALLE</th>
+          <th>Excel'deki Tarih (Son Gidilme)</th>
+          <th>Sistemdeki Tarih</th>
+          <th>Durum</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TOPLU İŞLEM MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3>✅ Sisteme İşlenecek Kayıtlar</h3>
+    <p style="font-size:.82rem;color:#64748b;margin-bottom:12px">Aşağıdaki kayıtlara Excel'deki tarih eklenecek. <strong style="color:#f59e0b">⚠ Kayıt Yok</strong> olanlara yeni kayıt oluşturulacak.</p>
+    <ul class="modal-list" id="modalList"></ul>
+    <div class="modal-actions">
+      <button class="btn" style="background:#f1f5f9;color:#475569" onclick="closeModal()">İptal</button>
+      <button class="btn btn-success" id="confirmBtn" onclick="bulkProcess()">Onayla ve İşle</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCc0AhkPaIzmUewk_szFLmxqfMMmMctnHw",
+  authDomain: "evdebakim-ca02e.firebaseapp.com",
+  projectId: "evdebakim-ca02e",
+  storageBucket: "evdebakim-ca02e.firebasestorage.app",
+  messagingSenderId: "708187732533",
+  appId: "1:708187732533:web:34d1fea5bb82bfad2b0f7c"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ─────────────────────────────────────────────────────────
+// EXCEL VERİSİ (Kitap1.xlsx – Güncel sayfası, Mart 2026 Temizlik)
+// ─────────────────────────────────────────────────────────
+const EXCEL_DATA = [{"isim":"Erol ÖZER","ekipBasi":"Gülin","mahalle":"Hacıfeyzullah","tarih":"02.03.2026"},{"isim":"Birol ERDOĞAN","ekipBasi":"Hava","mahalle":"Hacıfeyzullah","tarih":"03.03.2026"},{"isim":"Gülay Yetik","ekipBasi":"Hava","mahalle":"Cumhuriyet","tarih":"04.03.2026"},{"isim":"İkbal DÜZBASTI","ekipBasi":"Nihal","mahalle":"Hacıfeyzullah","tarih":"04.03.2026"},{"isim":"Seval Boya","ekipBasi":"Hava","mahalle":"Kadınlar Denizi","tarih":"04.03.2026"},{"isim":"İdris ÇEVİRMEN","ekipBasi":"Nihal","mahalle":"Hacıfeyzullah","tarih":"05.03.2026"},{"isim":"İsmet USLU","ekipBasi":"Nihal","mahalle":"Yavansu","tarih":"05.03.2026"},{"isim":"Kamile BÜYÜKDAĞLI","ekipBasi":"Hava","mahalle":"Davutlar","tarih":"05.03.2026"},{"isim":"Medine Onay","ekipBasi":"Hava","mahalle":"İkiçeşmelik","tarih":"05.03.2026"},{"isim":"Ayşe BALCI","ekipBasi":"N","mahalle":"Kadınlar Denizi","tarih":"06.03.2026"},{"isim":"Seniha SÖNMEZ","ekipBasi":"Hava","mahalle":"Türkmen","tarih":"06.03.2026"},{"isim":"Ayşe COŞAR","ekipBasi":"Nihal","mahalle":"Camiatik","tarih":"09.03.2026"},{"isim":"İnci Anıl","ekipBasi":"Nihal","mahalle":"Camiatik","tarih":"11.03.2026"},{"isim":"Zeynep Fırat","ekipBasi":"Hava","mahalle":"İkiçeşmelik","tarih":"11.03.2026"},{"isim":"Sultan Türkeç","ekipBasi":"Nihal","mahalle":"Türkmen","tarih":"12.03.2026"},{"isim":"Ayşe Şeker","ekipBasi":"Gülin","mahalle":"Davutlar","tarih":"13.03.2026"},{"isim":"Ayten ŞENCAN","ekipBasi":"Hava","mahalle":"Türkmen","tarih":"13.03.2026"},{"isim":"Hacer IŞIK","ekipBasi":"Nihal","mahalle":"Değirmendere","tarih":"13.03.2026"},{"isim":"Topgül Doğan","ekipBasi":"Gülin","mahalle":"Güzelçamlı","tarih":"13.03.2026"},{"isim":"Ali İnan SEVERDİ","ekipBasi":"Nihal","mahalle":"İkiçeşmelik","tarih":"16.03.2026"},{"isim":"Ayla ÖZSABUNCU","ekipBasi":"Hava","mahalle":"Kadınlar Denizi","tarih":"16.03.2026"},{"isim":"Necla İRASLAN","ekipBasi":"Hava","mahalle":"Değirmendere","tarih":"16.03.2026"},{"isim":"Yücel Dur","ekipBasi":"Hava","mahalle":"Değirmendere","tarih":"16.03.2026"},{"isim":"Muteber EVREN","ekipBasi":"Hava","mahalle":"Türkmen","tarih":"17.03.2026"},{"isim":"Pakize BEKAR","ekipBasi":"Nihal","mahalle":"Ege","tarih":"17.03.2026"},{"isim":"Ayten ORHAN","ekipBasi":"Hava","mahalle":"Hacıfeyzullah","tarih":"18.03.2026"},{"isim":"Kiraz KAYA","ekipBasi":"Nihal","mahalle":"Türkmen","tarih":"18.03.2026"},{"isim":"Ulviye BALCI","ekipBasi":"Gülin","mahalle":"Camiatik","tarih":"18.03.2026"},{"isim":"Vildan ELDER","ekipBasi":"Nihal","mahalle":"Camiatik","tarih":"18.03.2026"},{"isim":"Nail ERDEM","ekipBasi":"Hava","mahalle":"Türkmen","tarih":"19.03.2026"},{"isim":"Saniye ALTIN","ekipBasi":"Nihal","mahalle":"Güzelçamlı","tarih":"19.03.2026"},{"isim":"Huriye GÜNDEŞ","ekipBasi":"Hava","mahalle":"Alacamescit","tarih":"23.03.2026"},{"isim":"Mehmet ATILGAN","ekipBasi":"Nihal","mahalle":"Cumhuriyet","tarih":"23.03.2026"},{"isim":"Mustafa Başer","ekipBasi":"Gülin","mahalle":"Ege","tarih":"23.03.2026"},{"isim":"Mükerrem Öztürk","ekipBasi":"Nihal","mahalle":"Davutlar","tarih":"23.03.2026"},{"isim":"Sultan Sucu","ekipBasi":"Gülin","mahalle":"Güzelçamlı","tarih":"23.03.2026"},{"isim":"Emine Yıldırım","ekipBasi":"Hava","mahalle":"Hacıfeyzullah","tarih":"24.03.2026"},{"isim":"Gönül İSTANKÖYLÜ","ekipBasi":"Nihal","mahalle":"Camiatik","tarih":"24.03.2026"},{"isim":"Macide IŞIK","ekipBasi":"Gülin","mahalle":"İkiçeşmelik","tarih":"24.03.2026"},{"isim":"Seyfettin MARŞ","ekipBasi":"Gülin","mahalle":"Cumhuriyet","tarih":"24.03.2026"},{"isim":"Zeliha ÇAKICI","ekipBasi":"Nihal","mahalle":"Türkmen","tarih":"24.03.2026"},{"isim":"Cennet CİĞERCİ","ekipBasi":"Nihal","mahalle":"Türkmen","tarih":"25.03.2026"},{"isim":"Ethem Davran","ekipBasi":"Nihal","mahalle":"Kadınlar Denizi","tarih":"25.03.2026"},{"isim":"Fatma YILDIZ","ekipBasi":"Gülin","mahalle":"Camiatik","tarih":"25.03.2026"},{"isim":"Hayriye ARIN","ekipBasi":"Hava","mahalle":"Dağ","tarih":"25.03.2026"},{"isim":"Nazım BAYRAK","ekipBasi":"Gülin","mahalle":"Değirmendere","tarih":"25.03.2026"},{"isim":"Sevim ACAR","ekipBasi":"Hava","mahalle":"Türkmen","tarih":"25.03.2026"},{"isim":"Gülfem SELÇUK","ekipBasi":"Hava","mahalle":"Türkmen","tarih":"26.03.2026"},{"isim":"İbrahim Tünay","ekipBasi":"Gülin","mahalle":"Türkmen","tarih":"26.03.2026"},{"isim":"Mehmet Muhammet B.","ekipBasi":"Nihal","mahalle":"Türkmen","tarih":"26.03.2026"},{"isim":"Satıa ULAŞAN","ekipBasi":"Nihal","mahalle":"Güzelçamlı","tarih":"26.03.2026"},{"isim":"Seyfi Yılmaz","ekipBasi":"Gülin","mahalle":"Ege","tarih":"26.03.2026"},{"isim":"Şehriban ÇALIŞANDEMİR","ekipBasi":"Hava","mahalle":"Kadınlar Denizi","tarih":"26.03.2026"},{"isim":"Aynur ONURSAL","ekipBasi":"Nihal","mahalle":"Camiatik","tarih":"27.03.2026"},{"isim":"Cevdet KARAGÖZ","ekipBasi":"Gülin","mahalle":"İkiçeşmelik","tarih":"27.03.2026"},{"isim":"Emine ERSOY","ekipBasi":"Nihal","mahalle":"Camiatik","tarih":"27.03.2026"},{"isim":"Ganime Sultan ÇELİKEL","ekipBasi":"Hava","mahalle":"Güzelçamlı","tarih":"27.03.2026"},{"isim":"Resmiye Çiloğlu","ekipBasi":"Gülin","mahalle":"Türkmen","tarih":"27.03.2026"},{"isim":"Asuman ÇAĞLAR","ekipBasi":"Nihal","mahalle":"İkiçeşmelik","tarih":"30.03.2026"},{"isim":"Fikriye Hasbay","ekipBasi":"Nihal","mahalle":"Değirmendere","tarih":"30.03.2026"},{"isim":"İslim Çerçi","ekipBasi":"Gülin","mahalle":"Türkmen","tarih":"30.03.2026"},{"isim":"Naile DEMİRBULAK","ekipBasi":"Hava","mahalle":"Bayraklıdede","tarih":"30.03.2026"},{"isim":"Semahat Şimşek","ekipBasi":"Gülin","mahalle":"Türkmen","tarih":"30.03.2026"},{"isim":"Döndü SARP","ekipBasi":"Gülin","mahalle":"Ege","tarih":"31.03.2026"},{"isim":"Emine Çetinkaya","ekipBasi":"Hava","mahalle":"Ege","tarih":"31.03.2026"},{"isim":"Fatma UZBİÇER","ekipBasi":"Nihal","mahalle":"Türkmen","tarih":"31.03.2026"},{"isim":"HAFİZE EYİLER","ekipBasi":"Gülin","mahalle":"Kadınlar Denizi","tarih":"31.03.2026"},{"isim":"Hatice Alabaş","ekipBasi":"Nihal","mahalle":"Türkmen","tarih":"31.03.2026"},{"isim":"Remziye AYDOĞAN","ekipBasi":"Nihal","mahalle":"Hacıfeyzullah","tarih":"31.03.2026"}];
+
+// ─────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────
+let allFirestoreData = [];
+let allRows = [];
+let filteredRows = [];
+let selectedRows = new Set();
+
+// Mahalle dropdown'unu doldur
+(function fillMahalleler() {
+  const mah = [...new Set(EXCEL_DATA.map(r => r.mahalle))].sort();
+  const sel = document.getElementById('filterMahalle');
+  mah.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+})();
+
+// ─────────────────────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────────────────────
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const pass  = document.getElementById('password').value;
+  document.getElementById('loginError').textContent = '';
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+    document.getElementById('loginSection').style.display = 'none';
+    document.getElementById('mainSection').style.display = 'block';
+    document.getElementById('userBadge').textContent = email;
+    await loadFirestore();
+  } catch(e) {
+    document.getElementById('loginError').textContent = 'Giriş başarısız: ' + e.message;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// FIRESTORE YÜKLEMESİ
+// ─────────────────────────────────────────────────────────
+async function loadFirestore() {
+  document.getElementById('loadingMsg').style.display = 'block';
+  document.getElementById('mainTable').style.display = 'none';
+  try {
+    // Tüm vatandaslar'ı çek, JS tarafında filtrele (TEMİZLİK + MART 2026)
+    const snap = await db.collection('vatandaslar').get();
+    allFirestoreData = snap.docs
+      .map(d => ({ _fbId: d.id, ...d.data() }))
+      .filter(r => {
+        const hizmet = (r['HİZMET'] || r['HIZMET'] || '').toLocaleUpperCase('tr-TR');
+        const ay     = (r['AY'] || '').toLocaleUpperCase('tr-TR');
+        return hizmet === 'TEMİZLİK' && ay === 'MART';
+      });
+    buildRows();
+    applyFilters();
+  } catch(e) {
+    document.getElementById('loadingMsg').textContent = '❌ Firestore hatası: ' + e.message;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// SATIR OLUŞTURMA
+// ─────────────────────────────────────────────────────────
+function normalize(s) {
+  return (s || '').toLocaleUpperCase('tr-TR').replace(/\s+/g, ' ').trim();
+}
+
+function buildRows() {
+  allRows = EXCEL_DATA.map(ex => {
+    // Firestore'da eşleşen kayıt ara (isim bazlı)
+    const match = allFirestoreData.find(fb =>
+      normalize(fb.ISIM_SOYISIM) === normalize(ex.isim)
+    );
+
+    if (!match) {
+      return {
+        isim: ex.isim,
+        ekipBasi: ex.ekipBasi,
+        mahalle: ex.mahalle,
+        excelTarih: ex.tarih,
+        sistemTarih: '',
+        durum: 'yok',
+        fbId: null
+      };
+    }
+
+    // TEMİZLİK: TEMIZLIK1..5 alanlarından toplanan tarihler
+    const TEMIZLIK_ALANLARI = ['TEMIZLIK1','TEMIZLIK2','TEMIZLIK3','TEMIZLIK4','TEMIZLIK5'];
+    const sistemTarihler = TEMIZLIK_ALANLARI.map(a => match[a]).filter(Boolean);
+
+    // Tarih normalizer: DD.MM.YYYY veya YYYY-MM-DD → DDMMYYYY
+    function normTarih(t) {
+      if (!t) return '';
+      const s = String(t).trim();
+      if (s.includes('-')) { const p = s.split('-'); return (p[2]||'') + (p[1]||'') + (p[0]||''); }
+      return s.replace(/\./g, '');
+    }
+
+    // Excel tarihini sistemde ara (format bağımsız)
+    const excelNorm = normTarih(ex.tarih);
+    const tarihVar = sistemTarihler.some(t => normTarih(t) === excelNorm);
+
+    return {
+      isim: ex.isim,
+      ekipBasi: ex.ekipBasi,
+      mahalle: ex.mahalle,
+      excelTarih: ex.tarih,
+      sistemTarih: sistemTarihler.join(', ') || '—',
+      durum: tarihVar ? 'ok' : 'eksik',
+      fbId: match._fbId,
+      eksikTarih: tarihVar ? null : ex.tarih
+    };
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// FİLTRELEME & RENDER
+// ─────────────────────────────────────────────────────────
+function applyFilters() {
+  const mah    = document.getElementById('filterMahalle').value;
+  const durum  = document.getElementById('filterDurum').value;
+  const isim   = document.getElementById('filterIsim').value.toLocaleLowerCase('tr-TR');
+
+  filteredRows = allRows.filter(r => {
+    if (mah   && r.mahalle  !== mah)  return false;
+    if (durum && r.durum    !== durum) return false;
+    if (isim  && !r.isim.toLocaleLowerCase('tr-TR').includes(isim)) return false;
+    return true;
+  });
+
+  updateSummary();
+  renderTable();
+  document.getElementById('loadingMsg').style.display = 'none';
+  document.getElementById('mainTable').style.display = 'table';
+}
+
+function updateSummary() {
+  const total  = filteredRows.length;
+  const ok     = filteredRows.filter(r => r.durum === 'ok').length;
+  const eksik  = filteredRows.filter(r => r.durum === 'eksik').length;
+  const yok    = filteredRows.filter(r => r.durum === 'yok').length;
+
+  document.getElementById('summary').innerHTML = `
+    <div class="stat-card blue"><div class="num">${total}</div><div class="lbl">Toplam Kayıt</div></div>
+    <div class="stat-card green"><div class="num">${ok}</div><div class="lbl">Tamam</div></div>
+    <div class="stat-card red"><div class="num">${eksik}</div><div class="lbl">Eksik Tarih</div></div>
+    <div class="stat-card orange"><div class="num">${yok}</div><div class="lbl">Sistemde Yok</div></div>
+  `;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+
+  filteredRows.forEach((row, i) => {
+    const isSelected = selectedRows.has(i);
+    const canSelect  = row.durum === 'eksik' || row.durum === 'yok';
+
+    let durumTag = '';
+    if      (row.durum === 'ok')    durumTag = '<span class="tag tag-ok">✅ Tamam</span>';
+    else if (row.durum === 'eksik') durumTag = '<span class="tag tag-missing">❌ Eksik Tarih</span>';
+    else                            durumTag = '<span class="tag tag-yok">⚠ Sistemde Yok</span>';
+
+    tbody.innerHTML += `
+      <tr>
+        <td class="check-col">
+          ${canSelect ? `<input type="checkbox" ${isSelected?'checked':''} onchange="toggleRow(${i}, this)">` : ''}
+        </td>
+        <td><strong>${row.isim}</strong></td>
+        <td style="color:#64748b;font-size:.82rem">${row.mahalle}</td>
+        <td style="font-weight:600;color:#1e40af">${row.excelTarih}</td>
+        <td style="color:${row.sistemTarih === '—' ? '#94a3b8' : '#10b981'}">${row.sistemTarih}</td>
+        <td>${durumTag}</td>
+      </tr>
+    `;
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// SEÇİM
+// ─────────────────────────────────────────────────────────
+function toggleRow(i, cb) {
+  if (cb.checked) selectedRows.add(i);
+  else selectedRows.delete(i);
+  updateBulkBar();
+}
+
+function toggleSelectAll() {
+  const checked = document.getElementById('selectAll').checked;
+  selectedRows = new Set();
+  if (checked) {
+    filteredRows.forEach((r, i) => { if (r.durum === 'eksik' || r.durum === 'yok') selectedRows.add(i); });
+  }
+  updateBulkBar();
+  renderTable();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const cnt = selectedRows.size;
+  if (cnt > 0) {
+    bar.classList.add('show');
+    document.getElementById('bulkCount').textContent = cnt + ' kayıt seçili';
+  } else {
+    bar.classList.remove('show');
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// TOPLU İŞLEM
+// ─────────────────────────────────────────────────────────
+function showBulkModal() {
+  const list = document.getElementById('modalList');
+  list.innerHTML = '';
+  selectedRows.forEach(i => {
+    const r = filteredRows[i];
+    list.innerHTML += `
+      <li>
+        <span>${r.isim} <small style="color:#64748b">TEMİZLİK / MART 2026</small>
+          ${r.durum === 'yok' ? '<span style="background:#fef3c7;color:#d97706;padding:1px 6px;border-radius:8px;font-size:.72rem;font-weight:700">YENİ KAYIT</span>' : ''}
+        </span>
+        <span style="color:#ef4444;font-size:.75rem">${r.eksikTarih || r.excelTarih}</span>
+      </li>
+    `;
+  });
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+async function bulkProcess() {
+  const btn = document.getElementById('confirmBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ İşleniyor...';
+
+  const rows = [...selectedRows].map(i => filteredRows[i]);
+  let ok = 0, fail = 0;
+
+  for (const row of rows) {
+    try {
+      if (row.durum === 'eksik' && row.fbId) {
+        // Mevcut kayda eksik tarihi ekle (boş slota yaz)
+        const ref  = db.collection('vatandaslar').doc(row.fbId);
+        const snap = await ref.get();
+        if (!snap.exists) { fail++; continue; }
+        const data  = snap.data();
+        const slots = ['TEMIZLIK1','TEMIZLIK2','TEMIZLIK3','TEMIZLIK4','TEMIZLIK5'];
+        const bosSlot = slots.find(s => !data[s]);
+        if (bosSlot) {
+          await ref.update({ [bosSlot]: row.eksikTarih });
+          const local = allFirestoreData.find(r => r._fbId === row.fbId);
+          if (local) local[bosSlot] = row.eksikTarih;
+          ok++;
+        } else { fail++; }
+
+      } else if (row.durum === 'yok') {
+        // Yeni kayıt oluştur
+        const yeni = {
+          ISIM_SOYISIM: row.isim.toLocaleUpperCase('tr-TR'),
+          'HİZMET': 'TEMİZLİK',
+          AY: 'MART',
+          YIL: '2026',
+          MAHALLE: row.mahalle || '',
+          EKIP_BASI: row.ekipBasi || '',
+          DURUM: 'AKTİF',
+          NOT1: '',
+          TEMIZLIK1: row.excelTarih,
+          TEMIZLIK2: '', TEMIZLIK3: '', TEMIZLIK4: '', TEMIZLIK5: ''
+        };
+        const docRef = await db.collection('vatandaslar').add(yeni);
+        yeni._fbId = docRef.id;
+        allFirestoreData.push(yeni);
+        ok++;
+      } else { fail++; }
+    } catch(e) {
+      console.error('Hata:', row.isim, e);
+      fail++;
+    }
+  }
+
+  closeModal();
+  btn.disabled = false;
+  btn.textContent = 'Onayla ve İşle';
+  selectedRows = new Set();
+  updateBulkBar();
+  alert(`✅ ${ok} işlem tamamlandı, ${fail} başarısız.`);
+  await loadFirestore();
+}
+</script>
+</body>
+</html>
