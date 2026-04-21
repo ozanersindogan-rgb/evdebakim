@@ -347,6 +347,13 @@ async function tara() {
         r._fbId !== kayit._fbId
       ) || null;
 
+      // Eğer hedef kayıt zaten bu tarihi içeriyorsa — yanlış pozitif, atla
+      if (dogruKayit) {
+        const hedefAlanlar = ilgiliAlanListesi(alan);
+        const zatenVar = hedefAlanlar.some(f => dogruKayit[f] === tarih);
+        if (zatenVar) continue;
+      }
+
       islemListesi.push({
         kayit, alan, tarih, tarihAy,
         kayitAy, dogruKayit,
