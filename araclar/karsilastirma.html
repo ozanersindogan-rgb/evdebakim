@@ -227,23 +227,7 @@ async function loadFirestore() {
         const ay     = (r['AY'] || '').toLocaleUpperCase('tr-TR');
         return hizmet === 'TEMİZLİK' && ay === 'MART';
       });
-    // DEBUG: konsola ilk kaydın tüm alan adlarını ve değerlerini yaz
-    if (allFirestoreData.length > 0) {
-      console.log('=== FIRESTORE İLK KAYIT ===');
-      console.log('Toplam eşleşen kayıt:', allFirestoreData.length);
-      const ilk = allFirestoreData[0];
-      Object.keys(ilk).forEach(k => console.log(JSON.stringify(k), '=', JSON.stringify(ilk[k])));
-
-      // Birol ERDOĞAN'ı özellikle bul
-      const birol = allFirestoreData.find(r => (r.ISIM_SOYISIM||'').toLocaleUpperCase('tr-TR').includes('BİROL'));
-      if (birol) {
-        console.log('=== BİROL KAYDININ ALANLARI ===');
-        Object.keys(birol).forEach(k => console.log(JSON.stringify(k), '=', JSON.stringify(birol[k])));
-      } else {
-        console.log('BİROL bulunamadı — tüm isimler:', allFirestoreData.map(r => r.ISIM_SOYISIM));
-      }
     } else {
-      console.log('UYARI: allFirestoreData BOŞ — AY filtresi hiç kayıt döndürmedi');
     }
 
     buildRows();
@@ -279,9 +263,8 @@ function buildRows() {
       };
     }
 
-    // TEMİZLİK: TEMIZLIK1..5 alanlarından toplanan tarihler
-    const TEMIZLIK_ALANLARI = ['TEMIZLIK1','TEMIZLIK2','TEMIZLIK3','TEMIZLIK4','TEMIZLIK5'];
-    const sistemTarihler = TEMIZLIK_ALANLARI.map(a => match[a]).filter(Boolean);
+    // Tarihler BANYO1..5 alanlarında tutuluyor (tüm hizmet tipleri için)
+    const sistemTarihler = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'].map(a => match[a]).filter(Boolean);
 
     // Tarih normalizer: DD.MM.YYYY veya YYYY-MM-DD → DDMMYYYY
     function normTarih(t) {
@@ -441,7 +424,7 @@ async function bulkProcess() {
         const snap = await ref.get();
         if (!snap.exists) { fail++; continue; }
         const data  = snap.data();
-        const slots = ['TEMIZLIK1','TEMIZLIK2','TEMIZLIK3','TEMIZLIK4','TEMIZLIK5'];
+        const slots = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
         const bosSlot = slots.find(s => !data[s]);
         if (bosSlot) {
           await ref.update({ [bosSlot]: row.eksikTarih });
@@ -461,8 +444,8 @@ async function bulkProcess() {
           EKIP_BASI: row.ekipBasi || '',
           DURUM: 'AKTİF',
           NOT1: '',
-          TEMIZLIK1: row.excelTarih,
-          TEMIZLIK2: '', TEMIZLIK3: '', TEMIZLIK4: '', TEMIZLIK5: ''
+          BANYO1: row.excelTarih,
+          BANYO2: '', BANYO3: '', BANYO4: '', BANYO5: ''
         };
         const docRef = await db.collection('vatandaslar').add(yeni);
         yeni._fbId = docRef.id;
