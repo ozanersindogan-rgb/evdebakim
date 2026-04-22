@@ -7,49 +7,7 @@
 // openEditModal ve saveEdit -> app.js'e taşındı
 
 function closeEditModal(){document.getElementById('edit-modal').classList.remove('open'); editIdx=null;}
-function saveEdit() {
-  if(editIdx===null) return;
-  const r = allData[editIdx];
-  const isKuafor = r['HİZMET']==='KUAFÖR';
-  r.ISIM_SOYISIM = document.getElementById('ed-isim').value.trim().toUpperCase();
-  r.MAHALLE      = document.getElementById('ed-mah').value;
-  r.DURUM        = document.getElementById('ed-durum').value;
-  r.ONAY_TARIHI  = document.getElementById('ed-onay').value;
-  r.DOGUM_TARIHI = document.getElementById('ed-dogum')?.value || '';
-  r.IPTAL_TARIHI = document.getElementById('ed-iptal')?.value||'';
-  r.IPTAL_NEDEN  = document.getElementById('ed-neden').value;
-  r.TELEFON      = document.getElementById('ed-tel')?.value.trim() || '';
-  r.TELEFON2     = document.getElementById('ed-tel2')?.value.trim() || '';
-  r.TELEFON_AKTIF= document.getElementById('ed-tel-aktif')?.value || '1';
-  r.ADRES        = document.getElementById('ed-adres')?.value.trim() || '';
-  r.NOT1         = document.getElementById('ed-not1').value;
-  r.NOT2         = document.getElementById('ed-not2').value;
-  // Tarih alanları: input değerini direkt al (boş = sil)
-  const getDate = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
-  if(isKuafor) {
-    r.SAC1   = getDate('ed-sac1');
-    r.SAC2   = getDate('ed-sac2');
-    r.TIRNAK1= getDate('ed-tirnak1');
-    r.TIRNAK2= getDate('ed-tirnak2');
-    r.SAKAL1 = getDate('ed-sakal1');
-    r.SAKAL2 = getDate('ed-sakal2');
-  } else {
-    r.BANYO1 = getDate('ed-b1');
-    r.BANYO2 = getDate('ed-b2');
-    r.BANYO3 = getDate('ed-b3');
-    r.BANYO4 = getDate('ed-b4');
-    r.BANYO5 = getDate('ed-b5');
-  }
-  if (!r._fbId) {
-    showToast('⚠️ Bu kayıt Firebase ID\'si yok, kaydedilemedi');
-    closeEditModal();
-    return;
-  }
-  fbUpdateDoc(editIdx, Object.fromEntries(Object.entries(r).filter(([k])=>!k.startsWith('_'))));
-  closeEditModal();
-  filterVat(); buildSidebar(); renderDashboard();
-  showToast(`✅ ${r.ISIM_SOYISIM} güncellendi`);
-}
+// saveEdit — app.js içinde tanımlı (async + sync_engine entegrasyonlu)
 
 // ============ EXPORT ============
 function renderExpStats(){
@@ -661,10 +619,10 @@ async function kbKaydet() {
   const r = kbData.find(x => x._fbId === kbEditId);
   if (!r) return;
   const changes = {
-    AD_SOYAD:       document.getElementById('kbe-ad')?.value.trim().toUpperCase() || r.AD_SOYAD,
+    AD_SOYAD:       document.getElementById('kbe-ad')?.value.trim().toLocaleUpperCase('tr-TR') || r.AD_SOYAD,
     TC:             document.getElementById('kbe-tc')?.value.trim() || r.TC,
     TELEFON:        document.getElementById('kbe-tel')?.value.trim() || r.TELEFON,
-    MAHALLE:        document.getElementById('kbe-mah')?.value.trim().toUpperCase() || r.MAHALLE,
+    MAHALLE:        document.getElementById('kbe-mah')?.value.trim().toLocaleUpperCase('tr-TR') || r.MAHALLE,
     ADRES:          document.getElementById('kbe-adres')?.value.trim() || r.ADRES,
     DOGUM_TARIHI:   document.getElementById('kbe-dogum')?.value || r.DOGUM_TARIHI,
     ENGEL:          document.getElementById('kbe-engel')?.value || r.ENGEL,
@@ -672,28 +630,20 @@ async function kbKaydet() {
     ENGEL_ACIKLAMA: document.getElementById('kbe-engelac')?.value.trim() || r.ENGEL_ACIKLAMA,
   };
   try {
-    await firebase.firestore().collection('vatandaslar_bilgi').doc(kbEditId).update(changes);
-    Object.assign(r, changes);
-
-    // vatandaslar koleksiyonundaki tüm eşleşen kayıtları da güncelle
-    const isim = r.AD_SOYAD || '';
-    const engelChanges = {
-      ENGEL:          changes.ENGEL,
-      ENGEL_YUZDE:    changes.ENGEL_YUZDE,
-      ENGEL_ACIKLAMA: changes.ENGEL_ACIKLAMA,
-    };
-    const eslesenler = allData
-      .map((rec, idx) => ({ rec, idx }))
-      .filter(({ rec }) => (rec.ISIM_SOYISIM || '').toLocaleUpperCase("tr-TR") === isim.toLocaleUpperCase("tr-TR"));
-
-    await Promise.all(eslesenler.map(({ rec, idx }) => {
-      Object.assign(rec, engelChanges);
-      return fbUpdateDoc(idx, engelChanges);
-    }));
-
+    // ── Sync Engine: hem vatandas_bilgi hem vatandaslar (tüm alanlar) ──
+    if (typeof syncKbKaydet === 'function') {
+      await syncKbKaydet(kbEditId, changes);
+    } else {
+      // Fallback: eski mantık
+      await firebase.firestore().collection('vatandaslar_bilgi').doc(kbEditId).update(changes);
+      Object.assign(r, changes);
+    }
     kbCloseModal();
     kbRender();
-    showToast('✅ Kişi bilgisi güncellendi');
+    if (typeof filterVat      === 'function') filterVat();
+    if (typeof buildSidebar   === 'function') buildSidebar();
+    if (typeof renderDashboard=== 'function') renderDashboard();
+    showToast('✅ Kişi bilgisi güncellendi — tüm kayıtlara yansıtıldı');
   } catch(e) {
     showToast('❌ Güncelleme hatası: ' + e.message);
   }

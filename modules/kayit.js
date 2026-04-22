@@ -663,26 +663,33 @@ async function gkKaydet() {
       throw new Error('Bu kayıt Firebase’de bulunamadı');
     }
 
-    // TC'yi aynı isme ait TÜM vatandaslar kayıtlarına yaz (batch)
-    const isimUpper = isim.trim().toUpperCase();
-    const tcGuncellenecek = allData.filter(r =>
-      (r.ISIM_SOYISIM||'').toUpperCase() === isimUpper &&
-      r._fbId && r._fbId !== rec._fbId &&
-      (r.TC||'').trim() !== tc
-    );
-    if (tcGuncellenecek.length > 0) {
-      try {
-        const BATCH_SIZE = 400;
-        for (let i = 0; i < tcGuncellenecek.length; i += BATCH_SIZE) {
-          const batch = firebase.firestore().batch();
-          tcGuncellenecek.slice(i, i + BATCH_SIZE).forEach(r => {
-            r.TC = tc;
-            batch.update(firebase.firestore().collection('vatandaslar').doc(r._fbId), { TC: tc });
-          });
-          await batch.commit();
+    // TC'yi tüm sisteme yay (vatandaslar + vatandaslar_bilgi) — Sync Engine
+    const isimUpper = isim.trim().toLocaleUpperCase('tr-TR');
+    if (tc && tc.replace(/\D/g,'').length === 11) {
+      if (typeof syncTCYay === 'function') {
+        syncTCYay(isimUpper, tc).catch(e => console.warn('syncTCYay hatası:', e));
+      } else {
+        // Fallback: sadece vatandaslar
+        const tcGuncellenecek = allData.filter(r =>
+          (r.ISIM_SOYISIM||'').toUpperCase() === isimUpper &&
+          r._fbId && r._fbId !== rec._fbId &&
+          (r.TC||'').trim() !== tc
+        );
+        if (tcGuncellenecek.length > 0) {
+          try {
+            const BATCH_SIZE = 400;
+            for (let i = 0; i < tcGuncellenecek.length; i += BATCH_SIZE) {
+              const batch = firebase.firestore().batch();
+              tcGuncellenecek.slice(i, i + BATCH_SIZE).forEach(r => {
+                r.TC = tc;
+                batch.update(firebase.firestore().collection('vatandaslar').doc(r._fbId), { TC: tc });
+              });
+              await batch.commit();
+            }
+            showToast(`✅ TC, ${isimUpper} adına ait ${tcGuncellenecek.length + 1} kayda işlendi`);
+          } catch(e) { console.warn('TC toplu yazma hatası:', e); }
         }
-        showToast(`✅ TC, ${isimUpper} adına ait ${tcGuncellenecek.length + 1} kayda işlendi`);
-      } catch(e) { console.warn('TC toplu yazma hatası:', e); }
+      }
     }
 
     if (rec._tpRef && rec._tpFbId) {
