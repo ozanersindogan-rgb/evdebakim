@@ -683,6 +683,9 @@ async function saveEdit() {
   if (!r._fbId) { showToast('⚠️ Firebase ID eksik, kayıt yapılamadı'); closeEditModal(); return; }
   // _fbId ile çapraz doğrula — index kayma koruması
   const hedefFbId = r._fbId;
+  // Sync engine için: modal açıldığı andaki isim + TC kaydet
+  const eskiIsim = (r.ISIM_SOYISIM || '').trim().toLocaleUpperCase('tr-TR');
+  const eskiTc   = (r.TC || '').replace(/\D/g, '');
 
   const isKuafor = r['HİZMET'] === 'KUAFÖR';
   const getV = (id) => { const el = document.getElementById(id); return el ? el.value : ''; };
@@ -721,13 +724,25 @@ async function saveEdit() {
     r.BANYO5 = getV('ed-b5');
   }
 
-  // Sadece değişen alanları gönder — tam payload race condition yaratır
-  // ve editIdx kayma ihtimaline karşı _fbId ile teyit et
+  // editIdx kayma ihtimaline karşı _fbId ile teyit et
   const guncelIdx = allData.findIndex(x => x._fbId === hedefFbId);
   if (guncelIdx === -1) { showToast('⚠️ Kayıt bulunamadı, sayfa yenileniyor'); refreshAll(); closeEditModal(); return; }
   const changes = Object.fromEntries(Object.entries(r).filter(([k]) => !k.startsWith('_')));
   try {
+    // ── Bu kaydı Firestore vatandaslar'a yaz (tek döküman) ──
     await fbUpdateDoc(guncelIdx, changes);
+
+    // ── Sync Engine: vatandaslar_bilgi + isim/mahalle/TC/telefon/adres yayılımı ──
+    if (typeof syncSaveEdit === 'function') {
+      await syncSaveEdit(eskiIsim, eskiTc, changes);
+    }
+
+    // Ekranları yenile
+    if (typeof filterVat    === 'function') filterVat();
+    if (typeof buildSidebar === 'function') buildSidebar();
+    if (typeof renderDashboard === 'function') renderDashboard();
+    if (typeof kbRender     === 'function') kbRender();
+
     closeEditModal();
     showToast('✅ Kaydedildi');
   } catch(e) {
