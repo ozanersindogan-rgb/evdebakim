@@ -1435,7 +1435,7 @@ function renderVat() {
         ${_aylar.map(a=>`<option value="${a}" ${_vatKolFiltre.ay===a?'selected':''}>${a}</option>`).join('')}
       </select>
     </th>
-    ${isKuafor?'<th style="'+_th+'">Saç</th><th style="'+_th+'">Tırnak</th><th style="'+_th+'">Sakal</th>':'<th style="'+_th+'">Tarihler</th>'}
+    ${isKuafor?`<th style="${_th};max-width:130px">Saç</th><th style="${_th};max-width:130px">Tırnak</th><th style="${_th};max-width:130px">Sakal</th>`:`<th style="${_th}">Tarihler</th>`}
     <th style="${_th}">Yaş</th>
     <th style="${_th}">Notlar</th>
     <th style="${_th}">Telefon</th>
@@ -1483,9 +1483,9 @@ function renderVat() {
       <td class="mahalle-cell">${r.MAHALLE}</td>
       <td style="font-size:11px;font-weight:700;color:var(--purple)">${r.AY}</td>
       ${isKuafor?`
-        <td>${r.SAC1?`<span class="date-chip">${fmt(r.SAC1)}</span>`:''}${r.SAC2?`<span class="date-chip">${fmt(r.SAC2)}</span>`:''}</td>
-        <td>${r.TIRNAK1?`<span class="date-chip">${fmt(r.TIRNAK1)}</span>`:''}${r.TIRNAK2?`<span class="date-chip">${fmt(r.TIRNAK2)}</span>`:''}</td>
-        <td>${r.SAKAL1?`<span class="date-chip">${fmt(r.SAKAL1)}</span>`:''}${r.SAKAL2?`<span class="date-chip">${fmt(r.SAKAL2)}</span>`:''}</td>
+        <td style="white-space:nowrap;max-width:130px">${r.SAC1?`<span class="date-chip">${fmt(r.SAC1)}</span>`:''}${r.SAC2?`<span class="date-chip">${fmt(r.SAC2)}</span>`:''}</td>
+        <td style="white-space:nowrap;max-width:130px">${r.TIRNAK1?`<span class="date-chip">${fmt(r.TIRNAK1)}</span>`:''}${r.TIRNAK2?`<span class="date-chip">${fmt(r.TIRNAK2)}</span>`:''}</td>
+        <td style="white-space:nowrap;max-width:130px">${r.SAKAL1?`<span class="date-chip">${fmt(r.SAKAL1)}</span>`:''}${r.SAKAL2?`<span class="date-chip">${fmt(r.SAKAL2)}</span>`:''}</td>
       `:`<td>${getBanyolar(r)}</td>`}
       <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
       <td style="font-size:11px;color:var(--text-soft);max-width:160px">${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')||'—'}</td>
