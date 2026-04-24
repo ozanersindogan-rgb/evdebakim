@@ -371,13 +371,45 @@ function setVatHizmet(h,el) {
   filterVat();
 }
 
-function buildAyTabs() {
-  const aylar = ['', ...getMevcutAylar()];
-  document.getElementById('ay-tab-vat').innerHTML = aylar.map(a=>
-    `<button class="ay-btn${a===vatAy?' active':''}" data-ay="${a}" onclick="setAy('${a}',this)">${a?AY_LABELS[a]:'Tümü'}</button>`
-  ).join('');
+// ── Durum filtre butonları ──
+function setVatDurum(durum, el) {
+  const durEl = document.getElementById('vat-durum');
+  if (durEl) durEl.value = durum;
+  document.querySelectorAll('#durum-filtre-bar .durum-btn').forEach(b => b.classList.remove('aktif-sec'));
+  el.classList.add('aktif-sec');
+  vatPage = 1;
+  filterVat();
 }
-function setAy(a,el){vatAy=a;vatPage=1;document.querySelectorAll('#ay-tab-vat .ay-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');filterVat();}
+
+function buildAyTabs() {
+  const bugun = new Date();
+  const bugunAyIdx = bugun.getMonth(); // 0=Ocak, 11=Aralık
+  const mevcutAylar = new Set(getMevcutAylar()); // Firestore'da kaydı olan aylar
+
+  // Eğer vatAy boşsa veya geçersizse mevcut en son aya otomatik git
+  if (!vatAy || !mevcutAylar.has(vatAy)) {
+    const aylarSirali = getMevcutAylar();
+    vatAy = aylarSirali[aylarSirali.length - 1] || '';
+  }
+
+  document.getElementById('ay-tab-vat').innerHTML = AY_LISTESI.map((a, idx) => {
+    const varMi = mevcutAylar.has(a);       // Bu ayda Firestore'da kayıt var mı
+    const gelecekAy = idx > bugunAyIdx;     // Henüz gelmemiş ay
+    const kapali = gelecekAy && !varMi;     // Kilitli: gelecek ay VE hiç kaydı yok
+    const aktif = a === vatAy;
+    return `<button class="ay-btn${aktif ? ' active' : ''}${kapali ? ' ay-kapali' : ''}"
+      data-ay="${a}"
+      ${kapali ? 'disabled title="Bu ay henüz başlamadı"' : `onclick="setAy('${a}',this)"`}
+    >${AY_LABELS[a]}${varMi ? '' : ''}</button>`;
+  }).join('');
+}
+function setAy(a, el) {
+  vatAy = a;
+  vatPage = 1;
+  document.querySelectorAll('#ay-tab-vat .ay-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  filterVat();
+}
 
 function buildMahFilter() {
   const mahs=[...new Set(allData.map(r=>r.MAHALLE).filter(Boolean))].sort();
@@ -622,6 +654,19 @@ async function gkKaydet() {
   const rec = adaylar[0];
 
   if (!rec) { _gkIslemDevam = false; showToast('Vatandas bulunamadi'); return; }
+
+  // ── AKTİF DURUM KORUMASI ──
+  if (rec.DURUM && rec.DURUM !== 'AKTİF') {
+    _gkIslemDevam = false;
+    const durumRenk = {'İPTAL':'#dc2626','VEFAT':'#374151','BEKLEME':'#d97706','PASİF':'#6366f1'}[rec.DURUM] || '#374151';
+    showToast(`⛔ ${isim} kaydı ${rec.DURUM} durumunda — önce Durum Güncelle ekranından AKTİF yapın`);
+    // Durum Güncelle sekmesine yönlendir
+    if (confirm(`"${isim}" kişisinin durumu "${rec.DURUM}" olarak kayıtlı.\n\nDurum Güncelle ekranına gitmek ister misiniz?`)) {
+      document.querySelector('[onclick*="durum-guncelle"]')?.click()
+        || document.querySelector('[data-tab="durum-guncelle"]')?.click();
+    }
+    return;
+  }
 
   const snapshot = JSON.parse(JSON.stringify(rec));
   _gkSetBusy(true, 'Kaydediliyor...');
@@ -1248,11 +1293,14 @@ function vatSortBy(col) {
 function filterVat() {
   const srch=document.getElementById('vat-search').value.toLocaleLowerCase('tr-TR');
   const mah=document.getElementById('vat-mah').value;
-  const dur=document.getElementById('vat-durum').value;
+  // Durum: hidden input'tan oku (butonlar günceller)
+  const durEl = document.getElementById('vat-durum');
+  const dur = durEl ? durEl.value : 'AKTİF';
   const kbFiltre = window._kbPersonelFiltre || '';
   vatFiltered=allData.filter(r=>{
     const hOk=!vatHizmet||r['HİZMET']===vatHizmet;
-    const aOk=!vatAy||r.AY===vatAy;
+    // Ay zorunlu — seçili ay ile eşleşmeli
+    const aOk = vatAy ? r.AY===vatAy : true;
     const sOk=!srch||(r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch)||(r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
     const mOk=!mah||r.MAHALLE===mah;
     const dOk=!dur||r.DURUM===dur;

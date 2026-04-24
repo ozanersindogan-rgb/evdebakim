@@ -53,7 +53,7 @@ let vatPage = 1;
 const PER = 30;
 let vatFiltered = [];
 let vatHizmet = '';
-let vatAy = '';
+let vatAy = ''; // buildAyTabs() çağrıldığında en son aktif aya otomatik gider
 let dashSrch = '';
 
 // ============ INIT ============
