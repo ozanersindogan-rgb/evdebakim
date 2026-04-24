@@ -674,9 +674,34 @@ async function gkKaydet() {
   try {
     if (hizmet==='KUAFÖR') {
       if (seciliTipler.length === 0) { _gkIslemDevam = false; _gkSetBusy(false); showToast('Lutfen en az bir hizmet tipi secin'); return; }
+
+      // Girilen tarihin hangi aya ait olduğunu hesapla
+      const tarihAyNo = tarih ? parseInt(tarih.split('-')[1], 10) - 1 : -1;
+      const tarihAyi = tarihAyNo >= 0 && window.AY_LISTESI ? window.AY_LISTESI[tarihAyNo] : '';
+
+      // Eğer rec'in AY'ı girilen tarihin ayından farklıysa → yanlış kayda yazılıyor demek
+      if (tarihAyi && rec.AY && rec.AY !== tarihAyi) {
+        _gkIslemDevam = false;
+        _gkSetBusy(false);
+        showToast(`⚠️ ${tarihAyi} tarihli kayıt, ${rec.AY} kaydına yazılamaz. Önce ${tarihAyi} ayı için kayıt oluşturun.`);
+        return;
+      }
+
       seciliTipler.forEach(t => {
         const fields = t==='SAC'?['SAC1','SAC2']:t==='TIRNAK'?['TIRNAK1','TIRNAK2']:['SAKAL1','SAKAL2'];
-        if (!rec[fields[0]]) rec[fields[0]]=tarihDB; else rec[fields[1]]=tarihDB;
+        // Alan doluysa ve aynı tarih değilse ikinciye yaz, ikincisi de doluysa uyar
+        if (!rec[fields[0]]) {
+          rec[fields[0]] = tarihDB;
+        } else if (rec[fields[0]] === tarihDB) {
+          // Zaten aynı tarih var, tekrar yazma
+          showToast(`ℹ️ Bu tarih zaten kayıtlı (${t})`);
+        } else if (!rec[fields[1]]) {
+          rec[fields[1]] = tarihDB;
+        } else {
+          // Her iki alan da dolu — ilkinin üzerine yaz (en eski mantığı)
+          showToast(`⚠️ ${t} alanları dolu — ilk tarih güncellendi`);
+          rec[fields[0]] = tarihDB;
+        }
       });
     } else {
       const fields=['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
