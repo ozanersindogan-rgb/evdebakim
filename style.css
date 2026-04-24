@@ -134,6 +134,21 @@ input[type="date"]:focus{border-color:var(--primary)}
 .ay-tab{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap}
 .ay-btn{padding:6px 14px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s;color:var(--text-soft)}
 .ay-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.ay-btn.ay-kapali{opacity:.38;cursor:not-allowed;background:#f1f5f9;color:#94a3b8;border-color:#e2e8f0;pointer-events:none}
+.ay-btn.ay-kapali::after{content:'🔒';margin-left:4px;font-size:10px}
+/* Durum filtre butonları */
+.durum-btn{padding:6px 14px;border-radius:20px;border:2px solid var(--border);background:var(--surface);font-family:inherit;font-size:12px;font-weight:800;cursor:pointer;transition:all .15s;color:var(--text-soft)}
+.durum-btn-aktif.aktif-sec{background:#16a34a;color:#fff;border-color:#16a34a}
+.durum-btn-aktif:hover{border-color:#16a34a;color:#16a34a}
+.durum-btn-pasif.aktif-sec{background:#6366f1;color:#fff;border-color:#6366f1}
+.durum-btn-pasif:hover{border-color:#6366f1;color:#6366f1}
+.durum-btn-iptal.aktif-sec{background:#dc2626;color:#fff;border-color:#dc2626}
+.durum-btn-iptal:hover{border-color:#dc2626;color:#dc2626}
+.durum-btn-vefat.aktif-sec{background:#374151;color:#fff;border-color:#374151}
+.durum-btn-vefat:hover{border-color:#374151;color:#374151}
+.durum-btn-bekleme.aktif-sec{background:#d97706;color:#fff;border-color:#d97706}
+.durum-btn-bekleme:hover{border-color:#d97706;color:#d97706}
+.durum-btn-tumu.aktif-sec{background:var(--primary);color:#fff;border-color:var(--primary)}
 
 /* MAHALLE */
 .mah-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:18px}

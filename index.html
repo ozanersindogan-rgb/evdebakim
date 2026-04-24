@@ -44,6 +44,7 @@
     <div class="nav-item" onclick="navTo('takvim',this)"><span class="icon">📆</span>Ziyaret Takvimi</div>
     <div class="nav-item" onclick="navTo('durum',this)"><span class="icon">🔄</span>Durum Güncelle</div>
     <div class="nav-item" onclick="navTo('isim-duzenle',this);idUpdateIsimler()"><span class="icon">✏️</span>İsim / Mahalle Düzenle</div>
+    <div class="nav-item" onclick="navTo('duplikat-temizle',this);dtTara()"><span class="icon">🔍</span>Duplikat Temizle</div>
     <div class="nav-item" onclick="navTo('yeni-vatandas',this)"><span class="icon">➕</span>Yeni Vatandaş</div>
 
     <!-- ── HİZMETLER ───────────────────────────── -->
@@ -581,6 +582,15 @@
       <div class="page" id="page-vatandaslar">
         <div class="hizmet-tabs" id="hizmet-tabs-vat"></div>
         <div class="ay-tab" id="ay-tab-vat"></div>
+        <!-- Durum filtre butonları -->
+        <div id="durum-filtre-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;margin-top:4px">
+          <button class="durum-btn durum-btn-aktif aktif-sec" onclick="setVatDurum('AKTİF',this)">● AKTİF</button>
+          <button class="durum-btn durum-btn-pasif" onclick="setVatDurum('PASİF',this)">● PASİF</button>
+          <button class="durum-btn durum-btn-iptal" onclick="setVatDurum('İPTAL',this)">● İPTAL</button>
+          <button class="durum-btn durum-btn-vefat" onclick="setVatDurum('VEFAT',this)">● VEFAT</button>
+          <button class="durum-btn durum-btn-bekleme" onclick="setVatDurum('BEKLEME',this)">● BEKLEME</button>
+          <button class="durum-btn durum-btn-tumu" onclick="setVatDurum('',this)">Tümü</button>
+        </div>
         <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
           <!-- KB Personel İstatistikleri — sadece Kadın Banyo'da görünür -->
           <div id="kb-personel-stats-wrap" style="display:none;margin-bottom:12px">
@@ -608,10 +618,7 @@
           </div>
           <input class="search-box" id="vat-search" placeholder="İsim ara..." oninput="filterVat()">
           <select class="filter" id="vat-mah" onchange="filterVat()"><option value="">Tüm Mahalleler</option></select>
-          <select class="filter" id="vat-durum" onchange="filterVat()">
-            <option value="">Tüm Durumlar</option>
-            <option>AKTİF</option><option>İPTAL</option><option>VEFAT</option><option>BEKLEME</option><option>PASİF</option>
-          </select>
+          <input type="hidden" id="vat-durum" value="AKTİF">
         </div>
         <div class="table-card">
           <div class="table-header">
@@ -1294,6 +1301,20 @@
       </div>
 
       <!-- ─── DURUM GÜNCELLE ─── -->
+      <div class="page" id="page-duplikat-temizle">
+        <div class="form-section">
+          <h3>🔍 Duplikat Kayıt Temizle</h3>
+          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Aynı kişiye ait aynı ay + aynı hizmet için birden fazla kayıt varsa burada görünür. Fazla olanları silebilirsiniz.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px">
+            <button class="btn btn-primary" onclick="dtTara()">🔍 Tara</button>
+            <button class="btn btn-danger" onclick="dtHepsiniTemizle()" style="background:#dc2626;border-color:#dc2626">🗑️ Tümünü Otomatik Temizle</button>
+          </div>
+          <div id="dt-sonuc" style="margin-top:8px">
+            <div style="text-align:center;color:#94a3b8;font-size:13px;padding:24px">Tarama yapmak için "Tara" butonuna basın</div>
+          </div>
+        </div>
+      </div>
+
       <div class="page" id="page-isim-duzenle">
         <div class="form-section">
           <h3>✏️ İsim / Mahalle Düzenle</h3>
@@ -2240,6 +2261,7 @@
 <script src="./modules/medikal.js?v=1775069935"></script>
 <script src="./modules/id_tamamla.js?v=1775069935"></script>
 <script src="./modules/isim_duzenle.js?v=1775069935"></script>
+<script src="./modules/duplikat_temizle.js?v=1775069935"></script>
 <script src="./modules/hemsire.js?v=1775069935"></script>
 <script src="./app.js?v=1775069935"></script>
 
