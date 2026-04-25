@@ -253,10 +253,6 @@ function tpRender() {
   const countEl = document.getElementById('tp-count');
   if (countEl) countEl.textContent = rows.length + ' kayıt';
 
-  if (typeof tpRenderPersonelStats === 'function') {
-    tpRenderPersonelStats(window._tpPersonelFiltre || '');
-  }
-
   const EKIP_RENK = { 'Gülin':'#C2185B','Hava':'#1565C0','Nihal':'#2E7D32','Tüm Ekip':'#7c3aed' };
   const tbody = document.getElementById('tp-tbody');
   if (!tbody) return;
@@ -367,6 +363,7 @@ const PAGE_TITLES = {
   takvim:'📆 Ziyaret Takvimi',plan:'🤖 Akıllı Planlama',
   yedekler:'💾 Yedekleme',ayarlar:'⚙️ Ayarlar',
   'gunluk-periyot':'📅 Günlük Periyot',
+  'personel-atama':'🛁 Banyo Tablosu',
 };
 function navTo(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -386,6 +383,7 @@ function navTo(id, el) {
   if(id==='sayi-ver')       if(typeof svRender==='function')svRender();
   if(id==='plan')           { if(typeof renderPlan==='function')renderPlan(); if(typeof rdvSayfaInit==='function')rdvSayfaInit(); }
   if(id==='yedekler')       if(typeof yedekSayfaYukle==='function')yedekSayfaYukle();
+  if(id==='personel-atama') if(typeof banyoTabloRender==='function')banyoTabloRender();
   if(id==='ayarlar')        if(typeof ayarlarPersonelRender==='function')ayarlarPersonelRender();
   if(id==='gunluk-periyot') if(typeof periyotYukle==='function')periyotYukle();
   if(id==='analiz')         if(typeof analizRender==='function')analizRender();
