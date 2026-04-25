@@ -191,7 +191,8 @@ function haftalikTabloRender() {
             <div style="font-size:11px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${k.isim}</div>
             ${k.mahalle?`<div style="font-size:9px;color:#94a3b8">📍 ${k.mahalle}</div>`:''}
           </div>
-          <button onclick="btHucreSilKisi('${k._fbId}','${(k.isim||'').replace(/'/g,"\\'")}',event)"
+          <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}"
+            class="bt-sil-btn"
             style="background:none;border:none;color:#f87171;cursor:pointer;font-size:12px;padding:0;flex-shrink:0">✕</button>
         </div>`).join('');
       return `<td style="padding:5px;vertical-align:top;border:1px solid #f1f5f9;background:${aktif?gr+'12':'#fff'};cursor:pointer"
@@ -221,6 +222,22 @@ function haftalikTabloRender() {
     </div>
     <div id="bt-atama-panel" style="display:none;margin-top:10px;border-radius:12px;border:1.5px solid ${renk}44;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)"></div>
   `;
+
+  // ✕ sil butonları için event delegation
+  wrap.addEventListener('click', function(e) {
+    const silBtn = e.target.closest('.bt-sil-btn');
+    if (silBtn) {
+      e.stopPropagation();
+      const fbId = silBtn.dataset.fbid;
+      const isim = decodeURIComponent(silBtn.dataset.isim || '');
+      if (!confirm(`"${isim}" bu slottan çıkarılsın mı?`)) return;
+      firebase.firestore().collection('periyot').doc(fbId).delete().then(() => {
+        window._periyotData = (window._periyotData||[]).filter(p=>p._fbId!==fbId);
+        showToast(`🗑️ ${isim} çıkarıldı`);
+        haftalikTabloRender();
+      }).catch(e2 => showToast('❌ '+e2.message));
+    }
+  }, {once: true});
   if (_btHucre) _btPaneliRender();
 }
 window.haftalikTabloRender = haftalikTabloRender;
@@ -252,8 +269,11 @@ function _btPaneliRender() {
   const kisiler = liste.map(r => {
     const ekli = ekliIsimler.has(r.ISIM_SOYISIM);
     const diger = digerSlotMap[r.ISIM_SOYISIM];
-    return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${ekli?gr+'10':'#fff'};border-bottom:1px solid #f1f5f9;cursor:pointer"
-         onclick="btKisiToggle('${r.ISIM_SOYISIM.replace(/'/g,"\\'")}','${(r.MAHALLE||'').replace(/'/g,"\\'")}')">
+    const isimEnc = encodeURIComponent(r.ISIM_SOYISIM);
+    const mahEnc  = encodeURIComponent(r.MAHALLE||'');
+    return `<div data-isim="${isimEnc}" data-mah="${mahEnc}"
+         style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${ekli?gr+'10':'#fff'};border-bottom:1px solid #f1f5f9;cursor:pointer"
+         class="bt-kisi-row">
       <div style="width:20px;height:20px;border-radius:6px;border:2px solid ${ekli?gr:'#e2e8f0'};background:${ekli?gr:'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
         ${ekli?'<span style="color:#fff;font-size:11px">✓</span>':''}
       </div>
@@ -275,9 +295,18 @@ function _btPaneliRender() {
       <input id="bt-ara" type="text" placeholder="İsim veya mahalle ara..." oninput="_btPaneliRender()"
         style="width:100%;box-sizing:border-box;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">
     </div>
-    <div style="max-height:300px;overflow-y:auto">
+    <div style="max-height:300px;overflow-y:auto" id="bt-kisi-liste">
       ${kisiler||'<div style="text-align:center;padding:20px;color:#94a3b8">Vatandaş bulunamadı</div>'}
     </div>`;
+
+  // Event delegation — onclick string yerine güvenli yöntem
+  panel.querySelector('#bt-kisi-liste').addEventListener('click', function(e) {
+    const row = e.target.closest('.bt-kisi-row');
+    if (!row) return;
+    const isim = decodeURIComponent(row.dataset.isim || '');
+    const mah  = decodeURIComponent(row.dataset.mah  || '');
+    if (isim) btKisiToggle(isim, mah);
+  });
 }
 window._btPaneliRender = _btPaneliRender;
 
