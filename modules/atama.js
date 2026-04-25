@@ -180,80 +180,107 @@ function haftalikTabloRender() {
   const pd_all  = window._periyotData || [];
   const pd      = pd_all.filter(p => p.hizmet === hizmet);
 
-  const basliklar = BT_GUNLER.map(g => {
-    const r = BT_GUN_RENK[g];
-    const n = pd.filter(p=>p.gun===g).length;
-    return `<th style="padding:8px 6px;text-align:center;font-size:11px;font-weight:900;
-                        color:${r};border-bottom:2px solid ${r}33;min-width:110px;width:20%">
-      <div style="white-space:nowrap">${g}</div>
-      ${n?`<span style="font-size:10px;color:${r};opacity:.7;font-weight:700">${n} kişi</span>`:'<span style="font-size:10px;color:#cbd5e1">boş</span>'}
-    </th>`;
+  // ── Gün kartları görünümü ──
+  const gunKartlari = BT_GUNLER.map(gun => {
+    const gr = BT_GUN_RENK[gun];
+    const sabahlar  = pd.filter(p=>p.gun===gun&&p.dilim==='Sabah');
+    const ogledener = pd.filter(p=>p.gun===gun&&p.dilim==='Öğleden Sonra');
+    const toplam = sabahlar.length + ogledener.length;
+
+    const sabahChips = sabahlar.slice(0,4).map(k=>
+      `<span style="background:#fff;border:1px solid ${gr}33;border-radius:20px;padding:2px 8px;
+                    font-size:10px;font-weight:700;color:#1e293b;white-space:nowrap">${k.isim.split(' ')[0]}</span>`
+    ).join('');
+    const oglChips = ogledener.slice(0,4).map(k=>
+      `<span style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:2px 8px;
+                    font-size:10px;font-weight:700;color:#fff;white-space:nowrap">${k.isim.split(' ')[0]}</span>`
+    ).join('');
+
+    const aktif = _btHucre && (_btHucre.gun===gun);
+
+    return `
+      <div style="border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1);
+                  border:2px solid ${aktif ? gr : 'transparent'};margin-bottom:10px">
+
+        <!-- Gün başlık satırı -->
+        <div style="background:linear-gradient(135deg,${gr},${gr}cc);padding:10px 14px;
+                    display:flex;align-items:center;justify-content:space-between">
+          <div style="color:#fff;font-weight:900;font-size:15px">${gun}</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            ${toplam ? `<span style="background:rgba(255,255,255,.25);color:#fff;border-radius:20px;
+                               padding:3px 10px;font-size:12px;font-weight:800">${toplam} kişi</span>` :
+              `<span style="background:rgba(255,255,255,.15);color:rgba(255,255,255,.7);border-radius:20px;
+                            padding:3px 10px;font-size:11px;font-weight:700">Boş</span>`}
+          </div>
+        </div>
+
+        <!-- İki dilim yan yana -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;background:#fff">
+
+          <!-- Sabah -->
+          <div onclick="btHucreAc('${gun}','Sabah')"
+               style="padding:10px 12px;border-right:1px solid #f1f5f9;cursor:pointer;
+                      background:${_btHucre&&_btHucre.gun===gun&&_btHucre.dilim==='Sabah' ? gr+'08' : '#fff'};
+                      transition:background .15s">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <span style="font-size:11px;font-weight:900;color:${gr}">🌅 Sabah</span>
+              <span style="font-size:11px;font-weight:800;color:${gr};background:${gr}12;
+                           border-radius:10px;padding:1px 8px">${sabahlar.length}</span>
+            </div>
+            ${sabahlar.length ? `
+              <div style="display:flex;flex-wrap:wrap;gap:3px">
+                ${sabahlar.map(k=>`
+                  <div style="display:flex;align-items:center;gap:3px;background:${gr}10;
+                              border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px">
+                    <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim.split(' ')[0]}</span>
+                    <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
+                      style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:9px;
+                             padding:0;line-height:1;width:12px;height:12px">✕</button>
+                  </div>`).join('')}
+              </div>` :
+              `<div style="text-align:center;padding:8px 0;color:#cbd5e1;font-size:11px">+ Ekle</div>`
+            }
+          </div>
+
+          <!-- Öğleden Sonra -->
+          <div onclick="btHucreAc('${gun}','Öğleden Sonra')"
+               style="padding:10px 12px;cursor:pointer;
+                      background:${_btHucre&&_btHucre.gun===gun&&_btHucre.dilim==='Öğleden Sonra' ? gr+'08' : '#fff'};
+                      transition:background .15s">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+              <span style="font-size:11px;font-weight:900;color:${gr}">🌇 Öğleden S.</span>
+              <span style="font-size:11px;font-weight:800;color:${gr};background:${gr}12;
+                           border-radius:10px;padding:1px 8px">${ogledener.length}</span>
+            </div>
+            ${ogledener.length ? `
+              <div style="display:flex;flex-wrap:wrap;gap:3px">
+                ${ogledener.map(k=>`
+                  <div style="display:flex;align-items:center;gap:3px;background:${gr}10;
+                              border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px">
+                    <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim.split(' ')[0]}</span>
+                    <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
+                      style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:9px;
+                             padding:0;line-height:1;width:12px;height:12px">✕</button>
+                  </div>`).join('')}
+              </div>` :
+              `<div style="text-align:center;padding:8px 0;color:#cbd5e1;font-size:11px">+ Ekle</div>`
+            }
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Atama paneli — bu gün aktifse hemen altında aç -->
+      ${_btHucre && _btHucre.gun === gun ? `<div id="bt-atama-panel" style="margin-bottom:10px;border-radius:12px;
+           border:1.5px solid ${gr}44;background:#fff;overflow:hidden;
+           box-shadow:0 2px 8px rgba(0,0,0,.08)"></div>` : ''}
+    `;
   }).join('');
 
-  const satirlar = BT_DILIMLER.map(dilim => {
-    const hucreler = BT_GUNLER.map(gun => {
-      const kisiler = pd.filter(p=>p.gun===gun&&p.dilim===dilim)
-        .sort((a,b)=>(a.mahalle||'').localeCompare(b.mahalle||'','tr')||(a.isim||'').localeCompare(b.isim||'','tr'));
-      const aktif = _btHucre && _btHucre.gun===gun && _btHucre.dilim===dilim;
-      const gr = BT_GUN_RENK[gun];
-
-      const chips = kisiler.map(k=>`
-        <div style="display:flex;align-items:center;background:${gr}12;border:1px solid ${gr}33;
-                    border-radius:20px;padding:3px 6px 3px 8px;margin:2px 0;gap:4px;min-width:0">
-          <span style="font-size:10px;font-weight:700;color:#1e293b;overflow:hidden;
-                       text-overflow:ellipsis;white-space:nowrap;flex:1">${k.isim.split(' ')[0]} ${(k.isim.split(' ')[1]||'').charAt(0)}.</span>
-          <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
-            style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:10px;
-                   padding:0;flex-shrink:0;line-height:1;width:14px;height:14px">✕</button>
-        </div>`).join('');
-
-      return `<td style="padding:6px;vertical-align:top;border:1px solid #f1f5f9;
-                          background:${aktif?gr+'10':'#fafafa'};cursor:pointer;
-                          min-height:60px;transition:background .15s"
-               onclick="btHucreAc('${gun}','${dilim}')">
-        <div style="max-height:160px;overflow-y:auto;overflow-x:hidden">
-          ${chips}
-        </div>
-        <div style="text-align:center;margin-top:${kisiler.length?'4':'12'}px">
-          <span style="font-size:10px;color:${gr};font-weight:800;opacity:.6;
-                       background:${gr}10;border-radius:10px;padding:2px 8px">
-            ${kisiler.length ? `${kisiler.length} kişi` : '+ Ekle'}
-          </span>
-        </div>
-      </td>`;
-    }).join('');
-
-    return `<tr>
-      <td style="padding:10px 8px;font-weight:900;font-size:11px;color:#475569;
-                 background:#f1f5f9;border:1px solid #e2e8f0;white-space:nowrap;
-                 text-align:center;width:70px">
-        <div>${dilim==='Sabah'?'🌅':'🌇'}</div>
-        <div style="font-size:9px;margin-top:2px">${dilim==='Sabah'?'Sabah':'Öğleden S.'}</div>
-      </td>${hucreler}
-    </tr>`;
-  }).join('');
-
-  wrap.innerHTML = `
-    <div style="overflow-x:auto;border-radius:12px;border:1px solid #e2e8f0;
-                box-shadow:0 2px 8px rgba(0,0,0,.08);background:#fff">
-      <table style="width:100%;border-collapse:collapse;min-width:480px;table-layout:fixed">
-        <thead>
-          <tr style="position:sticky;top:0;z-index:2">
-            <th style="padding:10px 6px;background:#1e293b;border-bottom:2px solid #334155;
-                       font-size:10px;color:#94a3b8;width:70px;text-align:center">GÜN / DİLİM</th>
-            ${basliklar}
-          </tr>
-        </thead>
-        <tbody>${satirlar}</tbody>
-      </table>
-    </div>
-    <div id="bt-atama-panel" style="display:none;margin-top:10px;border-radius:12px;
-         border:1.5px solid ${renk}44;background:#fff;overflow:hidden;
-         box-shadow:0 2px 8px rgba(0,0,0,.08)"></div>
-  `;
+  wrap.innerHTML = `<div style="padding-bottom:20px">${gunKartlari}</div>`;
 
   // ✕ sil butonları — event delegation
-  wrap.querySelector('table').addEventListener('click', function(e) {
+  wrap.addEventListener('click', function(e) {
     const silBtn = e.target.closest('.bt-sil-btn');
     if (!silBtn) return;
     e.stopPropagation();
@@ -268,7 +295,10 @@ function haftalikTabloRender() {
       }).catch(e2 => showToast('❌ '+e2.message));
   });
 
-  if (_btHucre) _btPaneliRender();
+  if (_btHucre) {
+    const panel = document.getElementById('bt-atama-panel');
+    if (panel) _btPaneliRender();
+  }
 }
 window.haftalikTabloRender = haftalikTabloRender;
 
