@@ -189,11 +189,11 @@ function haftalikTabloRender() {
 
     const sabahChips = sabahlar.slice(0,4).map(k=>
       `<span style="background:#fff;border:1px solid ${gr}33;border-radius:20px;padding:2px 8px;
-                    font-size:10px;font-weight:700;color:#1e293b;white-space:nowrap">${k.isim.split(' ')[0]}</span>`
+                    font-size:10px;font-weight:700;color:#1e293b;white-space:nowrap">${k.isim}</span>`
     ).join('');
     const oglChips = ogledener.slice(0,4).map(k=>
       `<span style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:2px 8px;
-                    font-size:10px;font-weight:700;color:#fff;white-space:nowrap">${k.isim.split(' ')[0]}</span>`
+                    font-size:10px;font-weight:700;color:#fff;white-space:nowrap">${k.isim}</span>`
     ).join('');
 
     const aktif = _btHucre && (_btHucre.gun===gun);
@@ -232,7 +232,7 @@ function haftalikTabloRender() {
                 ${sabahlar.map(k=>`
                   <div style="display:flex;align-items:center;gap:3px;background:${gr}10;
                               border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px">
-                    <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim.split(' ')[0]}</span>
+                    <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim}</span>
                     <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
                       style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:9px;
                              padding:0;line-height:1;width:12px;height:12px">✕</button>
@@ -257,7 +257,7 @@ function haftalikTabloRender() {
                 ${ogledener.map(k=>`
                   <div style="display:flex;align-items:center;gap:3px;background:${gr}10;
                               border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px">
-                    <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim.split(' ')[0]}</span>
+                    <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim}</span>
                     <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
                       style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:9px;
                              padding:0;line-height:1;width:12px;height:12px">✕</button>
