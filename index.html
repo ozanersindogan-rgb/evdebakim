@@ -1480,7 +1480,7 @@
           <div style="padding:16px 16px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
               <div style="font-size:18px;font-weight:900;color:#1e293b">🛁 Banyo Tablosu</div>
-              <div style="font-size:12px;color:#94a3b8;margin-top:2px">Mahalleye göre · Sabah / Öğleden Sonra</div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:2px">Mahalleye · Haftalık Atama</div>
             </div>
             <span id="banyo-tablo-count" style="font-size:12px;font-weight:700;color:#64748b;
                    background:#f1f5f9;border-radius:20px;padding:3px 12px"></span>
@@ -1500,27 +1500,50 @@
             </button>
           </div>
 
-          <!-- Arama -->
-          <div style="padding:10px 16px 12px">
-            <input class="search-box" placeholder="İsim veya mahalle ara..."
-              oninput="window._banyoAra=this.value;banyoTabloRender()"
-              style="width:100%;box-sizing:border-box;margin:0">
+          <!-- Görünüm sekmeleri -->
+          <div style="display:flex;gap:6px;padding:10px 16px 0">
+            <button id="bt-sekme-haftalik" onclick="btSekmeSec('haftalik')"
+              style="flex:1;background:#1e293b;color:#fff;border:none;border-radius:10px;
+                     padding:9px 0;font-size:12px;font-weight:800;cursor:pointer">
+              📅 Haftalık Atama
+            </button>
+            <button id="bt-sekme-mahalle" onclick="btSekmeSec('mahalle')"
+              style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:10px;
+                     padding:9px 0;font-size:12px;font-weight:800;cursor:pointer">
+              📍 Mahalleye Göre
+            </button>
           </div>
 
-          <!-- Açıklama chip'leri -->
-          <div style="display:flex;gap:6px;padding:0 16px 12px;flex-wrap:wrap">
-            <span style="background:#fdf2f8;border:1px solid #f9a8d4;border-radius:20px;
-                         padding:3px 10px;font-size:11px;font-weight:700;color:#9d174d">🌅 Sabah</span>
-            <span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;
-                         padding:3px 10px;font-size:11px;font-weight:700;color:#1d4ed8">🌇 Öğleden Sonra</span>
-            <span style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;
-                         padding:3px 10px;font-size:11px;font-weight:700;color:#64748b">⬜ Periyod Atanmamış</span>
+          <!-- ── HAFTALIK GÖRÜNÜM ── -->
+          <div id="bt-panel-haftalik" style="padding:12px 12px 80px">
+            <div id="haftalik-tablo-wrap">
+              <div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>
+            </div>
           </div>
 
-          <!-- Tablo container -->
-          <div id="banyo-tablo-container" style="padding:0 12px 80px">
-            <div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>
+          <!-- ── MAHALLEYE GÖRE GÖRÜNÜM ── -->
+          <div id="bt-panel-mahalle" style="display:none">
+            <!-- Arama -->
+            <div style="padding:10px 16px 8px">
+              <input class="search-box" placeholder="İsim veya mahalle ara..."
+                oninput="window._banyoAra=this.value;banyoTabloRender()"
+                style="width:100%;box-sizing:border-box;margin:0">
+            </div>
+            <!-- Açıklama chip'leri -->
+            <div style="display:flex;gap:6px;padding:0 16px 10px;flex-wrap:wrap">
+              <span style="background:#fdf2f8;border:1px solid #f9a8d4;border-radius:20px;
+                           padding:3px 10px;font-size:11px;font-weight:700;color:#9d174d">🌅 Sabah</span>
+              <span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;
+                           padding:3px 10px;font-size:11px;font-weight:700;color:#1d4ed8">🌇 Öğleden Sonra</span>
+              <span style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;
+                           padding:3px 10px;font-size:11px;font-weight:700;color:#64748b">⬜ Periyod Atanmamış</span>
+            </div>
+            <!-- Tablo container -->
+            <div id="banyo-tablo-container" style="padding:0 12px 80px">
+              <div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>
+            </div>
           </div>
+
         </div>
       </div>
 
