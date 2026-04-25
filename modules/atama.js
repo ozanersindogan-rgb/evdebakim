@@ -2,7 +2,6 @@
 // BANYO TABLOSU — Mahalleye Göre + Haftalık Atama
 // ══════════════════════════════════════════════════════════════
 
-// ─── Sabitler ────────────────────────────────────────────────
 const PERIYOD_SIRASI = [
   '1)PAZARTESİ SABAH','2)PAZARTESİ ÖĞLEDEN SONRA',
   '3)SALI SABAH','4)SALI ÖĞLEDEN SONRA',
@@ -17,11 +16,12 @@ const BT_GUN_RENK = {
   Perşembe:'#7c3aed', Cuma:'#b45309'
 };
 
-// ─── State ───────────────────────────────────────────────────
-let _banyoTur      = 'KADIN BANYO';
-let _banyoAra      = '';
-let _btAktifSekme  = 'haftalik';
-let _btHucre       = null;
+let _banyoTur     = 'KADIN BANYO';
+let _banyoAra     = '';
+let _btAktifSekme = 'haftalik';
+let _btHucre      = null;
+let _btAra        = '';
+let _periyotYuklendi = false; // Firestore'dan en az bir kez yüklendi mi
 
 // ─── Yardımcılar ─────────────────────────────────────────────
 function _periyodTip(val) {
@@ -42,10 +42,23 @@ function _gunDilimdenPeriyod(gun, dilim) {
   return PERIYOD_SIRASI.find(s => {
     const t = s.replace(/^\d+\)/,'');
     return t === g + ' ' + d;
-  }) || gun + ' ' + dilim;
+  }) || (gun + ' ' + dilim);
 }
 
-// ─── Veri toplama (allData + _periyotData birleştir) ──────────
+// ─── Periyot verisini yükle (sadece ilk açılışta) ────────────
+function _periyotEnsureLoaded(cb) {
+  if (_periyotYuklendi && window._periyotData) { cb(); return; }
+  firebase.firestore().collection('periyot').get()
+    .then(snap => {
+      window._periyotData = [];
+      snap.forEach(d => window._periyotData.push({_fbId: d.id, ...d.data()}));
+      _periyotYuklendi = true;
+      cb();
+    })
+    .catch(e => { showToast('❌ Periyot yüklenemedi: ' + e.message); });
+}
+
+// ─── Veri toplama ─────────────────────────────────────────────
 function _banyoVeriTopla(hizmet) {
   const aktifler = new Map();
   (typeof allData !== 'undefined' ? allData : [])
@@ -64,27 +77,27 @@ function _banyoVeriTopla(hizmet) {
 // ══════════════════════════════════════════════════════════════
 // 1. MAHALLEye GÖRE TABLO
 // ══════════════════════════════════════════════════════════════
-async function banyoTabloRender() {
+function banyoTabloRender() {
   const container = document.getElementById('banyo-tablo-container');
   if (!container) return;
-
   if (!allData || allData.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Veriler yükleniyor...</div>';
     return;
   }
-  if ((!window._periyotData || window._periyotData.length === 0) && typeof periyotYukle === 'function') {
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Periyot verileri yükleniyor...</div>';
-    try { await periyotYukle(); } catch(e) {}
+  if (!_periyotYuklendi) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>';
+    _periyotEnsureLoaded(() => banyoTabloRender());
+    return;
   }
 
-  const hizmet   = _banyoTur;
-  const renk     = hizmet === 'KADIN BANYO' ? '#C2185B' : '#1565C0';
-  const bgRenk   = hizmet === 'KADIN BANYO' ? '#fdf2f8' : '#eff6ff';
-  const araFiltre = _banyoAra.trim().toUpperCase();
+  const hizmet  = _banyoTur;
+  const renk    = hizmet === 'KADIN BANYO' ? '#C2185B' : '#1565C0';
+  const bgRenk  = hizmet === 'KADIN BANYO' ? '#fdf2f8' : '#eff6ff';
+  const filtre  = _banyoAra.trim().toUpperCase();
 
   let veri = _banyoVeriTopla(hizmet);
-  if (araFiltre) veri = veri.filter(v =>
-    v.isim.toUpperCase().includes(araFiltre) || v.mahalle.toUpperCase().includes(araFiltre)
+  if (filtre) veri = veri.filter(v =>
+    v.isim.toUpperCase().includes(filtre) || v.mahalle.toUpperCase().includes(filtre)
   );
 
   const mahalleMap = {};
@@ -94,7 +107,6 @@ async function banyoTabloRender() {
     mahalleMap[m].push(v);
   });
   const mahalleler = Object.entries(mahalleMap).sort((a,b)=>a[0].localeCompare(b[0],'tr'));
-
   const countEl = document.getElementById('banyo-tablo-count');
   if (countEl) countEl.textContent = veri.length + ' kişi';
 
@@ -111,18 +123,17 @@ async function banyoTabloRender() {
     });
   }
   function td(v) {
-    if (!v) return `<td style="padding:6px 10px;border-bottom:1px solid #f1f5f9;border-left:1px solid #f1f5f9"></td>`;
-    const label = _periyodLabel(v.periyod);
+    if (!v) return '<td style="padding:6px 10px;border-bottom:1px solid #f1f5f9;border-left:1px solid #f1f5f9"></td>';
     return `<td style="padding:7px 10px;vertical-align:top;border-bottom:1px solid #f1f5f9;border-left:1px solid #f1f5f9">
       <div style="font-weight:700;font-size:12px;color:#1e293b">${v.isim}</div>
-      ${v.periyod ? `<div style="font-size:10px;color:#94a3b8;margin-top:1px">${label}</div>` : ''}
+      ${v.periyod ? `<div style="font-size:10px;color:#94a3b8;margin-top:1px">${_periyodLabel(v.periyod)}</div>` : ''}
     </td>`;
   }
 
   container.innerHTML = mahalleler.map(([mah, kisiler]) => {
-    const sab = sirala(kisiler.filter(v=>_periyodTip(v.periyod)==='sabah'));
-    const ogl = sirala(kisiler.filter(v=>_periyodTip(v.periyod)==='ogleden'));
-    const per = kisiler.filter(v=>_periyodTip(v.periyod)==='diger');
+    const sab  = sirala(kisiler.filter(v=>_periyodTip(v.periyod)==='sabah'));
+    const ogl  = sirala(kisiler.filter(v=>_periyodTip(v.periyod)==='ogleden'));
+    const per  = kisiler.filter(v=>_periyodTip(v.periyod)==='diger');
     const rows = Math.max(sab.length, ogl.length);
     let satirlar = '';
     for(let i=0;i<rows;i++) satirlar += `<tr>${td(sab[i])}${td(ogl[i])}</tr>`;
@@ -158,18 +169,16 @@ function haftalikTabloRender() {
   const wrap = document.getElementById('haftalik-tablo-wrap');
   if (!wrap) return;
 
-  const pd_all = window._periyotData || [];
-  if (pd_all.length === 0 && typeof periyotYukle === 'function') {
+  if (!_periyotYuklendi) {
     wrap.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>';
-    periyotYukle()
-      .then(() => haftalikTabloRender())
-      .catch(e => { wrap.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">❌ ${e.message}</div>`; });
+    _periyotEnsureLoaded(() => haftalikTabloRender());
     return;
   }
 
-  const hizmet = _banyoTur;
-  const renk   = hizmet === 'KADIN BANYO' ? '#C2185B' : '#1565C0';
-  const pd     = pd_all.filter(p => p.hizmet === hizmet);
+  const hizmet  = _banyoTur;
+  const renk    = hizmet === 'KADIN BANYO' ? '#C2185B' : '#1565C0';
+  const pd_all  = window._periyotData || [];
+  const pd      = pd_all.filter(p => p.hizmet === hizmet);
 
   const basliklar = BT_GUNLER.map(g => {
     const r = BT_GUN_RENK[g];
@@ -191,9 +200,8 @@ function haftalikTabloRender() {
             <div style="font-size:11px;font-weight:800;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${k.isim}</div>
             ${k.mahalle?`<div style="font-size:9px;color:#94a3b8">📍 ${k.mahalle}</div>`:''}
           </div>
-          <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}"
-            class="bt-sil-btn"
-            style="background:none;border:none;color:#f87171;cursor:pointer;font-size:12px;padding:0;flex-shrink:0">✕</button>
+          <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
+            style="background:none;border:none;color:#f87171;cursor:pointer;font-size:12px;padding:0 2px;flex-shrink:0">✕</button>
         </div>`).join('');
       return `<td style="padding:5px;vertical-align:top;border:1px solid #f1f5f9;background:${aktif?gr+'12':'#fff'};cursor:pointer"
                onclick="btHucreAc('${gun}','${dilim}')">
@@ -223,57 +231,64 @@ function haftalikTabloRender() {
     <div id="bt-atama-panel" style="display:none;margin-top:10px;border-radius:12px;border:1.5px solid ${renk}44;background:#fff;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)"></div>
   `;
 
-  // ✕ sil butonları için event delegation
-  wrap.addEventListener('click', function(e) {
+  // ✕ sil butonları — event delegation
+  wrap.querySelector('table').addEventListener('click', function(e) {
     const silBtn = e.target.closest('.bt-sil-btn');
-    if (silBtn) {
-      e.stopPropagation();
-      const fbId = silBtn.dataset.fbid;
-      const isim = decodeURIComponent(silBtn.dataset.isim || '');
-      if (!confirm(`"${isim}" bu slottan çıkarılsın mı?`)) return;
-      firebase.firestore().collection('periyot').doc(fbId).delete().then(() => {
+    if (!silBtn) return;
+    e.stopPropagation();
+    const fbId = silBtn.dataset.fbid;
+    const isim = decodeURIComponent(silBtn.dataset.isim||'');
+    if (!confirm(`"${isim}" bu slottan çıkarılsın mı?`)) return;
+    firebase.firestore().collection('periyot').doc(fbId).delete()
+      .then(() => {
         window._periyotData = (window._periyotData||[]).filter(p=>p._fbId!==fbId);
         showToast(`🗑️ ${isim} çıkarıldı`);
         haftalikTabloRender();
       }).catch(e2 => showToast('❌ '+e2.message));
-    }
-  }, {once: true});
+  });
+
   if (_btHucre) _btPaneliRender();
 }
 window.haftalikTabloRender = haftalikTabloRender;
 
+// ─── Hücre seç / kapat ───────────────────────────────────────
 function btHucreAc(gun, dilim) {
   _btHucre = (_btHucre && _btHucre.gun===gun && _btHucre.dilim===dilim) ? null : {gun, dilim};
+  if (!_btHucre) _btAra = '';
   haftalikTabloRender();
 }
 window.btHucreAc = btHucreAc;
 
+// ─── Atama paneli ─────────────────────────────────────────────
 function _btPaneliRender() {
   const panel = document.getElementById('bt-atama-panel');
   if (!panel || !_btHucre) return;
+
+  // Arama kutusundaki mevcut değeri koru
+  const araInput = document.getElementById('bt-ara');
+  if (araInput) _btAra = araInput.value;
+
   const {gun, dilim} = _btHucre;
   const hizmet = _banyoTur;
   const gr = BT_GUN_RENK[gun] || '#1e293b';
   const pd = (window._periyotData||[]).filter(p=>p.hizmet===hizmet);
   const ekliIsimler = new Set(pd.filter(p=>p.gun===gun&&p.dilim===dilim).map(p=>p.isim));
-  const ara = (document.getElementById('bt-ara')?.value||'').toUpperCase();
+  const ara = (_btAra||'').toUpperCase();
+
+  const digerSlotMap = {};
+  pd.filter(p=>!(p.gun===gun&&p.dilim===dilim)).forEach(p=>{ digerSlotMap[p.isim]=p; });
 
   const aktifler = [...new Map(
     (allData||[]).filter(r=>r['HİZMET']===hizmet&&r.DURUM==='AKTİF').map(r=>[r.ISIM_SOYISIM,r])
   ).values()].sort((a,b)=>(a.MAHALLE||'').localeCompare(b.MAHALLE||'','tr')||a.ISIM_SOYISIM.localeCompare(b.ISIM_SOYISIM,'tr'));
 
   const liste = aktifler.filter(r=>!ara||r.ISIM_SOYISIM.toUpperCase().includes(ara)||(r.MAHALLE||'').toUpperCase().includes(ara));
-  const digerSlotMap = {};
-  pd.filter(p=>!(p.gun===gun&&p.dilim===dilim)).forEach(p=>{digerSlotMap[p.isim]=p;});
 
-  const kisiler = liste.map(r => {
+  const kisilerHtml = liste.map(r => {
     const ekli = ekliIsimler.has(r.ISIM_SOYISIM);
     const diger = digerSlotMap[r.ISIM_SOYISIM];
-    const isimEnc = encodeURIComponent(r.ISIM_SOYISIM);
-    const mahEnc  = encodeURIComponent(r.MAHALLE||'');
-    return `<div data-isim="${isimEnc}" data-mah="${mahEnc}"
-         style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${ekli?gr+'10':'#fff'};border-bottom:1px solid #f1f5f9;cursor:pointer"
-         class="bt-kisi-row">
+    return `<div data-isim="${encodeURIComponent(r.ISIM_SOYISIM)}" data-mah="${encodeURIComponent(r.MAHALLE||'')}" class="bt-kisi-row"
+         style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${ekli?gr+'10':'#fff'};border-bottom:1px solid #f1f5f9;cursor:pointer">
       <div style="width:20px;height:20px;border-radius:6px;border:2px solid ${ekli?gr:'#e2e8f0'};background:${ekli?gr:'#fff'};display:flex;align-items:center;justify-content:center;flex-shrink:0">
         ${ekli?'<span style="color:#fff;font-size:11px">✓</span>':''}
       </div>
@@ -289,67 +304,65 @@ function _btPaneliRender() {
   panel.innerHTML = `
     <div style="background:linear-gradient(135deg,${gr},${gr}cc);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:6px">
       <div style="color:#fff;font-weight:900;font-size:13px">${dilim==='Sabah'?'🌅':'🌇'} ${gun} — ${dilim} <span style="opacity:.7;font-size:11px">(${ekliIsimler.size} kişi)</span></div>
-      <button onclick="_btHucre=null;haftalikTabloRender()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">✕ Kapat</button>
+      <button onclick="_btHucre=null;_btAra='';haftalikTabloRender()" style="background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer">✕ Kapat</button>
     </div>
     <div style="padding:8px 12px">
-      <input id="bt-ara" type="text" placeholder="İsim veya mahalle ara..." oninput="_btPaneliRender()"
+      <input id="bt-ara" type="text" placeholder="İsim veya mahalle ara..."
+        value="${_btAra.replace(/"/g,'&quot;')}"
+        oninput="window._btAra=this.value;_btPaneliRender()"
         style="width:100%;box-sizing:border-box;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:12px;outline:none">
     </div>
-    <div style="max-height:300px;overflow-y:auto" id="bt-kisi-liste">
-      ${kisiler||'<div style="text-align:center;padding:20px;color:#94a3b8">Vatandaş bulunamadı</div>'}
+    <div id="bt-kisi-liste" style="max-height:300px;overflow-y:auto">
+      ${kisilerHtml||'<div style="text-align:center;padding:20px;color:#94a3b8">Vatandaş bulunamadı</div>'}
     </div>`;
 
-  // Event delegation — onclick string yerine güvenli yöntem
+  // Event delegation — güvenli tıklama
   panel.querySelector('#bt-kisi-liste').addEventListener('click', function(e) {
     const row = e.target.closest('.bt-kisi-row');
     if (!row) return;
-    const isim = decodeURIComponent(row.dataset.isim || '');
-    const mah  = decodeURIComponent(row.dataset.mah  || '');
-    if (isim) btKisiToggle(isim, mah);
+    btKisiToggle(decodeURIComponent(row.dataset.isim||''), decodeURIComponent(row.dataset.mah||''));
   });
+
+  // İmleci arama kutusunun sonuna taşı
+  const araEl = document.getElementById('bt-ara');
+  if (araEl && _btAra) setTimeout(()=>{ araEl.focus(); araEl.setSelectionRange(araEl.value.length,araEl.value.length); }, 0);
 }
 window._btPaneliRender = _btPaneliRender;
 
+// ─── Kişi ekle / çıkar ───────────────────────────────────────
 async function btKisiToggle(isim, mahalle) {
   if (!_btHucre) return;
   const {gun, dilim} = _btHucre;
   const hizmet = _banyoTur;
   if (!window._periyotData) window._periyotData = [];
   const pd = window._periyotData;
+  const kapasite = 'tek';
   const varMi = pd.find(p=>p.hizmet===hizmet&&p.isim===isim&&p.gun===gun&&p.dilim===dilim);
   try {
     if (varMi) {
       await firebase.firestore().collection('periyot').doc(varMi._fbId).delete();
-      window._periyotData = pd.filter(p=>p._fbId!==varMi._fbId);
+      window._periyotData = window._periyotData.filter(p=>p._fbId!==varMi._fbId);
       showToast(`🗑️ ${isim} çıkarıldı`);
     } else {
       const eskiSlot = pd.find(p=>p.hizmet===hizmet&&p.isim===isim);
       if (eskiSlot) {
-        await firebase.firestore().collection('periyot').doc(eskiSlot._fbId).update({gun,dilim,mahalle});
-        Object.assign(eskiSlot,{gun,dilim,mahalle});
+        await firebase.firestore().collection('periyot').doc(eskiSlot._fbId).update({gun,dilim,mahalle,kapasite});
+        Object.assign(eskiSlot,{gun,dilim,mahalle,kapasite});
         showToast(`🔄 ${isim} → ${gun} ${dilim}`);
       } else {
-        const ref = await firebase.firestore().collection('periyot').add({isim,hizmet,mahalle,gun,dilim});
-        window._periyotData.push({_fbId:ref.id,isim,hizmet,mahalle,gun,dilim});
-        showToast(`✅ ${isim} → ${gun} ${dilim}`);
+        const ref = await firebase.firestore().collection('periyot').add({isim,hizmet,mahalle,gun,dilim,kapasite});
+        window._periyotData.push({_fbId:ref.id,isim,hizmet,mahalle,gun,dilim,kapasite});
+        showToast(`✅ ${isim} eklendi → ${gun} ${dilim}`);
       }
     }
   } catch(e) { showToast('❌ '+e.message); return; }
-  haftalikTabloRender();
+  // Tabloyu yenile ama _periyotData'yı sıfırlama
+  _btPaneliRender();
+  // Grid'i de güncelle (sadece innerHTML'i yeniden çiz)
+  const wrap = document.getElementById('haftalik-tablo-wrap');
+  if (wrap) haftalikTabloRender();
 }
 window.btKisiToggle = btKisiToggle;
-
-async function btHucreSilKisi(fbId, isim, event) {
-  event.stopPropagation();
-  if (!confirm(`"${isim}" bu slottan çıkarılsın mı?`)) return;
-  try {
-    await firebase.firestore().collection('periyot').doc(fbId).delete();
-    window._periyotData = (window._periyotData||[]).filter(p=>p._fbId!==fbId);
-    showToast(`🗑️ ${isim} çıkarıldı`);
-  } catch(e) { showToast('❌ '+e.message); return; }
-  haftalikTabloRender();
-}
-window.btHucreSilKisi = btHucreSilKisi;
 
 // ══════════════════════════════════════════════════════════════
 // 3. SEKME + TÜR SEÇİMİ
@@ -357,6 +370,7 @@ window.btHucreSilKisi = btHucreSilKisi;
 function btSekmeSec(sekme) {
   _btAktifSekme = sekme;
   _btHucre = null;
+  _btAra = '';
   const hp = document.getElementById('bt-panel-haftalik');
   const mp = document.getElementById('bt-panel-mahalle');
   const bh = document.getElementById('bt-sekme-haftalik');
@@ -378,6 +392,7 @@ window.btSekmeSec = btSekmeSec;
 function banyoTurSec(tur, el) {
   _banyoTur = tur;
   _btHucre  = null;
+  _btAra    = '';
   document.querySelectorAll('.banyo-tur-btn').forEach(b=>{b.style.background='#f1f5f9';b.style.color='#475569';});
   if(el){el.style.background=tur==='KADIN BANYO'?'#C2185B':'#1565C0';el.style.color='#fff';}
   if(_btAktifSekme==='haftalik') haftalikTabloRender();
