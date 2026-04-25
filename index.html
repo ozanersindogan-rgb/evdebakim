@@ -49,12 +49,12 @@
 
     <!-- ── HİZMETLER ───────────────────────────── -->
     <div class="nav-section">🏥 Hizmetler</div>
-    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this);setTimeout(()=>{if(typeof kbRenderPersonelStats==='function')kbRenderPersonelStats(window._kbPersonelFiltre||'')},200)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
+    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
     <div class="nav-item" onclick="quickFilter('ERKEK BANYO',this)"><span class="icon">🚿</span>Erkek Banyo<span class="hizmet-tag tag-erkek">EB</span></div>
     <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
     <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
     <div class="nav-item" onclick="navTo('temizlik-plan',this)"><span class="icon">📋</span>Temizlik Planı</div>
-    <div class="nav-item" id="nav-personel-atama" onclick="navTo('personel-atama',this)"><span class="icon">👤</span>Personel Atama</div>
+    <div class="nav-item" id="nav-banyo-tablo" onclick="navTo('personel-atama',this);setTimeout(()=>{if(typeof banyoTabloRender==='function')banyoTabloRender()},100)"><span class="icon">🛁</span>Banyo Tablosu</div>
 
     <!-- ── STOK YÖNETİMİ ───────────────────────── -->
     <div class="nav-section">📦 Stok Yönetimi</div>
@@ -592,30 +592,7 @@
           <button class="durum-btn durum-btn-tumu" onclick="setVatDurum('',this)">Tümü</button>
         </div>
         <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
-          <!-- KB Personel İstatistikleri — sadece Kadın Banyo'da görünür -->
-          <div id="kb-personel-stats-wrap" style="display:none;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
-                        text-transform:uppercase;margin-bottom:8px">👩 Personel Dağılımı (Aktif Evler)</div>
-            <div id="kb-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-          </div>
-          <!-- EB Personel İstatistikleri — sadece Erkek Banyo'da görünür -->
-          <div id="eb-personel-stats-wrap" style="display:none;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
-                        text-transform:uppercase;margin-bottom:8px">🚿 Personel Dağılımı (Aktif Evler)</div>
-            <div id="eb-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-          </div>
-          <!-- KF Personel İstatistikleri — sadece Kuaför'de görünür -->
-          <div id="kf-personel-stats-wrap" style="display:none;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
-                        text-transform:uppercase;margin-bottom:8px">✂️ Personel Dağılımı (Aktif Evler)</div>
-            <div id="kf-personel-stats" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-          </div>
-          <!-- TP Personel İstatistikleri — sadece Temizlik'te görünür -->
-          <div id="tp-vat-personel-stats-wrap" style="display:none;margin-bottom:12px">
-            <div style="font-size:11px;font-weight:800;color:var(--text-soft);letter-spacing:.06em;
-                        text-transform:uppercase;margin-bottom:8px">🧹 Personel Dağılımı (Aktif Evler)</div>
-            <div id="tp-personel-stats-bar" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-          </div>
+
           <input class="search-box" id="vat-search" placeholder="İsim ara..." oninput="filterVat()">
           <select class="filter" id="vat-mah" onchange="filterVat()"><option value="">Tüm Mahalleler</option></select>
           <input type="hidden" id="vat-durum" value="AKTİF">
@@ -1489,247 +1466,60 @@
         </div>
       </div>
 
-      <!-- ─── PERSONEL ATAMA MODAL ─── -->
-      <div id="personel-modal" onclick="if(event.target===this)kbPersonelModalKapat()"
-        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
-               align-items:center;justify-content:center;padding:16px">
-        <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
-                    box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
-          <div style="background:linear-gradient(135deg,#C2185B,#880E4F);padding:16px 20px">
-            <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
-                        text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata</div>
-            <div id="personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
-          </div>
-          <div style="padding:16px 20px">
-            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">
-              Seçili (maks. 3):
-            </div>
-            <div id="personel-modal-chips" style="min-height:28px;margin-bottom:12px;
-                                                   display:flex;flex-wrap:wrap;gap:6px"></div>
-            <div id="personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
-            <div id="personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
-          </div>
-          <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
-            <button onclick="kbPersonelModalKapat()"
-              style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
-                     background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
-              İptal
-            </button>
-            <button onclick="kbPersonelKaydet()"
-              style="flex:2;padding:10px;border:none;border-radius:10px;
-                     background:#C2185B;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
-              💾 Kaydet
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <!-- ─── ERKEK BANYO PERSONEL ATAMA MODAL ─── -->
-      <div id="eb-personel-modal" onclick="if(event.target===this)ebPersonelModalKapat()"
-        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
-               align-items:center;justify-content:center;padding:16px">
-        <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
-                    box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
-          <div style="background:linear-gradient(135deg,#1565C0,#0D47A1);padding:16px 20px">
-            <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
-                        text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata — Erkek Banyo</div>
-            <div id="eb-personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
-          </div>
-          <div style="padding:16px 20px">
-            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">
-              Seçili (maks. 3):
-            </div>
-            <div id="eb-personel-modal-chips" style="min-height:28px;margin-bottom:12px;
-                                                   display:flex;flex-wrap:wrap;gap:6px"></div>
-            <div id="eb-personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
-            <div id="eb-personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
-          </div>
-          <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
-            <button onclick="ebPersonelModalKapat()"
-              style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
-                     background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
-              İptal
-            </button>
-            <button onclick="ebPersonelKaydet()"
-              style="flex:2;padding:10px;border:none;border-radius:10px;
-                     background:#1565C0;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
-              💾 Kaydet
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <!-- ─── KUAFÖR PERSONEL ATAMA MODAL ─── -->
-      <div id="kf-personel-modal" onclick="if(event.target===this)kfPersonelModalKapat()"
-        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
-               align-items:center;justify-content:center;padding:16px">
-        <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
-                    box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
-          <div style="background:linear-gradient(135deg,#2E7D32,#1B5E20);padding:16px 20px">
-            <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
-                        text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata — Kuaför</div>
-            <div id="kf-personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
-          </div>
-          <div style="padding:16px 20px">
-            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">
-              Seçili (maks. 3):
-            </div>
-            <div id="kf-personel-modal-chips" style="min-height:28px;margin-bottom:12px;
-                                                   display:flex;flex-wrap:wrap;gap:6px"></div>
-            <div id="kf-personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
-            <div id="kf-personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
-          </div>
-          <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
-            <button onclick="kfPersonelModalKapat()"
-              style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
-                     background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
-              İptal
-            </button>
-            <button onclick="kfPersonelKaydet()"
-              style="flex:2;padding:10px;border:none;border-radius:10px;
-                     background:#2E7D32;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
-              💾 Kaydet
-            </button>
-          </div>
-        </div>
-      </div>
 
-      <!-- ─── PERSONEL ATAMA SAYFASI ─── -->
+
+
+
+      <!-- ─── BANYO TABLOSU SAYFASI ─── -->
       <div class="page" id="page-personel-atama">
         <div class="form-section" style="margin-bottom:0;padding:0">
 
-          <!-- Hizmet seçim butonları -->
-          <div style="display:flex;gap:8px;flex-wrap:wrap;padding:16px 16px 0">
-            <button class="atama-hizmet-btn" onclick="atamaHizmetSec('KADIN BANYO',this)"
-              style="background:#1A237E;color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer">
+          <!-- Sayfa Başlığı -->
+          <div style="padding:16px 16px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-size:18px;font-weight:900;color:#1e293b">🛁 Banyo Tablosu</div>
+              <div style="font-size:12px;color:#94a3b8;margin-top:2px">Mahalleye göre · Sabah / Öğleden Sonra</div>
+            </div>
+            <span id="banyo-tablo-count" style="font-size:12px;font-weight:700;color:#64748b;
+                   background:#f1f5f9;border-radius:20px;padding:3px 12px"></span>
+          </div>
+
+          <!-- Kadın / Erkek Seçimi -->
+          <div style="display:flex;gap:8px;padding:12px 16px 0">
+            <button class="banyo-tur-btn" onclick="banyoTurSec('KADIN BANYO',this)"
+              style="flex:1;background:#C2185B;color:#fff;border:none;border-radius:10px;
+                     padding:10px 0;font-size:13px;font-weight:800;cursor:pointer">
               🛁 Kadın Banyo
             </button>
-            <button class="atama-hizmet-btn" onclick="atamaHizmetSec('ERKEK BANYO',this)"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:10px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer">
+            <button class="banyo-tur-btn" onclick="banyoTurSec('ERKEK BANYO',this)"
+              style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:10px;
+                     padding:10px 0;font-size:13px;font-weight:800;cursor:pointer">
               🚿 Erkek Banyo
             </button>
-            <button class="atama-hizmet-btn" onclick="atamaHizmetSec('KUAFÖR',this)"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:10px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer">
-              ✂️ Kuaför
-            </button>
-            <button class="atama-hizmet-btn" onclick="atamaHizmetSec('TEMİZLİK',this)"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:10px;padding:8px 16px;font-size:12px;font-weight:800;cursor:pointer">
-              🧹 Temizlik
-            </button>
           </div>
 
-          <!-- Stats -->
-          <div id="atama-stats" style="display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px"></div>
-
-          <!-- Görünüm seçici -->
-          <div style="display:flex;gap:6px;padding:0 16px 10px">
-            <button id="atama-goruntu-liste" onclick="atamaGorunumSec('liste')"
-              style="background:#1A237E;color:#fff;border:none;border-radius:8px;
-                     padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;flex:1">
-              📋 Liste
-            </button>
-            <button id="atama-goruntu-personel" onclick="atamaGorunumSec('personel')"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
-                     padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;flex:1">
-              👤 Personele Göre
-            </button>
-            <button id="atama-goruntu-periyot" onclick="atamaGorunumSec('periyot')"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
-                     padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;flex:1">
-              🗓 Periyoda Göre
-            </button>
-            <button id="atama-goruntu-mahalle" onclick="atamaGorunumSec('mahalle')"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
-                     padding:7px 13px;font-size:12px;font-weight:800;cursor:pointer;flex:1">
-              📍 Mahalleye Göre
-            </button>
+          <!-- Arama -->
+          <div style="padding:10px 16px 12px">
+            <input class="search-box" placeholder="İsim veya mahalle ara..."
+              oninput="window._banyoAra=this.value;banyoTabloRender()"
+              style="width:100%;box-sizing:border-box;margin:0">
           </div>
 
-          <!-- Arama + Sayı -->
-          <div style="display:flex;gap:8px;padding:0 16px 8px;align-items:center">
-            <input id="atama-ara" class="search-box" placeholder="İsim ara..."
-              oninput="_atamaAra=this.value;atamaRenderSayfa()"
-              style="flex:1;margin:0">
-            <span id="atama-count" style="font-size:12px;font-weight:700;color:#64748b;white-space:nowrap"></span>
+          <!-- Açıklama chip'leri -->
+          <div style="display:flex;gap:6px;padding:0 16px 12px;flex-wrap:wrap">
+            <span style="background:#fdf2f8;border:1px solid #f9a8d4;border-radius:20px;
+                         padding:3px 10px;font-size:11px;font-weight:700;color:#9d174d">🌅 Sabah</span>
+            <span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;
+                         padding:3px 10px;font-size:11px;font-weight:700;color:#1d4ed8">🌇 Öğleden Sonra</span>
+            <span style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;
+                         padding:3px 10px;font-size:11px;font-weight:700;color:#64748b">⬜ Periyod Atanmamış</span>
           </div>
 
-          <!-- Seçim araçları (sadece liste modunda) -->
-          <div id="atama-secim-araclari" style="display:flex;gap:8px;padding:0 16px 10px;align-items:center">
-            <button onclick="atamaTumunuSec()"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
-                     padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">
-              ☑️ Tümünü Seç
-            </button>
-            <button onclick="atamaSecimTemizle()"
-              style="background:#f1f5f9;color:#475569;border:none;border-radius:8px;
-                     padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer">
-              ✖️ Seçimi Temizle
-            </button>
-          </div>
-
-          <!-- Seçili vatandaşlar bar — ekranın altına sabit -->
-          <div id="atama-secili-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;
-               align-items:center;gap:10px;padding:12px 16px;
-               background:#1A237E;z-index:9000;
-               box-shadow:0 -4px 20px rgba(0,0,0,0.25)">
-            <span id="atama-secili-sayi" style="flex:1;color:#fff;font-weight:800;font-size:14px"></span>
-            <button onclick="atamaSecimTemizle()"
-              style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);
-                     border-radius:8px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer">
-              ✖ Temizle
-            </button>
-            <button onclick="atamaModalAc('__COKLU__',_atamaHizmet)"
-              style="background:#fff;color:#1A237E;border:none;border-radius:8px;
-                     padding:8px 18px;font-size:13px;font-weight:800;cursor:pointer">
-              👤 Personel Ata
-            </button>
-          </div>
-
-          <!-- Migrasyon butonu -->
-          <div style="padding:0 16px 12px">
-            <button id="atama-migrasyon-btn" onclick="atamaMigrasyonYap()"
-              style="background:#7c3aed;color:#fff;border:none;border-radius:10px;padding:8px 16px;
-                     font-size:12px;font-weight:700;cursor:pointer;width:100%">
-              🚀 Mevcut Atamaları Personel Atama'ya Taşı (Bir Kez Çalıştır)
-            </button>
-          </div>
-
-          <!-- Liste -->
-          <div id="atama-liste" class="table-card" style="border-radius:0;border-left:none;border-right:none"></div>
-        </div>
-      </div>
-
-      <!-- ─── PERSONEL ATAMA MODAL ─── -->
-      <div id="atama-modal" onclick="if(event.target===this)atamaModalKapat()"
-        style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
-               align-items:center;justify-content:center;padding:16px">
-        <div style="background:#fff;border-radius:16px;width:100%;max-width:420px;
-                    box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
-          <div id="atama-modal-baslik" style="padding:16px 20px">
-            <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
-                        text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px"
-                 id="atama-modal-hizmet"></div>
-            <div id="atama-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
-          </div>
-          <div style="padding:16px 20px;max-height:70vh;overflow-y:auto">
-            <!-- Gün seçimi (JS tarafından doldurulur) -->
-            <div id="atama-modal-gun-section"></div>
-            <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">👤 PERSONEL (maks. 3):</div>
-            <div id="atama-modal-chips" style="min-height:28px;margin-bottom:10px;display:flex;flex-wrap:wrap;gap:6px"></div>
-            <div id="atama-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px;color:#b45309"></div>
-            <div id="atama-modal-body" style="max-height:220px;overflow-y:auto"></div>
-          </div>
-          <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
-            <button onclick="atamaModalKapat()"
-              style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
-                     background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
-              İptal
-            </button>
-            <button id="atama-modal-kaydet-btn" onclick="atamaModalKaydet()"
-              style="flex:2;padding:10px;border:none;border-radius:10px;
-                     background:#1A237E;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
-              💾 Kaydet
-            </button>
+          <!-- Tablo container -->
+          <div id="banyo-tablo-container" style="padding:0 12px 80px">
+            <div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>
           </div>
         </div>
       </div>
@@ -2312,37 +2102,6 @@
 </div>
 
 
-<!-- TEMİZLİK PERSONEL ATAMA MODAL -->
-<div id="tp-personel-modal" onclick="if(event.target===this)tpPersonelModalKapat()"
-  style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;
-         align-items:center;justify-content:center;padding:16px">
-  <div style="background:#fff;border-radius:16px;width:100%;max-width:400px;
-              box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden">
-    <div style="background:linear-gradient(135deg,#E65100,#BF360C);padding:16px 20px">
-      <div style="font-size:11px;font-weight:800;color:rgba(255,255,255,.7);
-                  text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Personel Ata — Temizlik</div>
-      <div id="tp-personel-modal-isim" style="font-size:17px;font-weight:900;color:#fff"></div>
-    </div>
-    <div style="padding:16px 20px">
-      <div style="font-size:11px;font-weight:700;color:var(--text-soft);margin-bottom:8px">Seçili (maks. 3):</div>
-      <div id="tp-personel-modal-chips" style="min-height:28px;margin-bottom:12px;display:flex;flex-wrap:wrap;gap:6px"></div>
-      <div id="tp-personel-modal-uyari" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
-      <div id="tp-personel-modal-body" style="max-height:280px;overflow-y:auto"></div>
-    </div>
-    <div style="padding:12px 20px 16px;display:flex;gap:10px;border-top:1px solid #f1f5f9">
-      <button onclick="tpPersonelModalKapat()"
-        style="flex:1;padding:10px;border:1.5px solid #e2e8f0;border-radius:10px;
-               background:#f8fafc;font-size:13px;font-weight:700;cursor:pointer;color:#475569">
-        İptal
-      </button>
-      <button onclick="tpPersonelKaydet()"
-        style="flex:2;padding:10px;border:none;border-radius:10px;
-               background:#E65100;color:#fff;font-size:13px;font-weight:700;cursor:pointer">
-        💾 Kaydet
-      </button>
-    </div>
-  </div>
-</div>
 
 </body>
 </html>

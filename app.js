@@ -253,8 +253,8 @@ async function fbLoadData() {
       if (!r.ADRES && bilgi.adres) r.ADRES = bilgi.adres;
       if (!r.DOGUM_TARIHI && bilgi.dogum) r.DOGUM_TARIHI = bilgi.dogum;
     });
-    // Personel atama verilerini yükle ve allData'ya uygula
-    if (typeof atamaYukle === 'function') await atamaYukle();
+    // Personel verilerini yükle (ayarlar sayfası için)
+    if (typeof personelYukle === 'function') personelYukle().catch(()=>{});
     allDataOptimize();
     refreshAll();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
@@ -468,7 +468,11 @@ function refreshAll() {
   safe(renderGunluk, 'renderGunluk');
   safe(renderMahalle, 'renderMahalle');
   safe(renderExpStats, 'renderExpStats');
-  if (typeof vatHizmet !== 'undefined' && vatHizmet === 'KADIN BANYO' && typeof kbRenderPersonelStats === 'function') kbRenderPersonelStats(window._kbPersonelFiltre||'');
+  // Banyo tablosu sayfası açıksa güncelle
+  if (typeof banyoTabloRender === 'function') {
+    const banyoPage = document.getElementById('page-personel-atama');
+    if (banyoPage && banyoPage.classList.contains('active')) banyoTabloRender();
+  }
 
   const expMahSel = document.getElementById('exp-mah-sel');
   if(expMahSel) {
@@ -643,15 +647,6 @@ function openEditModal(idx) {
     <div class="form-group full"><label>🏠 Adres</label><input class="form-input" id="ed-adres" type="text" value="${esc(r.ADRES)}"></div>
     <div class="form-group full"><label>Not 1</label><input class="form-input" id="ed-not1" type="text" value="${esc(r.NOT1)}"></div>
     <div class="form-group full"><label>Not 2</label><input class="form-input" id="ed-not2" type="text" value="${esc(r.NOT2)}"></div>
-    ${r['HİZMET']==='KADIN BANYO' ? (() => {
-      const pList = typeof personelListesi === 'function' ? personelListesi('KADIN BANYO') : [];
-      const pOpts = p => `<option value=""${!p?' selected':''}>— Seçilmedi —</option>` + pList.map(x=>`<option value="${x.ad}"${x.ad===p?' selected':''}>${x.ad}</option>`).join('');
-      return `
-        <div class="form-group"><label>👩 Personel 1</label><select class="form-select" id="ed-personel1">${pOpts(r.PERSONEL1||'')}</select></div>
-        <div class="form-group"><label>👩 Personel 2</label><select class="form-select" id="ed-personel2">${pOpts(r.PERSONEL2||'')}</select></div>
-        <div class="form-group"><label>👩 Personel 3</label><select class="form-select" id="ed-personel3">${pOpts(r.PERSONEL3||'')}</select></div>
-      `;
-    })() : ''}
   `;
 
   document.getElementById('edit-modal').classList.add('open');
@@ -703,11 +698,6 @@ async function saveEdit() {
   r.ADRES         = getV('ed-adres').trim();
   r.NOT1          = getV('ed-not1');
   r.NOT2          = getV('ed-not2');
-  if (r['HİZMET'] === 'KADIN BANYO') {
-    r.PERSONEL1 = getV('ed-personel1');
-    r.PERSONEL2 = getV('ed-personel2');
-    r.PERSONEL3 = getV('ed-personel3');
-  }
 
   if (isKuafor) {
     r.SAC1    = getV('ed-sac1');
