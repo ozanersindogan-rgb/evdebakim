@@ -92,8 +92,8 @@ async function banyoTabloRender() {
     return;
   }
 
-  // periyot verisi yoksa yükle
-  if (!window._periyotData) {
+  // periyot verisi yoksa veya boşsa yükle
+  if (!window._periyotData || window._periyotData.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Periyot verileri yükleniyor...</div>';
     if (typeof periyotYukle === 'function') {
       try { await periyotYukle(); } catch(e) {}
@@ -247,7 +247,15 @@ function haftalikTabloRender() {
   const wrap = document.getElementById('haftalik-tablo-wrap');
   if (!wrap) return;
 
-  const hizmet = _banyoTur;
+  // _periyotData henüz yüklenmemişse veya boşsa yükle
+  const pd_all = window._periyotData || [];
+  if (pd_all.length === 0 && typeof periyotYukle === 'function') {
+    wrap.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>';
+    periyotYukle().then(() => haftalikTabloRender()).catch(e => {
+      wrap.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444">❌ Yükleme hatası: ${e.message}</div>`;
+    });
+    return;
+  }
   const renk   = hizmet === 'KADIN BANYO' ? '#C2185B' : '#1565C0';
 
   // periyot verisini al
@@ -497,11 +505,13 @@ function btSekmeSec(sekme) {
     if (mahallePanel)  mahallePanel.style.display  = 'none';
     if (btnHaftalik) { btnHaftalik.style.background='#1e293b'; btnHaftalik.style.color='#fff'; }
     if (btnMahalle)  { btnMahalle.style.background='#f1f5f9';  btnMahalle.style.color='#475569'; }
-    // periyot verisi yüklüyse render et, değilse yükle
-    if (window._periyotData && window._periyotData.length > 0) {
+    // periyot verisi yoksa veya boşsa yükle
+    if (!window._periyotData || window._periyotData.length === 0) {
+      if (typeof periyotYukle === 'function') {
+        periyotYukle().then(() => haftalikTabloRender()).catch(()=>{});
+      } else haftalikTabloRender();
+    } else {
       haftalikTabloRender();
-    } else if (typeof periyotYukle === 'function') {
-      periyotYukle().then(() => haftalikTabloRender()).catch(()=>{});
     }
   } else {
     if (haftalikPanel) haftalikPanel.style.display = 'none';
