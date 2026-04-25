@@ -48,17 +48,39 @@ let _banyoTur = 'KADIN BANYO';
 let _banyoAra = '';
 
 function _banyoVeriTopla(hizmet) {
-  const goruldu = new Set();
-  const sonuc = [];
+  // Aktif vatandaşları allData'dan al
+  const aktifler = new Map();
   (typeof allData !== 'undefined' ? allData : [])
     .filter(r => r['HİZMET'] === hizmet && r.DURUM === 'AKTİF')
     .forEach(r => {
-      if (goruldu.has(r.ISIM_SOYISIM)) return;
-      goruldu.add(r.ISIM_SOYISIM);
-      const periyod = r.GUN || r.PERIYOD || r['GÜN'] || r.ZİYARET_GUN || '';
-      sonuc.push({ isim: r.ISIM_SOYISIM || '', mahalle: r.MAHALLE || '', periyod });
+      if (!aktifler.has(r.ISIM_SOYISIM)) {
+        aktifler.set(r.ISIM_SOYISIM, { isim: r.ISIM_SOYISIM || '', mahalle: r.MAHALLE || '', periyod: '' });
+      }
     });
-  return sonuc;
+
+  // Periyot atamasını _periyotData'dan eşleştir
+  const pd = window._periyotData || [];
+  pd.filter(p => p.hizmet === hizmet).forEach(p => {
+    if (aktifler.has(p.isim)) {
+      // gun + dilim → periyod string'e çevir (PERIYOD_SIRASI formatına uygun)
+      const gun    = p.gun    || '';
+      const dilim  = p.dilim  || '';
+      let periyodStr = '';
+      if (gun && dilim) {
+        // Örnek: "Pazartesi" + "Sabah" → "1)PAZARTESİ SABAH"
+        const gunBuyuk   = gun.toUpperCase().replace('İ','İ').replace('Ş','Ş');
+        const dilimBuyuk = dilim.toUpperCase().replace('Ö','Ö').replace('İ','İ');
+        // PERIYOD_SIRASI içinde bul
+        periyodStr = PERIYOD_SIRASI.find(s => {
+          const temiz = s.replace(/^\d+\)/, '');
+          return temiz === gunBuyuk + ' ' + dilimBuyuk;
+        }) || gun + ' ' + dilim;
+      }
+      aktifler.get(p.isim).periyod = periyodStr;
+    }
+  });
+
+  return [...aktifler.values()];
 }
 
 async function banyoTabloRender() {
@@ -68,6 +90,14 @@ async function banyoTabloRender() {
   if (!allData || allData.length === 0) {
     container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Veriler yükleniyor...</div>';
     return;
+  }
+
+  // periyot verisi yoksa yükle
+  if (!window._periyotData) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8">⏳ Periyot verileri yükleniyor...</div>';
+    if (typeof periyotYukle === 'function') {
+      try { await periyotYukle(); } catch(e) {}
+    }
   }
 
   const hizmet = _banyoTur;
@@ -497,13 +527,4 @@ window.banyoTurSec = function(tur, el) {
   }
   if (_btAktifSekme === 'haftalik') haftalikTabloRender();
   else banyoTabloRender();
-};
-
-// Ana sayfa yüklemesinde haftalık tabloyu otomatik aç
-const _eskiBanyoTabloRender = window.banyoTabloRender;
-window.banyoTabloRender = function() {
-  // Mahalle tablosunu render et
-  _eskiBanyoTabloRender && _eskiBanyoTabloRender();
-  // Haftalık panel aktifse onu da güncelle
-  if (_btAktifSekme === 'haftalik') haftalikTabloRender();
 };
