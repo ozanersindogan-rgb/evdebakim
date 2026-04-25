@@ -314,7 +314,8 @@ async function btKisiToggle(isim, mahalle) {
   if (!_btHucre) return;
   const {gun, dilim} = _btHucre;
   const hizmet = _banyoTur;
-  const pd = window._periyotData || [];
+  if (!window._periyotData) window._periyotData = [];
+  const pd = window._periyotData;
   const varMi = pd.find(p=>p.hizmet===hizmet&&p.isim===isim&&p.gun===gun&&p.dilim===dilim);
   try {
     if (varMi) {
