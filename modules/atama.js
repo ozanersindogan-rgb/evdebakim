@@ -230,12 +230,12 @@ function haftalikTabloRender() {
             ${sabahlar.length ? `
               <div style="display:flex;flex-wrap:wrap;gap:3px">
                 ${sabahlar.map(k=>`
-                  <div style="display:flex;align-items:center;gap:3px;background:${gr}10;
-                              border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px">
+                  <div class="bt-chip" data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}"
+                       style="display:flex;align-items:center;gap:3px;background:${gr}10;
+                              border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px;cursor:pointer"
+                       title="${k.isim} — kaldırmak için tıkla">
                     <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim}</span>
-                    <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
-                      style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:9px;
-                             padding:0;line-height:1;width:12px;height:12px">✕</button>
+                    <span style="color:#ef4444;font-size:11px;font-weight:900;margin-left:1px">×</span>
                   </div>`).join('')}
               </div>` :
               `<div style="text-align:center;padding:8px 0;color:#cbd5e1;font-size:11px">+ Ekle</div>`
@@ -255,12 +255,12 @@ function haftalikTabloRender() {
             ${ogledener.length ? `
               <div style="display:flex;flex-wrap:wrap;gap:3px">
                 ${ogledener.map(k=>`
-                  <div style="display:flex;align-items:center;gap:3px;background:${gr}10;
-                              border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px">
+                  <div class="bt-chip" data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}"
+                       style="display:flex;align-items:center;gap:3px;background:${gr}10;
+                              border:1px solid ${gr}22;border-radius:20px;padding:2px 6px 2px 8px;cursor:pointer"
+                       title="${k.isim} — kaldırmak için tıkla">
                     <span style="font-size:10px;font-weight:700;color:#1e293b">${k.isim}</span>
-                    <button data-fbid="${k._fbId}" data-isim="${encodeURIComponent(k.isim||'')}" class="bt-sil-btn"
-                      style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:9px;
-                             padding:0;line-height:1;width:12px;height:12px">✕</button>
+                    <span style="color:#ef4444;font-size:11px;font-weight:900;margin-left:1px">×</span>
                   </div>`).join('')}
               </div>` :
               `<div style="text-align:center;padding:8px 0;color:#cbd5e1;font-size:11px">+ Ekle</div>`
@@ -279,21 +279,23 @@ function haftalikTabloRender() {
 
   wrap.innerHTML = `<div style="padding-bottom:20px">${gunKartlari}</div>`;
 
-  // ✕ sil butonları — event delegation
-  wrap.addEventListener('click', function(e) {
-    const silBtn = e.target.closest('.bt-sil-btn');
-    if (!silBtn) return;
+  // Chip tıklama — delegation (butonsuz, confirm yok)
+  wrap.onclick = function(e) {
+    const chip = e.target.closest('.bt-chip');
+    if (!chip) return;
     e.stopPropagation();
-    const fbId = silBtn.dataset.fbid;
-    const isim = decodeURIComponent(silBtn.dataset.isim||'');
-    if (!confirm(`"${isim}" bu slottan çıkarılsın mı?`)) return;
+    const fbId = chip.dataset.fbid;
+    const isim = decodeURIComponent(chip.dataset.isim || '');
+    if (!fbId) return;
     firebase.firestore().collection('periyot').doc(fbId).delete()
       .then(() => {
-        window._periyotData = (window._periyotData||[]).filter(p=>p._fbId!==fbId);
-        showToast(`🗑️ ${isim} çıkarıldı`);
+        window._periyotData = (window._periyotData||[]).filter(p => p._fbId !== fbId);
+        showToast('🗑️ ' + isim + ' çıkarıldı');
         haftalikTabloRender();
-      }).catch(e2 => showToast('❌ '+e2.message));
-  });
+      }).catch(function(err) { showToast('❌ ' + err.message); });
+  };
+
+
 
   if (_btHucre) {
     const panel = document.getElementById('bt-atama-panel');
@@ -379,6 +381,19 @@ function _btPaneliRender() {
   if (araEl && _btAra) setTimeout(()=>{ araEl.focus(); araEl.setSelectionRange(araEl.value.length,araEl.value.length); }, 0);
 }
 window._btPaneliRender = _btPaneliRender;
+
+// ─── Chip'ten direkt sil (onay yok) ──────────────────────────
+async function btSilKisi(fbId, isimEnc, event) {
+  if (event) event.stopPropagation();
+  const isim = decodeURIComponent(isimEnc||'');
+  try {
+    await firebase.firestore().collection('periyot').doc(fbId).delete();
+    window._periyotData = (window._periyotData||[]).filter(p=>p._fbId!==fbId);
+    showToast(`🗑️ ${isim} çıkarıldı`);
+    haftalikTabloRender();
+  } catch(e) { showToast('❌ '+e.message); }
+}
+window.btSilKisi = btSilKisi;
 
 // ─── Kişi ekle / çıkar ───────────────────────────────────────
 async function btKisiToggle(isim, mahalle) {
