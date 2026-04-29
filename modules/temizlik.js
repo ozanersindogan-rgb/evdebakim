@@ -379,7 +379,7 @@ function navTo(id, el) {
   if(id==='adres-guncelle') if(typeof adresRender==='function')adresRender();
   if(id==='temizlik-plan')  tpFirestoreYukle();
   if(id==='kisi-bilgi')     if(typeof kbYukle==='function')kbYukle();
-  if(id==='takvim')         if(typeof renderTakvim==='function')renderTakvim();
+  if(id==='takvim')         { if(typeof renderTakvim==='function')renderTakvim(); if(typeof _verilemediiBadgeGuncelle==='function')_verilemediiBadgeGuncelle(); }
   if(id==='sayi-ver')       if(typeof svRender==='function')svRender();
   if(id==='plan')           { if(typeof renderPlan==='function')renderPlan(); if(typeof rdvSayfaInit==='function')rdvSayfaInit(); }
   if(id==='yedekler')       if(typeof yedekSayfaYukle==='function')yedekSayfaYukle();

@@ -920,7 +920,8 @@ function gkVerilemediKaydet() {
   const kaydetBtn=document.querySelector('[onclick="gkKaydet()"]');
   if(kaydetBtn){kaydetBtn.disabled=false;kaydetBtn.style.display='';}
   refreshAll();
-  showToast(isim + ' - hizmet verilemedi notu eklendi');
+  if (typeof _verilemediiBadgeGuncelle === 'function') _verilemediiBadgeGuncelle();
+  showToast(isim + ' - hizmet verilemedi notu eklendi ✓');
   // İşlemi logla
   if (typeof currentUser !== 'undefined' && currentUser) {
     firebase.firestore().collection('islem_log').add({

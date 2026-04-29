@@ -5,6 +5,200 @@
 let _takvimYil = new Date().getFullYear();
 let _takvimAy  = new Date().getMonth(); // 0-11
 
+// ── SEKME GEÇİŞİ ──
+function takvimSekmeGec(sekme) {
+  const panelTakvim    = document.getElementById('takvim-panel-takvim');
+  const panelVerilemedi = document.getElementById('takvim-panel-verilemedi');
+  const btnTakvim      = document.getElementById('takvim-sekme-takvim');
+  const btnVerilemedi  = document.getElementById('takvim-sekme-verilemedi');
+  if (!panelTakvim || !panelVerilemedi) return;
+
+  if (sekme === 'takvim') {
+    panelTakvim.style.display = '';
+    panelVerilemedi.style.display = 'none';
+    if (btnTakvim)    { btnTakvim.style.color = '#1A237E';  btnTakvim.style.borderBottomColor = '#1A237E'; }
+    if (btnVerilemedi){ btnVerilemedi.style.color = '#94a3b8'; btnVerilemedi.style.borderBottomColor = 'transparent'; }
+  } else {
+    panelTakvim.style.display = 'none';
+    panelVerilemedi.style.display = '';
+    if (btnVerilemedi){ btnVerilemedi.style.color = '#b45309'; btnVerilemedi.style.borderBottomColor = '#f59e0b'; }
+    if (btnTakvim)    { btnTakvim.style.color = '#94a3b8';  btnTakvim.style.borderBottomColor = 'transparent'; }
+    renderVerilemeyenler();
+  }
+}
+
+// ── HİZMET VERİLEMEYENLER ──
+// NOT1/NOT2/NOT3 alanlarından "GG.MM.YYYY BANYO|KUAFOR|TEMİZLİK VERİLEMEDİ: AÇIKLAMA" kayıtlarını parse eder
+function _parseVerilemediNotlar(r) {
+  // Tüm not alanlarını birleştir, | ile ayrılmış parçalara böl
+  const tumNotlar = [r.NOT1, r.NOT2, r.NOT3].filter(Boolean).join(' | ');
+  if (!tumNotlar.includes('VERİLEMEDİ')) return [];
+
+  const parcalar = tumNotlar.split(' | ');
+  const sonuclar = [];
+  // Format: "GG.MM.YYYY HİZMETETİKET VERİLEMEDİ: AÇIKLAMA"
+  const re = /^(\d{2}\.\d{2}\.\d{4})\s+(BANYO|KUAFOR|TEMİZLİK|HİZMET)\s+VERİLEMEDİ:\s*(.+)$/i;
+
+  parcalar.forEach(parca => {
+    parca = parca.trim();
+    const m = parca.match(re);
+    if (!m) return;
+    const tarihTR = m[1]; // GG.MM.YYYY
+    const hizmetEtiket = m[2].toUpperCase();
+    const aciklama = m[3].trim();
+
+    // GG.MM.YYYY → Date
+    const [g, ay, y] = tarihTR.split('.');
+    const tarihObj = new Date(+y, +ay - 1, +g);
+    if (isNaN(tarihObj)) return;
+
+    // Hizmet etiketini orijinal hizmet adına çevir
+    let hizmetGosterim = hizmetEtiket;
+    if (hizmetEtiket === 'BANYO') {
+      // Kaydın kendi hizmet alanına bak
+      const h = (r['HİZMET'] || '').toUpperCase();
+      if (h.includes('ERKEK')) hizmetGosterim = 'ERKEK BANYO';
+      else if (h.includes('KADIN')) hizmetGosterim = 'KADIN BANYO';
+      else hizmetGosterim = 'BANYO';
+    } else if (hizmetEtiket === 'KUAFOR') {
+      hizmetGosterim = 'KUAFÖR';
+    } else if (hizmetEtiket === 'TEMİZLİK') {
+      hizmetGosterim = 'TEMİZLİK';
+    }
+
+    sonuclar.push({
+      tarihObj,
+      tarihTR,
+      tarihISO: y + '-' + ay.padStart(2,'0') + '-' + g.padStart(2,'0'),
+      hizmet: hizmetGosterim,
+      hizmetEtiket, // parse edilen etiket (filtre için)
+      aciklama,
+      isim: r.ISIM_SOYISIM || '',
+      mahalle: r.MAHALLE || '',
+      durum: r.DURUM || '',
+      fbId: r._fbId || '',
+      ay: r.AY || '',
+      r
+    });
+  });
+
+  return sonuclar;
+}
+
+function _verilemediTumkayitlar() {
+  if (!Array.isArray(allData)) return [];
+  const sonuc = [];
+  allData.forEach(r => {
+    const kayitlar = _parseVerilemediNotlar(r);
+    kayitlar.forEach(k => sonuc.push(k));
+  });
+  // En yeni tarih üstte
+  sonuc.sort((a, b) => b.tarihObj - a.tarihObj);
+  return sonuc;
+}
+
+function _verilemediiBadgeGuncelle() {
+  const badge = document.getElementById('verilemedi-badge');
+  if (!badge) return;
+  const son30 = new Date(); son30.setDate(son30.getDate() - 30);
+  const kayitlar = _verilemediTumkayitlar().filter(k => k.tarihObj >= son30);
+  badge.textContent = kayitlar.length > 0 ? kayitlar.length : '';
+  badge.style.display = kayitlar.length > 0 ? 'inline-block' : 'none';
+}
+
+function renderVerilemeyenler() {
+  const liste = document.getElementById('verilemedi-liste');
+  const toplam = document.getElementById('verilemedi-toplam');
+  if (!liste) return;
+
+  const hizmetFil = (document.getElementById('verilemedi-hizmet-fil')?.value || '').trim().toUpperCase();
+  const sureFil   = parseInt(document.getElementById('verilemedi-sure-fil')?.value || '0');
+
+  let kayitlar = _verilemediTumkayitlar();
+
+  // Süre filtresi
+  if (sureFil > 0) {
+    const sinir = new Date(); sinir.setDate(sinir.getDate() - sureFil);
+    kayitlar = kayitlar.filter(k => k.tarihObj >= sinir);
+  }
+
+  // Hizmet filtresi
+  if (hizmetFil) {
+    kayitlar = kayitlar.filter(k => k.hizmetEtiket === hizmetFil || k.hizmet.toUpperCase().includes(hizmetFil));
+  }
+
+  if (toplam) toplam.textContent = kayitlar.length + ' kayıt';
+
+  if (!kayitlar.length) {
+    liste.innerHTML = `<div style="text-align:center;padding:48px 24px;color:#94a3b8">
+      <div style="font-size:40px;margin-bottom:12px">✅</div>
+      <div style="font-size:15px;font-weight:700">Kayıt bulunamadı</div>
+      <div style="font-size:12px;margin-top:6px">Seçilen filtrelere göre hizmet verilemedi kaydı yok.</div>
+    </div>`;
+    return;
+  }
+
+  // Tarihe göre gruplanmış görünüm
+  const gruplar = {}; // tarihISO → [kayıt...]
+  kayitlar.forEach(k => {
+    if (!gruplar[k.tarihISO]) gruplar[k.tarihISO] = [];
+    gruplar[k.tarihISO].push(k);
+  });
+
+  const HIZMET_RENK = {
+    'KADIN BANYO': '#ec4899', 'ERKEK BANYO': '#3b82f6',
+    'BANYO': '#3b82f6', 'KUAFÖR': '#f59e0b', 'TEMİZLİK': '#22c55e'
+  };
+
+  const bugun = new Date(); bugun.setHours(0,0,0,0);
+
+  let html = '';
+  Object.entries(gruplar).forEach(([tarihISO, gunKayitlar]) => {
+    const tarihObj = gunKayitlar[0].tarihObj;
+    const tarihTR  = gunKayitlar[0].tarihTR;
+    const gunFark  = Math.round((bugun - tarihObj) / (1000*60*60*24));
+    const gunLabel = gunFark === 0 ? 'Bugün' : gunFark === 1 ? 'Dün' : gunFark + ' gün önce';
+
+    html += `<div style="margin-bottom:20px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div style="height:1px;flex:1;background:#e2e8f0"></div>
+        <span style="font-size:12px;font-weight:800;color:#475569;white-space:nowrap">
+          📅 ${tarihTR} &nbsp;·&nbsp; <span style="color:#b45309">${gunLabel}</span>
+          &nbsp;·&nbsp; <span style="color:#64748b">${gunKayitlar.length} kayıt</span>
+        </span>
+        <div style="height:1px;flex:1;background:#e2e8f0"></div>
+      </div>`;
+
+    gunKayitlar.forEach(k => {
+      const renk = HIZMET_RENK[k.hizmet] || '#64748b';
+      html += `<div style="background:#fff;border:1.5px solid #fed7aa;border-left:4px solid #f59e0b;border-radius:10px;margin-bottom:8px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px">
+          <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#fff7ed,#fed7aa);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">🚫</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:800;font-size:14px;color:#0f172a">${k.isim}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:3px;flex-wrap:wrap">
+              <span style="background:${renk}22;color:${renk};font-size:10px;font-weight:800;padding:2px 8px;border-radius:8px;border:1px solid ${renk}44">${k.hizmet}</span>
+              ${k.mahalle ? `<span style="font-size:11px;color:#64748b">📍 ${k.mahalle}</span>` : ''}
+              ${k.durum && k.durum !== 'AKTİF' ? `<span style="font-size:10px;font-weight:700;color:#ef4444;background:#fee2e2;padding:2px 7px;border-radius:8px">${k.durum}</span>` : ''}
+            </div>
+            <div style="margin-top:6px;font-size:12px;color:#b45309;font-weight:700;background:#fff7ed;padding:5px 10px;border-radius:7px;line-height:1.5">
+              <span style="color:#78350f;font-weight:600">Neden: </span>${k.aciklama}
+            </div>
+          </div>
+          <button onclick="showDetail('${k.isim.replace(/'/g,"\\'")}','${k.r['HİZMET']||''}','${k.ay}')"
+            style="background:#f1f5f9;border:none;border-radius:8px;padding:7px 12px;font-size:11px;font-weight:700;cursor:pointer;color:#475569;flex-shrink:0">
+            Karta Git ›
+          </button>
+        </div>
+      </div>`;
+    });
+
+    html += '</div>';
+  });
+
+  liste.innerHTML = html;
+}
+
 const HIZMET_RENK_MAP = {
   'KADIN BANYO': '#ec4899',
   'ERKEK BANYO': '#3b82f6',
