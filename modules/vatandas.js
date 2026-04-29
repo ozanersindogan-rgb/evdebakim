@@ -314,16 +314,19 @@ function showDetail(isim, hizmet, ay) {
   const tumKayitlarHizmet = (Array.isArray(allData) ? allData : [])
     .filter(x => _vkNorm(x?.ISIM_SOYISIM) === arananIsim && x['HİZMET'] === hz);
   const tarihler=[];
-  const tarihSet = new Set();
+  const tarihSet = {}; // tip → Set şeklinde, aynı tarih farklı tip için tekrar eklenebilsin
   tumKayitlarHizmet.forEach(kayit => {
     if(hz==='KUAFÖR'){
       [['Saç',kayit.SAC1],['Saç',kayit.SAC2],['Tırnak',kayit.TIRNAK1],['Tırnak',kayit.TIRNAK2],['Sakal',kayit.SAKAL1],['Sakal',kayit.SAKAL2]].forEach(([tip,t])=>{
-        if(t && !tarihSet.has(t)){ tarihSet.add(t); tarihler.push({tip,tarih:t}); }
+        if(!t) return;
+        if(!tarihSet[tip]) tarihSet[tip] = new Set();
+        if(!tarihSet[tip].has(t)){ tarihSet[tip].add(t); tarihler.push({tip,tarih:t}); }
       });
     } else {
       const tip = hz==='KADIN BANYO'?'Kadın Banyo':hz==='ERKEK BANYO'?'Erkek Banyo':hz==='TEMİZLİK'?'Temizlik':hz||'Hizmet';
+      if(!tarihSet[tip]) tarihSet[tip] = new Set();
       [kayit.BANYO1,kayit.BANYO2,kayit.BANYO3,kayit.BANYO4,kayit.BANYO5].filter(Boolean).forEach(t=>{
-        if(!tarihSet.has(t)){ tarihSet.add(t); tarihler.push({tip,tarih:t}); }
+        if(!tarihSet[tip].has(t)){ tarihSet[tip].add(t); tarihler.push({tip,tarih:t}); }
       });
     }
   });
