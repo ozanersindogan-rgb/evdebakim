@@ -334,9 +334,10 @@ function showDetail(isim, hizmet, ay) {
   });
   const durRenk={'AKTİF':'#C8E6C9|#1B5E20','İPTAL':'#FFCDD2|#B71C1C','VEFAT':'#CFD8DC|#263238','PASİF':'#ECEFF1|#546E7A','BEKLEME':'#FFF9C4|#F57F17'};
   const [dbg,dfg]=(durRenk[r.DURUM]||'#e2e8f0|#475569').split('|');
-  const digerHizmetler=(Array.isArray(allData)?allData:[])
+  const digerHizmetler=[...new Set((Array.isArray(allData)?allData:[])
     .filter(x=>_vkNorm(x?.ISIM_SOYISIM)===arananIsim && x['HİZMET']!==hz)
-    .map(x=>`<span style="background:${HZ_RENK[x['HİZMET']]||'#64748b'}22;color:${HZ_RENK[x['HİZMET']]||'#64748b'};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">${x['HİZMET']}</span>`)
+    .map(x=>x['HİZMET']).filter(Boolean))]
+    .map(h=>`<span style="background:${HZ_RENK[h]||'#64748b'}22;color:${HZ_RENK[h]||'#64748b'};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700">${h}</span>`)
     .join(' ');
   document.getElementById('vk-body').innerHTML=`
     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center">
@@ -367,10 +368,22 @@ function showDetail(isim, hizmet, ay) {
       ${yas!==null?`<div style="background:#16a34a;color:#fff;border-radius:12px;padding:4px 14px;font-size:18px;font-weight:900">${yas}</div>`:''}
     </div>`:''}
     ${tarihler.length?`<div style="margin-bottom:12px">
-      <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:8px;text-transform:uppercase">${hz} GECMISI (${tarihler.length})</div>
-      ${tarihler.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#f8fafc;border-radius:7px;margin-bottom:4px;font-size:12px">
+      <div style="font-size:11px;font-weight:700;color:#94a3b8;margin-bottom:8px;text-transform:uppercase">${hz} GEÇMİŞİ (${tarihler.length})</div>
+      ${hz==='KUAFÖR'?(()=>{
+        const gruplar={'Saç':[],'Tırnak':[],'Sakal':[]};
+        tarihler.forEach(t=>{if(gruplar[t.tip])gruplar[t.tip].push(t.tarih);});
+        const tipIkon={'Saç':'✂️','Tırnak':'💅','Sakal':'🪒'};
+        const tipRenk={'Saç':'#2563eb','Tırnak':'#7c3aed','Sakal':'#0369a1'};
+        return Object.entries(gruplar).filter(([,arr])=>arr.length>0).map(([tip,tarihArr])=>`
+          <div style="margin-bottom:8px">
+            <div style="font-size:11px;font-weight:800;color:${tipRenk[tip]};margin-bottom:4px">${tipIkon[tip]} ${tip} (${tarihArr.length})</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">
+              ${tarihArr.map(t=>`<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;color:#1e40af">${fmt(t)}</span>`).join('')}
+            </div>
+          </div>`).join('');
+      })():tarihler.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#f8fafc;border-radius:7px;margin-bottom:4px;font-size:12px">
         <span style="color:#475569;font-weight:600">${t.tip}</span><span style="font-weight:700;color:#1e40af">${fmt(t.tarih)}</span></div>`).join('')}
-    </div>`:'<div style="text-align:center;color:#94a3b8;font-size:13px;padding:8px 0">Henuz kayit yok</div>'}
+    </div>`:'<div style="text-align:center;color:#94a3b8;font-size:13px;padding:8px 0">Henüz kayıt yok</div>'}
     ${(typeof hmKartBolumu === 'function') ? hmKartBolumu(r.ISIM_SOYISIM, hz) : ''}
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0">
       ${r._fbId ? `<button onclick="vkKapat();openEditModal(${allData.indexOf(r)})"
