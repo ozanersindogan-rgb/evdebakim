@@ -634,18 +634,18 @@
         <div class="ay-tab" id="ay-tab-vat"></div>
         <!-- Durum filtre butonları -->
         <div id="durum-filtre-bar" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;margin-top:4px">
-          <button class="durum-btn durum-btn-aktif aktif-sec" onclick="setVatDurum('AKTİF',this)">● AKTİF</button>
-          <button class="durum-btn durum-btn-pasif" onclick="setVatDurum('PASİF',this)">● PASİF</button>
-          <button class="durum-btn durum-btn-iptal" onclick="setVatDurum('İPTAL',this)">● İPTAL</button>
-          <button class="durum-btn durum-btn-vefat" onclick="setVatDurum('VEFAT',this)">● VEFAT</button>
-          <button class="durum-btn durum-btn-bekleme" onclick="setVatDurum('BEKLEME',this)">● BEKLEME</button>
-          <button class="durum-btn durum-btn-tumu" onclick="setVatDurum('',this)">Tümü</button>
+          <button class="durum-btn durum-btn-aktif aktif-sec" onclick="toggleVatDurum('AKTİF',this)">● AKTİF</button>
+          <button class="durum-btn durum-btn-pasif" onclick="toggleVatDurum('PASİF',this)">● PASİF</button>
+          <button class="durum-btn durum-btn-iptal" onclick="toggleVatDurum('İPTAL',this)">● İPTAL</button>
+          <button class="durum-btn durum-btn-vefat" onclick="toggleVatDurum('VEFAT',this)">● VEFAT</button>
+          <button class="durum-btn durum-btn-bekleme" onclick="toggleVatDurum('BEKLEME',this)">● BEKLEME</button>
+          <button class="durum-btn durum-btn-tumu" onclick="toggleVatDurumTumu(this)">Tümü</button>
         </div>
         <div style="display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap">
 
           <input class="search-box" id="vat-search" placeholder="İsim ara..." oninput="filterVat()">
           <select class="filter" id="vat-mah" onchange="filterVat()"><option value="">Tüm Mahalleler</option></select>
-          <input type="hidden" id="vat-durum" value="AKTİF">
+          <input type="hidden" id="vat-durum" value="AKTİF"><!-- legacy, artık kullanılmıyor -->
         </div>
         <div class="table-card">
           <div class="table-header">
