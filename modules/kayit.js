@@ -371,12 +371,52 @@ function setVatHizmet(h,el) {
   filterVat();
 }
 
-// ── Durum filtre butonları ──
+// ── Durum filtre butonları — çoklu seçim ──
+let _vatSeciliDurumlar = new Set(['AKTİF']); // varsayılan: sadece AKTİF
+
+function _durumBtnGuncelle() {
+  const hepsi = ['AKTİF','PASİF','İPTAL','VEFAT','BEKLEME'];
+  const tumSeçili = hepsi.every(d => _vatSeciliDurumlar.has(d));
+  document.querySelectorAll('#durum-filtre-bar .durum-btn').forEach(b => {
+    const oc = b.getAttribute('onclick') || '';
+    const match = oc.match(/toggleVatDurum\('([^']+)'/);
+    if (match) {
+      b.classList.toggle('aktif-sec', _vatSeciliDurumlar.has(match[1]));
+    } else if (oc.includes('toggleVatDurumTumu')) {
+      b.classList.toggle('aktif-sec', tumSeçili || _vatSeciliDurumlar.size === 0);
+    }
+  });
+}
+
+function toggleVatDurum(durum, el) {
+  if (_vatSeciliDurumlar.has(durum)) {
+    _vatSeciliDurumlar.delete(durum);
+    if (_vatSeciliDurumlar.size === 0) _vatSeciliDurumlar.add(durum); // en az 1 seçili kalsın
+  } else {
+    _vatSeciliDurumlar.add(durum);
+  }
+  _durumBtnGuncelle();
+  vatPage = 1;
+  filterVat();
+}
+
+function toggleVatDurumTumu(el) {
+  const hepsi = ['AKTİF','PASİF','İPTAL','VEFAT','BEKLEME'];
+  const tumSeçili = hepsi.every(d => _vatSeciliDurumlar.has(d));
+  if (tumSeçili) {
+    _vatSeciliDurumlar = new Set(['AKTİF']); // tümü seçiliyse AKTİF'e dön
+  } else {
+    _vatSeciliDurumlar = new Set(hepsi); // hepsini seç
+  }
+  _durumBtnGuncelle();
+  vatPage = 1;
+  filterVat();
+}
+
+// eski fonksiyon — geriye dönük uyumluluk
 function setVatDurum(durum, el) {
-  const durEl = document.getElementById('vat-durum');
-  if (durEl) durEl.value = durum;
-  document.querySelectorAll('#durum-filtre-bar .durum-btn').forEach(b => b.classList.remove('aktif-sec'));
-  el.classList.add('aktif-sec');
+  _vatSeciliDurumlar = new Set(durum ? [durum] : ['AKTİF','PASİF','İPTAL','VEFAT','BEKLEME']);
+  _durumBtnGuncelle();
   vatPage = 1;
   filterVat();
 }
@@ -1319,18 +1359,16 @@ function vatSortBy(col) {
 function filterVat() {
   const srch=document.getElementById('vat-search').value.toLocaleLowerCase('tr-TR');
   const mah=document.getElementById('vat-mah').value;
-  // Durum: hidden input'tan oku (butonlar günceller)
-  const durEl = document.getElementById('vat-durum');
-  const dur = durEl ? durEl.value : 'AKTİF';
+  // Durum: çoklu seçim Set'inden oku
+  const hepsiDurum = ['AKTİF','PASİF','İPTAL','VEFAT','BEKLEME'];
+  const tumSeçili = hepsiDurum.every(d => _vatSeciliDurumlar.has(d));
 
   vatFiltered=allData.filter(r=>{
     const hOk=!vatHizmet||r['HİZMET']===vatHizmet;
-    // Ay zorunlu — seçili ay ile eşleşmeli
     const aOk = vatAy ? r.AY===vatAy : true;
     const sOk=!srch||(r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch)||(r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
     const mOk=!mah||r.MAHALLE===mah;
-    const dOk=!dur||r.DURUM===dur;
-    // Kolon dropdown filtreleri
+    const dOk=tumSeçili || _vatSeciliDurumlar.has(r.DURUM||'');
     const ayOk = !_vatKolFiltre.ay || r.AY === _vatKolFiltre.ay;
     const durKolOk = !_vatKolFiltre.durum || r.DURUM === _vatKolFiltre.durum;
     return hOk&&aOk&&sOk&&mOk&&dOk&&ayOk&&durKolOk;
@@ -1457,6 +1495,10 @@ async function vatExcelIndir() {
   if (!vatFiltered || !vatFiltered.length) { showToast('⚠️ İndirilecek kayıt yok'); return; }
   showToast('⏳ Excel hazırlanıyor...');
 
+  const isKuafor   = vatHizmet === 'KUAFÖR';
+  const isBanyo    = vatHizmet === 'KADIN BANYO' || vatHizmet === 'ERKEK BANYO';
+  const isTemizlik = vatHizmet === 'TEMİZLİK';
+
   const colorDefs = [
     { bg: '1A237E', fg: 'FFFFFF', bold: true, sz: 11, align: 'center' },  // 1: header
     { bg: 'E3F2FD', fg: '1565C0', bold: false, align: 'left' },            // 2: bant1
@@ -1464,18 +1506,60 @@ async function vatExcelIndir() {
     { bg: 'FFF9C4', fg: '795548', bold: true,  align: 'center' },           // 4: ay
     { bg: 'C8E6C9', fg: '1B5E20', bold: true,  align: 'center' },           // 5: aktif
     { bg: 'FFCDD2', fg: 'B71C1C', bold: true,  align: 'center' },           // 6: iptal/vefat
+    { bg: 'E8F5E9', fg: '2E7D32', bold: false, align: 'center' },           // 7: tarih hücresi
   ];
-  const SI = { HDR: 1, B1: 2, B2: 3, AY: 4, AKT: 5, PAS: 6 };
+  const SI = { HDR: 1, B1: 2, B2: 3, AY: 4, AKT: 5, PAS: 6, TAR: 7 };
 
-  const HEADERS = ['Hizmet', 'İsim Soyisim', 'Mahalle', 'Ay', 'Durum', '1. Telefon', '2. Telefon', 'Adres', 'Notlar'];
-  const WIDTHS  = [18, 28, 18, 12, 12, 16, 16, 36, 30];
+  // Tarih sütunları hizmet türüne göre
+  let tarihHeaders = [];
+  let tarihWidths  = [];
+  if (isKuafor) {
+    tarihHeaders = ['Saç 1','Saç 2','Tırnak 1','Tırnak 2','Sakal 1','Sakal 2'];
+    tarihWidths  = [13,13,13,13,13,13];
+  } else if (isBanyo) {
+    tarihHeaders = ['Banyo 1','Banyo 2','Banyo 3','Banyo 4','Banyo 5'];
+    tarihWidths  = [13,13,13,13,13];
+  } else if (isTemizlik) {
+    tarihHeaders = ['Temizlik 1','Temizlik 2','Temizlik 3','Temizlik 4','Temizlik 5'];
+    tarihWidths  = [14,14,14,14,14];
+  } else {
+    // Tümü seçili — genel tarih sütunu
+    tarihHeaders = ['Tarih 1','Tarih 2','Tarih 3','Tarih 4','Tarih 5'];
+    tarihWidths  = [13,13,13,13,13];
+  }
+
+  const fmt = t => {
+    if (!t) return '';
+    const s = String(t).trim();
+    if (s.includes('.')) return s; // zaten GG.MM.YYYY
+    if (s.includes('-')) { const [y,m,d]=s.split('-'); return `${d}.${m}.${y}`; }
+    return s;
+  };
+
+  const HEADERS = ['Hizmet','İsim Soyisim','Mahalle','Ay','Durum','1. Telefon','2. Telefon','Adres','Notlar',...tarihHeaders];
+  const WIDTHS  = [18,28,18,12,12,16,16,36,30,...tarihWidths];
 
   const rows = [{ cells: HEADERS.map(h => ({ v: h, s: SI.HDR })) }];
 
   vatFiltered.forEach((r, i) => {
-    const bs = i % 2 === 0 ? SI.B1 : SI.B2;
+    const bs  = i % 2 === 0 ? SI.B1 : SI.B2;
     const dur = (r.DURUM || '').toUpperCase();
     const durS = dur === 'AKTİF' ? SI.AKT : (dur === 'İPTAL' || dur === 'VEFAT' ? SI.PAS : bs);
+
+    let tarihCells = [];
+    if (isKuafor) {
+      tarihCells = [r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1,r.SAKAL2].map(t=>({ v: fmt(t), s: t ? SI.TAR : bs }));
+    } else if (isBanyo || isTemizlik) {
+      tarihCells = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5].map(t=>({ v: fmt(t), s: t ? SI.TAR : bs }));
+    } else {
+      // Karışık — kuafor mu banyo mu olduğuna bak
+      const hz = r['HİZMET'] || '';
+      let ts;
+      if (hz === 'KUAFÖR') ts = [r.SAC1,r.SAC2,r.TIRNAK1,r.TIRNAK2,r.SAKAL1].map(t=>fmt(t));
+      else ts = [r.BANYO1,r.BANYO2,r.BANYO3,r.BANYO4,r.BANYO5].map(t=>fmt(t));
+      tarihCells = ts.map(t=>({ v: t, s: t ? SI.TAR : bs }));
+    }
+
     rows.push({ cells: [
       { v: r['HİZMET']       || '', s: bs },
       { v: r.ISIM_SOYISIM    || '', s: bs },
@@ -1485,7 +1569,8 @@ async function vatExcelIndir() {
       { v: r['1. TELEFON']   || r.TELEFON || '', s: bs },
       { v: r['2. TELEFON']   || '', s: bs },
       { v: r.ADRES           || '', s: bs },
-      { v: r.NOT || r.NOTLAR || '', s: bs },
+      { v: r.NOT || r.NOTLAR || [r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' | ') || '', s: bs },
+      ...tarihCells,
     ]});
   });
 
@@ -1506,7 +1591,7 @@ async function vatExcelIndir() {
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href = url;
-  a.download = `vatandaslar_${new Date().toISOString().split('T')[0]}.xlsx`;
+  a.download = `vatandaslar_${vatHizmet.replace(/ /g,'_') || 'tum'}_${new Date().toISOString().split('T')[0]}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
   showToast(`✅ ${vatFiltered.length} kayıt Excel olarak indirildi`);
