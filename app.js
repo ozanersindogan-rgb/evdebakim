@@ -620,6 +620,8 @@ function refreshAll() {
   if(navYedek) navYedek.style.display = (currentUser?.uid === 'SBIyovehB5RAkSkhc05bIm88PJs2') ? '' : 'none';
   const navAyarlar = document.getElementById('nav-ayarlar');
   if(navAyarlar) navAyarlar.style.display = ''; // Tüm kullanıcılara açık
+  // Hizmet verilemeyenler badge güncelle
+  safe(_verilemediiBadgeGuncelle, '_verilemediiBadgeGuncelle');
 }
 
 // ── İŞLEM LOGU SAYFASI ──

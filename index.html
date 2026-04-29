@@ -422,37 +422,78 @@
 
       <!-- ─── ZİYARET TAKVİMİ ─── -->
       <div class="page" id="page-takvim">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <button onclick="takvimAyDegistir(-1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:7px 14px;font-size:16px;cursor:pointer">‹</button>
-            <span id="takvim-baslik" style="font-size:16px;font-weight:900;color:#1A237E;min-width:160px;text-align:center"></span>
-            <button onclick="takvimAyDegistir(1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:7px 14px;font-size:16px;cursor:pointer">›</button>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#ec4899"><span style="width:10px;height:10px;background:#ec4899;border-radius:50%;display:inline-block"></span>Kadın Banyo</span>
-            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6"><span style="width:10px;height:10px;background:#3b82f6;border-radius:50%;display:inline-block"></span>Erkek Banyo</span>
-            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#f59e0b"><span style="width:10px;height:10px;background:#f59e0b;border-radius:50%;display:inline-block"></span>Kuaför</span>
-            <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#22c55e"><span style="width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block"></span>Temizlik</span>
-          </div>
+
+        <!-- ── Sekme Başlıkları ── -->
+        <div style="display:flex;gap:0;margin-bottom:18px;border-bottom:2px solid #e2e8f0">
+          <button id="takvim-sekme-takvim" onclick="takvimSekmeGec('takvim')"
+            style="padding:10px 22px;font-size:13px;font-weight:800;border:none;background:none;cursor:pointer;color:#1A237E;border-bottom:3px solid #1A237E;margin-bottom:-2px;transition:all .15s">
+            📆 Ziyaret Takvimi
+          </button>
+          <button id="takvim-sekme-verilemedi" onclick="takvimSekmeGec('verilemedi')"
+            style="padding:10px 22px;font-size:13px;font-weight:800;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .15s">
+            🚫 Hizmet Verilemeyenler <span id="verilemedi-badge" style="display:inline-block;background:#ef4444;color:#fff;border-radius:10px;font-size:10px;font-weight:900;padding:1px 7px;margin-left:4px;vertical-align:middle"></span>
+          </button>
         </div>
-        <div class="table-card" style="overflow:hidden">
-          <div id="takvim-grid" style="padding:0"></div>
-        </div>
-        <!-- Gün detay paneli -->
-        <div id="takvim-detay" style="display:none;margin-top:18px">
-          <div style="text-align:center;margin-bottom:12px">
-            <button id="takvim-wp-btn" onclick="" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:11px 28px;font-size:13px;font-weight:800;cursor:pointer;display:none">
-              WhatsApp'ta Paylas
-            </button>
-          </div>
-          <div class="table-card">
-            <div class="table-header">
-              <span class="table-title" id="takvim-detay-baslik">Gun Detayi</span>
-              <button onclick="document.getElementById('takvim-detay').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">×</button>
+
+        <!-- ── Sekme 1: Ziyaret Takvimi ── -->
+        <div id="takvim-panel-takvim">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <button onclick="takvimAyDegistir(-1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:7px 14px;font-size:16px;cursor:pointer">‹</button>
+              <span id="takvim-baslik" style="font-size:16px;font-weight:900;color:#1A237E;min-width:160px;text-align:center"></span>
+              <button onclick="takvimAyDegistir(1)" style="background:#fff;border:1.5px solid #e2e8f0;border-radius:9px;padding:7px 14px;font-size:16px;cursor:pointer">›</button>
             </div>
-            <div id="takvim-detay-icerik" style="padding:14px"></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#ec4899"><span style="width:10px;height:10px;background:#ec4899;border-radius:50%;display:inline-block"></span>Kadın Banyo</span>
+              <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#3b82f6"><span style="width:10px;height:10px;background:#3b82f6;border-radius:50%;display:inline-block"></span>Erkek Banyo</span>
+              <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#f59e0b"><span style="width:10px;height:10px;background:#f59e0b;border-radius:50%;display:inline-block"></span>Kuaför</span>
+              <span style="display:flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#22c55e"><span style="width:10px;height:10px;background:#22c55e;border-radius:50%;display:inline-block"></span>Temizlik</span>
+            </div>
+          </div>
+          <div class="table-card" style="overflow:hidden">
+            <div id="takvim-grid" style="padding:0"></div>
+          </div>
+          <!-- Gün detay paneli -->
+          <div id="takvim-detay" style="display:none;margin-top:18px">
+            <div style="text-align:center;margin-bottom:12px">
+              <button id="takvim-wp-btn" onclick="" style="background:#25D366;color:#fff;border:none;border-radius:10px;padding:11px 28px;font-size:13px;font-weight:800;cursor:pointer;display:none">
+                WhatsApp'ta Paylas
+              </button>
+            </div>
+            <div class="table-card">
+              <div class="table-header">
+                <span class="table-title" id="takvim-detay-baslik">Gun Detayi</span>
+                <button onclick="document.getElementById('takvim-detay').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:18px;color:#94a3b8">×</button>
+              </div>
+              <div id="takvim-detay-icerik" style="padding:14px"></div>
+            </div>
           </div>
         </div>
+
+        <!-- ── Sekme 2: Hizmet Verilemeyenler ── -->
+        <div id="takvim-panel-verilemedi" style="display:none">
+          <!-- Filtreler -->
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center">
+            <select id="verilemedi-hizmet-fil" onchange="renderVerilemeyenler()"
+              style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-weight:700;background:#fff;cursor:pointer;outline:none">
+              <option value="">Tüm Hizmetler</option>
+              <option value="BANYO">Banyo</option>
+              <option value="KUAFOR">Kuaför</option>
+              <option value="TEMİZLİK">Temizlik</option>
+            </select>
+            <select id="verilemedi-sure-fil" onchange="renderVerilemeyenler()"
+              style="padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:9px;font-size:13px;font-weight:700;background:#fff;cursor:pointer;outline:none">
+              <option value="">Tüm Zamanlar</option>
+              <option value="7">Son 7 gün</option>
+              <option value="30">Son 30 gün</option>
+              <option value="90">Son 3 ay</option>
+            </select>
+            <span id="verilemedi-toplam" style="font-size:12px;font-weight:700;color:#64748b;margin-left:4px"></span>
+          </div>
+          <!-- Liste -->
+          <div id="verilemedi-liste"></div>
+        </div>
+
       </div>
 
       <!-- ─── AKILLI PLANLAMA ─── -->
