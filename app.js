@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 console.log("APP JS ÇALIŞTI");
 const USERS_MAP = {"SBIyovehB5RAkSkhc05bIm88PJs2": {"ad": "Ozan Ersin DOĞAN", "rol": "Birim Sorumlusu"}, "Fpk3BcokNFU4NM1XL0JQsMP9ygM2": {"ad": "Şafak SAYAR", "rol": "Temizlik - Banyo"}, "wksJ9Tf3djhgp4of4DxC29rEdiL2": {"ad": "Sezgin TAŞ", "rol": "Kuaför"}, "LBntADGnP2MHVecmn4jAnFRPW222": {"ad": "Ayşegül TULĞAN", "rol": "Hemşire"}};
+const BILGI_ISLEM_UID = 'bilgi-islem-readonly';
 let currentUser = null;
 let _docsMap = {}; // Firestore doc id -> allData index map
 let _initStarted = false;
@@ -52,7 +53,9 @@ function waitForModulesAndInit() {
 
 // ── AUTH ──
 var liEmail = '';
+var _bilgiIslemMode = false;
 function liSelectUser(email, cardId) {
+  _bilgiIslemMode = false;
   liEmail = email;
   document.querySelectorAll('[id^="li-u-"]').forEach(el => {
     el.style.border = '2px solid #e2e8f0';
@@ -61,29 +64,160 @@ function liSelectUser(email, cardId) {
   });
   const card = document.getElementById(cardId);
   if(card) { card.classList.add('selected'); }
+  const passWrap = document.querySelector('.li-pass-wrap');
+  const passLabel = passWrap && passWrap.previousElementSibling;
+  if(passWrap) passWrap.style.display = '';
+  if(passLabel) passLabel.style.display = '';
   const btn = document.getElementById('li-btn');
-  if(btn) { btn.disabled = false; btn.style.opacity = '1'; }
+  if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Giriş Yap →'; }
   const pass = document.getElementById('li-pass');
   if(pass) pass.focus();
 }
+function liSelectBilgiIslem(cardId) {
+  _bilgiIslemMode = true;
+  liEmail = '';
+  document.querySelectorAll('[id^="li-u-"]').forEach(el => {
+    el.style.border = '2px solid #e2e8f0';
+    el.style.background = '#fff';
+    el.classList.remove('selected');
+  });
+  const card = document.getElementById(cardId);
+  if(card) { card.classList.add('selected'); }
+  // Şifre alanını gizle
+  const passWrap = document.querySelector('.li-pass-wrap');
+  const passLabel = passWrap && passWrap.previousElementSibling;
+  if(passWrap) passWrap.style.display = 'none';
+  if(passLabel) passLabel.style.display = 'none';
+  const btn = document.getElementById('li-btn');
+  if(btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'Bilgi İşlem Girişi →'; }
+}
 function doLogin() {
+  const btn = document.getElementById('li-btn');
+  const err = document.getElementById('li-err');
+  if(err) err.textContent = '';
+
+  // Bilgi İşlem şifresiz giriş
+  if(_bilgiIslemMode) {
+    if(btn) { btn.textContent = 'Giriş yapılıyor...'; btn.disabled = true; }
+    currentUser = { uid: BILGI_ISLEM_UID, ad: 'Bilgi İşlem', rol: 'Salt Okunur' };
+    const ls = document.getElementById('login-screen');
+    const ar = document.getElementById('app-root');
+    const ub = document.getElementById('user-badge');
+    if(ls) ls.style.display = 'none';
+    if(ar) ar.style.display = '';
+    if(ub) ub.style.display = 'flex';
+    const ubAd = document.getElementById('ub-ad');
+    const ubRol = document.getElementById('ub-rol');
+    const ubAv = document.getElementById('ub-avatar');
+    if(ubAd) ubAd.textContent = 'Bilgi İşlem';
+    if(ubRol) ubRol.textContent = 'Salt Okunur';
+    if(ubAv) ubAv.textContent = '💻';
+    _applyBilgiIslemRestrictions();
+    waitForModulesAndInit();
+    return;
+  }
+
   const email = liEmail;
   const pass  = document.getElementById('li-pass').value;
-  const btn   = document.getElementById('li-btn');
-  const err   = document.getElementById('li-err');
   if(!email){ if(err) err.textContent='Lütfen bir kullanıcı seçin'; return; }
   if(!pass){ if(err) err.textContent='Şifre zorunlu'; return; }
   if(btn) { btn.textContent = 'Giriş yapılıyor...'; btn.disabled = true; }
-  if(err) err.textContent='';
   _auth.signInWithEmailAndPassword(email, pass)
     .catch(e => {
       if(err) err.textContent = e.code==='auth/invalid-credential'?'Şifre hatalı':'Giriş hatası: '+e.message;
-      if(btn) { btn.textContent='Giriş Yap'; btn.disabled=false; btn.style.opacity='1'; }
+      if(btn) { btn.textContent='Giriş Yap →'; btn.disabled=false; btn.style.opacity='1'; }
     });
 }
 
+function isBilgiIslem() {
+  return currentUser && currentUser.uid === BILGI_ISLEM_UID;
+}
+function _applyBilgiIslemRestrictions() {
+  // Yedekler menüsünü gizle
+  const navYedek = document.getElementById('nav-yedekler');
+  if(navYedek) navYedek.style.display = 'none';
+  // Ozan araçlar menüsünü gizle
+  const ozanSection = document.getElementById('nav-ozan-section');
+  const ozanMenu = document.getElementById('nav-ozan-menu');
+  if(ozanSection) ozanSection.style.display = 'none';
+  if(ozanMenu) ozanMenu.style.display = 'none';
+  // CSS: yazma & indirme butonlarını devre dışı bırak
+  const style = document.createElement('style');
+  style.id = 'bilgi-islem-readonly-css';
+  style.textContent = `
+    /* Bilgi İşlem salt-okunur modu */
+    button[onclick*="Kaydet"], button[onclick*="kaydet"],
+    button[onclick*="kayit"], button[onclick*="Kayit"],
+    button[onclick*="Ekle"], button[onclick*="ekle"],
+    button[onclick*="Sil"], button[onclick*="sil"],
+    button[onclick*="Guncelle"], button[onclick*="guncelle"],
+    button[onclick*="Duzenle"], button[onclick*="duzenle"],
+    button[onclick*="saveRec"], button[onclick*="saveEdit"],
+    button[onclick*="tpSaveEdit"], button[onclick*="kbKaydet"],
+    button[onclick*="adresEditKaydet"], button[onclick*="hmKaydet"],
+    button[onclick*="gkKaydet"], button[onclick*="gkVerilemedi"],
+    button[onclick*="gunlukDuzenle"], button[onclick*="idDuzenle"],
+    button[onclick*="duKaydet"], button[onclick*="rdvEkle"],
+    button[onclick*="yedekAl"], button[onclick*="yedekYukle"],
+    button[onclick*="Indir"], button[onclick*="indir"],
+    button[onclick*="svIndir"], button[onclick*="expIndir"],
+    button[onclick*="aylikOzetIndir"], button[onclick*="expStatsIndir"],
+    button[onclick*="mahIndir"], button[onclick*="adresIndir"],
+    button[onclick*="exportGunluk"], button[onclick*="vatExcelIndir"],
+    button[onclick*="buildXlsx"],
+    #hm-kaydet-btn, #id-duzenle-btn {
+      opacity: 0.25 !important;
+      pointer-events: none !important;
+      cursor: not-allowed !important;
+      filter: grayscale(1) !important;
+    }
+    /* İndirme sayfasını (Veri Al) tamamen gizle */
+    #page-export { display: none !important; }
+  `;
+  document.head.appendChild(style);
+  // Runtime: uygulama yüklendikten sonra dinamik butonları da yakala
+  setTimeout(() => {
+    document.querySelectorAll('button').forEach(btn => {
+      const oc = btn.getAttribute('onclick') || '';
+      const writeKeywords = ['kaydet','Kaydet','saveRec','saveEdit','tpSave','kbKaydet',
+        'adresEdit','hmKaydet','gkKaydet','gkVerilemedi','gunlukDuzenle','idDuzenle',
+        'duKaydet','rdvEkle','yedekAl','yedekYukle','indir','Indir','svIndir',
+        'expIndir','aylikOzet','expStats','mahIndir','adresIndir','exportGunluk','vatExcel','buildXlsx','ekle','Ekle','sil','Sil'];
+      if(writeKeywords.some(k => oc.includes(k))) {
+        btn.disabled = true;
+        btn.style.opacity = '0.25';
+        btn.style.pointerEvents = 'none';
+        btn.style.cursor = 'not-allowed';
+        btn.title = 'Bilgi İşlem hesabı bu işlemi yapamaz';
+      }
+    });
+    // Veri Al nav menü öğesini de gizle
+    const navExport = document.querySelector('[onclick*="export"]');
+    if(navExport) navExport.style.display = 'none';
+  }, 1500);
+}
+
 function doLogout() {
-  if(confirm('Çıkış yapmak istiyor musunuz?')) firebase.auth().signOut();
+  if(!confirm("Çıkış yapmak istiyor musunuz?")) return;
+  if(currentUser && currentUser.uid === BILGI_ISLEM_UID) {
+    currentUser = null;
+    _initStarted = false;
+    _bilgiIslemMode = false;
+    const roCss = document.getElementById("bilgi-islem-readonly-css");
+    if(roCss) roCss.remove();
+    const passWrap = document.querySelector(".li-pass-wrap");
+    const passLabel = passWrap && passWrap.previousElementSibling;
+    if(passWrap) passWrap.style.display = "";
+    if(passLabel) passLabel.style.display = "";
+    const btn = document.getElementById("li-btn");
+    if(btn) { btn.disabled = true; btn.style.opacity = "0.4"; btn.textContent = "Giriş Yap →"; }
+    document.querySelectorAll("[id^=\"li-u-\"]").forEach(el => { el.style.border = "2px solid #e2e8f0"; el.classList.remove("selected"); });
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("app-root").style.display = "none";
+    document.getElementById("user-badge").style.display = "none";
+    return;
+  }
+  firebase.auth().signOut();
 }
 
 firebase.auth().onAuthStateChanged( user => {
@@ -314,6 +448,7 @@ if (!window._saveQueue || window._saveQueue.length === 0) {
 }
 
 async function fbUpdateDoc(idx, changes) {
+  if(isBilgiIslem()) { showToast('⛔ Bilgi İşlem hesabı veri değiştiremez'); return; }
   const r = allData[idx];
   if (!r || !r._fbId) {
     console.warn('fbUpdateDoc: _fbId yok, idx=', idx);
