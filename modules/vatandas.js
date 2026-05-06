@@ -150,6 +150,68 @@ async function taUygula() {
   showToast(`✅ ${seciliIdxler.length} kayıt ${hedef} ayına taşındı!`);
 }
 
+// ── OTOMATİK TAM AY AKTARIMI ──────────────────────────────
+// Kaynak aydan hedef aya, zaten geçmemiş TÜM aktif kişileri tek tıkla aktarır
+async function taHepsiniAktar() {
+  const kaynak = document.getElementById('ta-kaynak').value;
+  const hedef  = document.getElementById('ta-hedef').value;
+  const hizmet = document.getElementById('ta-hizmet').value;
+
+  if (!kaynak) { showToast('⚠️ Kaynak ay seçin'); return; }
+  if (!hedef)  { showToast('⚠️ Hedef ay seçin'); return; }
+  if (kaynak === hedef) { showToast('⚠️ Kaynak ve hedef aynı olamaz'); return; }
+
+  // Hedefte zaten var olanları çıkar
+  const hedefAnahtarlar = new Set(
+    allData.filter(r => r.AY === hedef).map(r => r['HİZMET'] + '|' + r.ISIM_SOYISIM)
+  );
+
+  const aktarilacaklar = allData.filter(r =>
+    r.AY === kaynak &&
+    r.DURUM === 'AKTİF' &&
+    (!hizmet || r['HİZMET'] === hizmet) &&
+    !hedefAnahtarlar.has(r['HİZMET'] + '|' + r.ISIM_SOYISIM)
+  );
+
+  if (!aktarilacaklar.length) {
+    showToast(`✅ ${AY_LABELS[kaynak] || kaynak} ayındaki tüm aktif kişiler zaten ${AY_LABELS[hedef] || hedef} ayında mevcut`);
+    return;
+  }
+
+  const onay = confirm(
+    `${AY_LABELS[kaynak] || kaynak} → ${AY_LABELS[hedef] || hedef}\n\n` +
+    `${aktarilacaklar.length} kişi aktarılacak.\n` +
+    `(Zaten geçmiş olanlar atlanır)\n\nDevam etmek istiyor musunuz?`
+  );
+  if (!onay) return;
+
+  showToast(`⏳ ${aktarilacaklar.length} kayıt aktarılıyor...`);
+
+  let basarili = 0;
+  for (let i = 0; i < aktarilacaklar.length; i += 400) {
+    const chunk = aktarilacaklar.slice(i, i + 400);
+    await Promise.all(chunk.map(async r => {
+      const yeniKayit = normalizeRecord({
+        ISIM_SOYISIM: r.ISIM_SOYISIM, MAHALLE: r.MAHALLE,
+        'HİZMET': r['HİZMET'], AY: hedef, DURUM: 'AKTİF',
+        CİNSİYET: r.CİNSİYET || '', ONAY_TARIHI: r.ONAY_TARIHI || '',
+        IPTAL_NEDEN: '', IPTAL_TARIHI: '', NOT1: '', NOT2: '', NOT3: '',
+        BANYO1: '', BANYO2: '', BANYO3: '', BANYO4: '', BANYO5: '',
+        SAC1: '', SAC2: '', TIRNAK1: '', TIRNAK2: '', SAKAL1: '', SAKAL2: '',
+      });
+      const fbId = await fbAddDoc(yeniKayit);
+      yeniKayit._fbId = fbId;
+      allData.push(yeniKayit);
+      basarili++;
+    }));
+  }
+
+  refreshAll();
+  taListele();
+  showToast(`✅ ${basarili} kişi ${AY_LABELS[hedef] || hedef} ayına aktarıldı!`);
+}
+window.taHepsiniAktar = taHepsiniAktar;
+
 function arInitMahalleler() {
   const mahs = [...new Set(allData.map(r=>r.MAHALLE).filter(Boolean))].sort();
   const sel = document.getElementById('ar-eski-mah');
