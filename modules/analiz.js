@@ -45,11 +45,12 @@ function analizCanlıHizmetAy() {
     'KADIN BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
     'ERKEK BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
     'KUAFÖR':      ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'],
+    'TEMİZLİK':   ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
   };
 
   (allData||[]).forEach(r => {
     const hz = r['HİZMET'];
-    if (!sonuc[hz] || hz === 'TEMİZLİK') return;
+    if (!sonuc[hz]) return;
     (tarihAlanlari[hz]||[]).forEach(alan => {
       const v = r[alan]; if (!v) return;
       const parsed = svTarihAyYil ? svTarihAyYil(v) : null;
@@ -58,16 +59,6 @@ function analizCanlıHizmetAy() {
     });
   });
 
-  // Temizlik: TP_DATA'dan
-  if (typeof TP_DATA !== 'undefined') {
-    TP_DATA.forEach(tp => {
-      if (!tp.sonGidilme) return;
-      const parsed = svTarihAyYil ? svTarihAyYil(tp.sonGidilme) : null;
-      if (!parsed || parsed.y !== buYil) return;
-      sonuc['TEMİZLİK'][parsed.m]++;
-    });
-  }
-
   return sonuc;
 }
 
@@ -75,12 +66,14 @@ function analizAktifSayilari() {
   const sonAyData = {};
   const sonAy = [...new Set((allData||[]).map(r=>r.AY).filter(Boolean))]
     .sort((a,b) => AY_TAM.indexOf(b) - AY_TAM.indexOf(a))[0];
-  ['KADIN BANYO','ERKEK BANYO','KUAFÖR'].forEach(hz => {
-    sonAyData[hz] = (allData||[]).filter(r => r['HİZMET']===hz && r.DURUM==='AKTİF' && r.AY===sonAy).length;
+  ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'].forEach(hz => {
+    const isimler = new Set(
+      (allData||[])
+        .filter(r => r['HİZMET']===hz && r.DURUM==='AKTİF' && r.AY===sonAy)
+        .map(r => (r.ISIM_SOYISIM||'').trim().toUpperCase())
+    );
+    sonAyData[hz] = isimler.size;
   });
-  if (typeof TP_DATA !== 'undefined') {
-    sonAyData['TEMİZLİK'] = TP_DATA.filter(tp => tp.durum==='AKTİF').length;
-  }
   return { sonAy, data: sonAyData };
 }
 
