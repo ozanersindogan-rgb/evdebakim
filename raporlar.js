@@ -205,7 +205,7 @@ function takvimWpPaylasGun(tarihStr) {
     kayitlar.forEach((r,i)=>{metin+=`${i+1}. ${r.ISIM_SOYISIM} - ${r.MAHALLE}\n`;});
     metin+='\n';
   });
-  metin+='_Evde Bakim Sistemi_';
+  metin+='_Evde Bakım Sistemi_';
   window.open('https://wa.me/?text='+encodeURIComponent(metin),'_blank');
 }
 
@@ -598,49 +598,15 @@ function svHesapla(yilFiltre, hizmetFiltre) {
 
   });
 
-  // Aktif vatandaş sayısı
-  // TEMİZLİK için: her ay için allData'dan benzersiz AKTİF kişi sayısını hesapla
-  // Diğerleri: r.AY alanına göre filtrele
+  // Aktif vatandaş sayısı — tüm hizmetler için aynı mantık:
+  // allData'da r.AY alanına göre filtreleyerek o ay kaydedilmiş AKTİF kişi sayısı
   const AY_ADLARI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
   hizmetler.forEach(hz => {
     for(let ay=1;ay<=12;ay++) {
-      if (hz === 'TEMİZLİK') {
-        // TEMİZLİK: allData'dan o ayda tarih girişi olan benzersiz AKTİF kişi sayısı
-        // Yıl filtresi varsa o yıla, yoksa herhangi bir yıla bakılır
-        const alanlar = tarihAlanlari['TEMİZLİK'];
-        const aktifIsimler = new Set();
-        allData.forEach(r => {
-          if (r['HİZMET'] !== 'TEMİZLİK') return;
-          if (r.DURUM !== 'AKTİF') return;
-          alanlar.forEach(alan => {
-            const val = r[alan];
-            if (!val) return;
-            const parsed = svTarihAyYil(val);
-            if (!parsed) return;
-            if (parsed.m !== ay) return;
-            if (yilFiltre && parsed.y !== parseInt(yilFiltre)) return;
-            aktifIsimler.add((r.ISIM_SOYISIM || '').trim().toUpperCase());
-          });
-        });
-        // Eğer bu ay için hiç tarih yoksa, tüm AY="..." kaydı olan AKTİF kişileri say
-        if (aktifIsimler.size === 0) {
-          const ayAdi = AY_ADLARI[ay-1];
-          const aktifSet = new Set(
-            allData
-              .filter(r => r['HİZMET']==='TEMİZLİK' && r.DURUM==='AKTİF' && r.AY===ayAdi)
-              .map(r => (r.ISIM_SOYISIM||'').trim().toUpperCase())
-          );
-          sonuc[hz][ay].aktif = aktifSet.size;
-        } else {
-          sonuc[hz][ay].aktif = aktifIsimler.size;
-        }
-      } else {
-        // Banyo/Kuaför: vatandaşlar sekmesiyle aynı — r.AY alanına göre filtrele
-        const ayAdi = AY_ADLARI[ay-1];
-        sonuc[hz][ay].aktif = allData.filter(r =>
-          r['HİZMET']===hz && r.DURUM==='AKTİF' && r.AY===ayAdi
-        ).length;
-      }
+      const ayAdi = AY_ADLARI[ay-1];
+      sonuc[hz][ay].aktif = allData.filter(r =>
+        r['HİZMET']===hz && r.DURUM==='AKTİF' && r.AY===ayAdi
+      ).length;
     }
   });
 
@@ -656,14 +622,16 @@ function svRender() {
   const sonuc = svHesapla(yil, hizmetFiltre);
   const hizmetler = hizmetFiltre ? [hizmetFiltre] : svGetHizmetTurleri();
 
-  // Hangi ayların verisi var? (Gelecek aylar gösterilmez)
+  // Hangi ayların verisi var? (Gelecek aylar hiçbir zaman gösterilmez)
   const _bugun = new Date();
   const _buYil = _bugun.getFullYear();
   const _buAy  = _bugun.getMonth() + 1; // 1-12
   const aktifAylar = [];
   for(let ay=1;ay<=12;ay++) {
-    // Seçili yıl mevcut yılsa, henüz gelmemiş ayları atla
-    if (yil && parseInt(yil) === _buYil && ay > _buAy) continue;
+    // Mevcut yıl seçiliyse VEYA "Tümü" seçiliyse, gelecek ayları her zaman gizle
+    const seciliYil = yil ? parseInt(yil) : null;
+    const buYilFiltresi = !seciliYil || seciliYil === _buYil;
+    if (buYilFiltresi && ay > _buAy) continue;
     const toplam = hizmetler.reduce((s,h)=>s+(sonuc[h]?.[ay]?.hizmet||0),0);
     if(toplam>0) aktifAylar.push(ay);
   }
@@ -1150,6 +1118,32 @@ const CANLI_YILLAR  = ['2026'];
 
 // 2026 verisini allData'dan hesapla: mahalle × hizmet → girilen tarih sayısı
 function hesapla2026() {
+  // YILLIK_VERI'deki tüm mahalle anahtarlarını bir set'e al (ör: "ALACAMESCİT MAHALLESİ")
+  const _statikMahalleler = new Set(
+    Object.values(_yillikDuzenleme).flatMap(y => Object.keys(y))
+  );
+
+  // allData'dan gelen kısa mahalle adını statik formata eşle
+  // Örn: "ALACAMESCIT" → "ALACAMESCİT MAHALLESİ"
+  function normalizeMahalle(m) {
+    if (!m || m === '—') return '—';
+    m = m.trim().toUpperCase();
+    // Zaten tam format
+    if (_statikMahalleler.has(m)) return m;
+    // " MAHALLESİ" ekleyerek dene
+    if (_statikMahalleler.has(m + ' MAHALLESİ')) return m + ' MAHALLESİ';
+    // Türkçe karakter farklılıklarını düzelterek dene (I → İ, i → i vb.)
+    for (const sm of _statikMahalleler) {
+      if (sm.replace(' MAHALLESİ','') === m) return sm;
+      // Karakter normalize karşılaştırma
+      if (sm.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase() ===
+          (m + ' MAHALLESİ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()) return sm;
+      if (sm.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase() ===
+          m.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase()) return sm;
+    }
+    return m; // eşleşme yoksa orijinal bırak
+  }
+
   const sonuc = {};
   (typeof allData !== 'undefined' ? allData : []).forEach(r => {
     const yil = (() => {
@@ -1162,7 +1156,7 @@ function hesapla2026() {
       return null;
     })();
     if (yil !== '2026') return;
-    const m   = r.MAHALLE || '—';
+    const m   = normalizeMahalle(r.MAHALLE || '—');
     const hiz = r['HİZMET'] || '';
     if (!sonuc[m]) sonuc[m] = {};
     if (!sonuc[m][hiz]) sonuc[m][hiz] = 0;
@@ -1326,3 +1320,83 @@ function yillikHucreKaydet(input, yil, mahalle, hizmet) {
 window.renderYillikIstatistik = renderYillikIstatistik;
 window.yillikHucreAc = yillikHucreAc;
 window.yillikHucreKaydet = yillikHucreKaydet;
+
+// ── Sistem İstatistikleri Excel İndir ──
+async function expStatsIndir() {
+  const AY_SIRA = window.AY_SIRA || ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+  const sonAy = [...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>AY_SIRA.indexOf(b)-AY_SIRA.indexOf(a))[0];
+  if (!sonAy) { showToast('⚠️ Veri bulunamadı'); return; }
+
+  const sonAyData = allData.filter(r => r.AY === sonAy);
+  const aktifler  = new Set(sonAyData.filter(r=>r.DURUM==='AKTİF').map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM));
+  const tb = sonAyData.reduce((s,r)=>s+['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'].filter(f=>r[f]).length, 0);
+  const hizmetler = ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'];
+
+  // Satır 1: Genel özet
+  const genelOzet = [
+    ['Ay', sonAy],
+    ['Toplam Kayıt', sonAyData.length],
+    ['Aktif Vatandaş', aktifler.size],
+    ['Toplam Ziyaret', tb],
+    ['Mahalle Sayısı', new Set(sonAyData.map(r=>r.MAHALLE).filter(Boolean)).size],
+    [], // boş satır
+    ['Hizmet', 'Kayıt Sayısı', 'Aktif'],
+    ...hizmetler.map(hz => [
+      hz,
+      sonAyData.filter(r=>r['HİZMET']===hz).length,
+      sonAyData.filter(r=>r['HİZMET']===hz && r.DURUM==='AKTİF').length
+    ]),
+  ];
+
+  // Mahalle bazlı dağılım
+  const mahalleler = [...new Set(sonAyData.map(r=>r.MAHALLE).filter(Boolean))].sort();
+  const mahSatirlar = [
+    [],
+    ['Mahalle', ...hizmetler, 'Toplam'],
+    ...mahalleler.map(m => {
+      const vals = hizmetler.map(hz => sonAyData.filter(r=>r.MAHALLE===m&&r['HİZMET']===hz).length);
+      return [m, ...vals, vals.reduce((a,b)=>a+b,0)];
+    }),
+  ];
+
+  const tumSatirlar = [...genelOzet, ...mahSatirlar];
+
+  const esc = s => (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  let sharedStrs = [];
+  const strIdx = s => { let i = sharedStrs.indexOf(s+''); if(i===-1){i=sharedStrs.length;sharedStrs.push(s+'');} return i; };
+
+  const xmlRows = tumSatirlar.map(row => {
+    if (!row.length) return '<row/>';
+    return '<row>' + row.map(v => {
+      if (v === '' || v === undefined || v === null) return '<c/>';
+      if (typeof v === 'number') return `<c t="n"><v>${v}</v></c>`;
+      return `<c t="s"><v>${strIdx(v)}</v></c>`;
+    }).join('') + '</row>';
+  }).join('');
+
+  const sheetXml = `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${xmlRows}</sheetData></worksheet>`;
+  const ssXml    = `<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${sharedStrs.length}" uniqueCount="${sharedStrs.length}">${sharedStrs.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}</sst>`;
+  const wbXml    = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${esc(sonAy+' İstatistik')}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+  const CT       = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>`;
+  const RELS     = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`;
+  const APP_RELS = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+
+  const e = s => new TextEncoder().encode(s);
+  const zip = await buildZip([
+    ['[Content_Types].xml',        e(CT),       true],
+    ['_rels/.rels',                e(APP_RELS), true],
+    ['xl/workbook.xml',            e(wbXml),    false],
+    ['xl/_rels/workbook.xml.rels', e(RELS),     true],
+    ['xl/worksheets/sheet1.xml',   e(sheetXml), false],
+    ['xl/sharedStrings.xml',       e(ssXml),    false],
+  ]);
+
+  const blob = new Blob([zip], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `istatistik_${sonAy.toLowerCase()}.xlsx`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast(`✅ ${sonAy} istatistikleri indirildi`);
+}
+window.expStatsIndir = expStatsIndir;
