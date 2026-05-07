@@ -1435,7 +1435,21 @@
       <!-- ─── İŞLEM LOGU ─── -->
       <div class="page" id="page-adres-guncelle">
         <div class="form-section">
-          <h3>📞 Adres & Telefon Yönetimi</h3>
+
+          <!-- SEKME BAŞLIKLARI -->
+          <div style="display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #e2e8f0">
+            <button id="adres-tab-liste" onclick="adresSekmeAc('liste')"
+              style="padding:9px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid #1A237E;background:none;color:#1A237E;cursor:pointer">
+              📞 Adres & Telefon
+            </button>
+            <button id="adres-tab-mukerrer" onclick="adresSekmeAc('mukerrer')"
+              style="padding:9px 20px;font-size:13px;font-weight:800;border:none;border-bottom:3px solid transparent;background:none;color:#94a3b8;cursor:pointer">
+              👥 Mükerrer İsim
+            </button>
+          </div>
+
+          <!-- ADRES LİSTESİ PANELİ -->
+          <div id="adres-panel-liste">
           <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Tüm vatandaşların adres ve telefon bilgilerini toplu olarak güncelleyin.</p>
           <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px">
             <button class="btn btn-primary" onclick="adresIndir()" style="padding:9px 18px;font-size:13px">⬇️ Mevcut Listeyi İndir</button>
@@ -1485,6 +1499,28 @@
           </div>
 
           <div style="overflow-x:auto"><table id="adres-table" style="width:100%;border-collapse:collapse;font-size:13px"></table></div>
+          </div><!-- /adres-panel-liste -->
+
+          <!-- MÜKERRER İSİM PANELİ -->
+          <div id="adres-panel-mukerrer" style="display:none">
+            <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">
+              Aynı isimde birden fazla kaydı olan kişileri listeler. Yazım farkı olan isimleri de bulabilir.
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px">
+              <button class="btn btn-primary" onclick="mkTara()">🔍 Tara</button>
+              <input id="mk-ara" type="text" placeholder="İsim filtrele..." oninput="mkRender()"
+                style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:200px">
+              <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:#64748b">
+                <input type="checkbox" id="mk-benzer" onchange="mkTara()" style="accent-color:#7c3aed;width:15px;height:15px">
+                Benzer isimleri de göster (yazım farkı)
+              </label>
+              <span id="mk-count" style="font-size:12px;color:var(--text-soft)"></span>
+            </div>
+            <div id="mk-sonuc">
+              <div style="text-align:center;color:#94a3b8;font-size:13px;padding:24px">Tarama yapmak için "Tara" butonuna basın</div>
+            </div>
+          </div>
+
         </div>
       </div>
 
