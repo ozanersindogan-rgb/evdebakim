@@ -54,6 +54,8 @@ function tpRenk(gun) {
 }
 
 // ── allData'dan TEMİZLİK listesi üret ────────────────────
+// Sadece AKTİF ve BEKLEME durumundaki kişiler dahil edilir.
+// Aynı kişinin birden fazla ay kaydı varsa en son BANYO tarihi kullanılır.
 function tpAllDatadanUret() {
   const buYil = new Date().getFullYear(); // 2026
   const byIsim = {};
@@ -61,6 +63,10 @@ function tpAllDatadanUret() {
   (allData || []).forEach(r => {
     if (r['HİZMET'] !== 'TEMİZLİK') return;
     if (!r.ISIM_SOYISIM) return;
+
+    // Sadece AKTİF ve BEKLEME durumundakiler
+    const durum = (r.DURUM || 'AKTİF').trim().toUpperCase();
+    if (durum !== 'AKTİF' && durum !== 'BEKLEME') return;
 
     const key = r.ISIM_SOYISIM.trim().toUpperCase();
 
