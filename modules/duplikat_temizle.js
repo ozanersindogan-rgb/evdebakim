@@ -214,3 +214,4 @@ window.dtHepsiniUygula   = dtHepsiniUygula;
 window.dtToggleSecim     = dtToggleSecim;
 window.dtTumunuSec       = dtTumunuSec;
 window.dtSecilenleriSil  = dtSecilenleriSil;
+

@@ -1079,6 +1079,279 @@ function adresKisiKartiAc(isim) {
   document.body.appendChild(modal);
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// MÜKERRER İSİM — Aynı isimde birden fazla kaydı olan kişiler
+// ══════════════════════════════════════════════════════════════════════
+
+let _mkSonuc = []; // { isim, kayitlar: [{r}] }
+
+// Sekme geçişi
+function dtSekmeAc(sekme) {
+  document.getElementById('dt-panel-duplikat').style.display = sekme === 'duplikat' ? '' : 'none';
+  document.getElementById('dt-panel-mukerrer').style.display = sekme === 'mukerrer' ? '' : 'none';
+  const tabD = document.getElementById('dt-tab-duplikat');
+  const tabM = document.getElementById('dt-tab-mukerrer');
+  tabD.style.borderBottomColor = sekme === 'duplikat' ? '#1A237E' : 'transparent';
+  tabD.style.color = sekme === 'duplikat' ? '#1A237E' : '#94a3b8';
+  tabM.style.borderBottomColor = sekme === 'mukerrer' ? '#1A237E' : 'transparent';
+  tabM.style.color = sekme === 'mukerrer' ? '#1A237E' : '#94a3b8';
+}
+window.dtSekmeAc = dtSekmeAc;
+
+// İsim normalize (yazım farkı karşılaştırması için)
+function _mkNorm(s) {
+  return String(s || '')
+    .toUpperCase()
+    .replace(/İ/g,'I').replace(/Ş/g,'S').replace(/Ğ/g,'G')
+    .replace(/Ü/g,'U').replace(/Ö/g,'O').replace(/Ç/g,'C')
+    .replace(/ı/g,'I').replace(/ş/g,'S').replace(/ğ/g,'G')
+    .replace(/ü/g,'U').replace(/ö/g,'O').replace(/ç/g,'C')
+    .replace(/\s+/g,' ').trim();
+}
+
+// Levenshtein mesafesi (benzer isim tespiti)
+function _mkLevenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) =>
+    Array.from({length: n+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0)
+  );
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+function mkTara() {
+  _mkSonuc = [];
+  const benzerMod = document.getElementById('mk-benzer')?.checked;
+
+  // 1) Birebir aynı isim grupları
+  const gruplar = {};
+  (allData || []).forEach(r => {
+    const isim = (r.ISIM_SOYISIM || '').trim().toUpperCase();
+    if (!isim) return;
+    if (!gruplar[isim]) gruplar[isim] = [];
+    gruplar[isim].push(r);
+  });
+
+  // Birden fazla kaydı olanlar
+  for (const [isim, kayitlar] of Object.entries(gruplar)) {
+    if (kayitlar.length < 2) continue;
+    _mkSonuc.push({ isim, kayitlar, tip: 'AYNI' });
+  }
+
+  // 2) Benzer isimler (yazım farkı)
+  if (benzerMod) {
+    const isimler = Object.keys(gruplar);
+    const eslesmis = new Set();
+    for (let i = 0; i < isimler.length; i++) {
+      for (let j = i + 1; j < isimler.length; j++) {
+        const a = _mkNorm(isimler[i]);
+        const b = _mkNorm(isimler[j]);
+        if (a === b) continue; // zaten aynı, yukarıda yakalandı
+        if (eslesmis.has(a + '||' + b)) continue;
+        // Uzun isimde kısa mesafe → benzer say
+        const maxLen = Math.max(a.length, b.length);
+        const dist = _mkLevenshtein(a, b);
+        const oran = dist / maxLen;
+        if (dist <= 3 && oran <= 0.25) {
+          eslesmis.add(a + '||' + b);
+          _mkSonuc.push({
+            isim: isimler[i] + ' ≈ ' + isimler[j],
+            kayitlar: [...gruplar[isimler[i]], ...gruplar[isimler[j]]],
+            tip: 'BENZER',
+            isim1: isimler[i],
+            isim2: isimler[j]
+          });
+        }
+      }
+    }
+  }
+
+  _mkSonuc.sort((a, b) => b.kayitlar.length - a.kayitlar.length);
+  mkRender();
+
+  const msg = _mkSonuc.length === 0
+    ? '✅ Mükerrer isim bulunamadı'
+    : `⚠️ ${_mkSonuc.filter(g=>g.tip==='AYNI').length} mükerrer + ${_mkSonuc.filter(g=>g.tip==='BENZER').length} benzer grup bulundu`;
+  showToast(msg);
+}
+window.mkTara = mkTara;
+
+function mkRender() {
+  const el = document.getElementById('mk-sonuc');
+  const sayac = document.getElementById('mk-count');
+  const araVal = (_mkNorm(document.getElementById('mk-ara')?.value || ''));
+  if (!el) return;
+
+  let liste = _mkSonuc;
+  if (araVal) {
+    liste = liste.filter(g => _mkNorm(g.isim).includes(araVal));
+  }
+
+  if (sayac) sayac.textContent = liste.length + ' grup';
+
+  if (!liste.length) {
+    el.innerHTML = '<div style="text-align:center;color:#16a34a;font-size:14px;padding:32px;font-weight:700">✅ Gösterilecek kayıt yok</div>';
+    return;
+  }
+
+  const HC = { 'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100' };
+  const HB = { 'KADIN BANYO':'#fce4ec','ERKEK BANYO':'#e3f2fd','KUAFÖR':'#e8f5e9','TEMİZLİK':'#fff3e0' };
+  const AY_SIRA = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+
+  el.innerHTML = liste.map((g, gi) => {
+    const renkBant = g.tip === 'BENZER' ? '#7c3aed' : '#dc2626';
+    const etiket   = g.tip === 'BENZER'
+      ? `<span style="background:#f5f3ff;color:#7c3aed;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:800">✏️ BENZER İSİM</span>`
+      : `<span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:2px 9px;font-size:11px;font-weight:800">⚠️ ${g.kayitlar.length} KAYIT</span>`;
+
+    // Kayıtları aya göre sırala
+    const sirali = [...g.kayitlar].sort((a, b) =>
+      AY_SIRA.indexOf(a.AY) - AY_SIRA.indexOf(b.AY)
+    );
+
+    const satirlar = sirali.map(r => {
+      const hz  = r['HİZMET'] || '—';
+      const hzRenk = HC[hz] || '#64748b';
+      const hzBg   = HB[hz] || '#f1f5f9';
+      const durum  = r.DURUM || '—';
+      const durumRenk = durum === 'AKTİF' ? '#16a34a' : durum === 'İPTAL' ? '#dc2626' : '#92400e';
+      const tarihler = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5',
+                        'SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2']
+        .map(f => r[f]).filter(Boolean);
+      const mahalle  = r.MAHALLE || '—';
+      const telefon  = r.TELEFON || r.TELEFON2 || '—';
+
+      return `<tr style="border-bottom:1px solid #e2e8f0">
+        <td style="padding:7px 10px;font-size:12px;font-weight:700;color:#1e293b">${r.ISIM_SOYISIM || '—'}</td>
+        <td style="padding:7px 10px">
+          <span style="background:${hzBg};color:${hzRenk};border-radius:8px;padding:2px 8px;font-size:11px;font-weight:800">${hz}</span>
+        </td>
+        <td style="padding:7px 10px;font-size:12px;color:#374151">${r.AY || '—'}</td>
+        <td style="padding:7px 10px">
+          <span style="color:${durumRenk};font-size:12px;font-weight:800">${durum}</span>
+        </td>
+        <td style="padding:7px 10px;font-size:12px;color:#64748b">${mahalle}</td>
+        <td style="padding:7px 10px;font-size:12px;color:#0369a1">${telefon}</td>
+        <td style="padding:7px 10px;font-size:11px;color:#94a3b8">${tarihler.length ? tarihler.join(' · ') : '—'}</td>
+        <td style="padding:7px 8px;text-align:center">
+          ${r._fbId ? `<button onclick="mkKayitSil('${r._fbId}')"
+            style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:3px 8px;
+            cursor:pointer;font-size:11px;color:#dc2626" title="Bu kaydı sil">🗑️</button>` : ''}
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;
+      margin-bottom:14px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+      <!-- Grup başlığı -->
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;
+        background:#f8fafc;border-bottom:1.5px solid #e2e8f0;flex-wrap:wrap">
+        <div style="width:4px;height:24px;background:${renkBant};border-radius:2px;flex-shrink:0"></div>
+        <span style="font-weight:900;font-size:14px;color:#1e293b">${g.isim}</span>
+        ${etiket}
+        <div style="margin-left:auto;display:flex;gap:6px">
+          ${g.tip === 'BENZER' ? `
+            <button onclick="mkBirlestir('${(g.isim1||'').replace(/'/g,"\\'")}','${(g.isim2||'').replace(/'/g,"\\'")}')"
+              style="background:#7c3aed;color:#fff;border:none;border-radius:8px;padding:5px 12px;
+              font-size:12px;font-weight:700;cursor:pointer" title="İkinci ismi birinciye dönüştür">
+              🔗 Birleştir
+            </button>` : ''}
+          <button onclick="mkGrupSil(${gi})"
+            style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:5px 12px;
+            font-size:12px;font-weight:700;cursor:pointer;color:#dc2626">
+            🗑️ Gruptaki Kopyaları Sil
+          </button>
+        </div>
+      </div>
+      <!-- Kayıt tablosu -->
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="background:#f1f5f9">
+              <th style="padding:6px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">İSİM</th>
+              <th style="padding:6px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">HİZMET</th>
+              <th style="padding:6px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">AY</th>
+              <th style="padding:6px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">DURUM</th>
+              <th style="padding:6px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">MAHALLE</th>
+              <th style="padding:6px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">TELEFON</th>
+              <th style="padding:6px 10px;text-align:left;font-size:11px;color:#64748b;font-weight:700">ZİYARET TARİHLERİ</th>
+              <th style="padding:6px 8px;width:36px"></th>
+            </tr>
+          </thead>
+          <tbody>${satirlar}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+window.mkRender = window.mkRender || mkRender;
+// mkRender global olarak atama
+window.mkRender = mkRender;
+
+// Tek kayıt sil
+async function mkKayitSil(fbId) {
+  if (!confirm('Bu kaydı silmek istediğinize emin misiniz?')) return;
+  try {
+    await firebase.firestore().collection('vatandaslar').doc(fbId).delete();
+    const i = allData.findIndex(r => r._fbId === fbId);
+    if (i !== -1) allData.splice(i, 1);
+    showToast('✅ Kayıt silindi');
+    mkTara();
+  } catch(e) { showToast('Hata: ' + e.message); }
+}
+window.mkKayitSil = mkKayitSil;
+
+// Gruptaki ilk hariç diğer kopyaları sil (aynı isim + hizmet + ay)
+async function mkGrupSil(gi) {
+  const g = _mkSonuc[gi];
+  if (!g) return;
+
+  // Aynı (isim+hizmet+ay) kombinasyonlarında ilkini koru, diğerini sil
+  const goruldu = {};
+  const silinecekler = [];
+  for (const r of g.kayitlar) {
+    const key = `${r.ISIM_SOYISIM}|${r['HİZMET']}|${r.AY}`;
+    if (goruldu[key]) {
+      if (r._fbId) silinecekler.push(r._fbId);
+    } else {
+      goruldu[key] = true;
+    }
+  }
+
+  if (!silinecekler.length) {
+    showToast('Bu grupta silinecek kopya yok (her hizmet+ay kombinasyonu zaten tekil)');
+    return;
+  }
+  if (!confirm(`${silinecekler.length} kopya kayıt silinecek. Devam?`)) return;
+
+  for (const fbId of silinecekler) {
+    await firebase.firestore().collection('vatandaslar').doc(fbId).delete();
+    const i = allData.findIndex(r => r._fbId === fbId);
+    if (i !== -1) allData.splice(i, 1);
+  }
+  showToast(`✅ ${silinecekler.length} kopya silindi`);
+  mkTara();
+}
+window.mkGrupSil = mkGrupSil;
+
+// Benzer isimleri birleştir: isim2 → isim1 olarak güncelle
+async function mkBirlestir(isim1, isim2) {
+  const ilgili = allData.filter(r => r.ISIM_SOYISIM === isim2 && r._fbId);
+  if (!ilgili.length) { showToast('Güncellenecek kayıt yok'); return; }
+  if (!confirm(`"${isim2}" → "${isim1}" olarak değiştirilecek.\n${ilgili.length} kayıt güncellenecek. Devam?`)) return;
+  for (const r of ilgili) {
+    r.ISIM_SOYISIM = isim1;
+    await firebase.firestore().collection('vatandaslar').doc(r._fbId).update({ ISIM_SOYISIM: isim1 });
+  }
+  showToast(`✅ ${ilgili.length} kayıt "${isim1}" olarak güncellendi`);
+  mkTara();
+}
+window.mkBirlestir = mkBirlestir;
+
 // ── ADRES SAYFASI SEKME GEÇİŞİ ──────────────────────────
 function adresSekmeAc(sekme) {
   document.getElementById('adres-panel-liste').style.display    = sekme === 'liste'    ? '' : 'none';
