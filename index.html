@@ -1449,11 +1449,41 @@
             <strong>📋 Excel formatı:</strong> Başlık satırı olan Excel yükleyebilirsiniz. Desteklenen alanlar: İsim Soyisim, 1. Telefon, 2. Telefon, Aktif Tel, Mahalle, Adres, Doğum Tarihi.
           </div>
           <div id="adres-durum" style="margin-bottom:16px"></div>
-          <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-            <input type="text" id="adres-ara" placeholder="🔍 İsim ara..." oninput="adresRender()"
-              style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:180px">
-            <span id="adres-count" style="font-size:12px;color:var(--text-soft)"></span>
+
+          <!-- FİLTRE VE ARAMA SATIRI -->
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px">
+            <input type="text" id="adres-ara" placeholder="🔍 İsim / Mahalle / Adres ara..." oninput="adresRender()"
+              style="padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;min-width:220px;flex:1">
+
+            <!-- HİZMET FİLTRESİ (çoklu seçim) -->
+            <div style="display:flex;gap:4px;flex-wrap:wrap">
+              <button id="afh-hepsi"   onclick="adresHizmetFiltre('HEPSI')"
+                style="padding:5px 13px;border-radius:20px;border:1.5px solid #1A237E;background:#1A237E;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Hepsi</button>
+              <button id="afh-kadin"   onclick="adresHizmetFiltre('KADIN BANYO')"
+                style="padding:5px 13px;border-radius:20px;border:1.5px solid #C2185B;background:#fff;color:#C2185B;font-size:12px;font-weight:700;cursor:pointer">♀ Kadın</button>
+              <button id="afh-erkek"   onclick="adresHizmetFiltre('ERKEK BANYO')"
+                style="padding:5px 13px;border-radius:20px;border:1.5px solid #1565C0;background:#fff;color:#1565C0;font-size:12px;font-weight:700;cursor:pointer">♂ Erkek</button>
+              <button id="afh-kuafor"  onclick="adresHizmetFiltre('KUAFÖR')"
+                style="padding:5px 13px;border-radius:20px;border:1.5px solid #2E7D32;background:#fff;color:#2E7D32;font-size:12px;font-weight:700;cursor:pointer">✂ Kuaför</button>
+              <button id="afh-temizlik"onclick="adresHizmetFiltre('TEMİZLİK')"
+                style="padding:5px 13px;border-radius:20px;border:1.5px solid #E65100;background:#fff;color:#E65100;font-size:12px;font-weight:700;cursor:pointer">🧹 Temizlik</button>
+            </div>
+
+            <span id="adres-count" style="font-size:12px;color:var(--text-soft);white-space:nowrap"></span>
           </div>
+
+          <!-- SÜTUN FİLTRELERİ -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;padding:8px 10px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+            <span style="font-size:11px;font-weight:800;color:#64748b;align-self:center;white-space:nowrap">Sütun Filtrele:</span>
+            <input id="af-mahalle" placeholder="Mahalle..." oninput="adresRender()"
+              style="padding:5px 9px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;width:120px">
+            <input id="af-telefon" placeholder="Telefon..." oninput="adresRender()"
+              style="padding:5px 9px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;width:120px">
+            <input id="af-adres"   placeholder="Adres..." oninput="adresRender()"
+              style="padding:5px 9px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;width:150px">
+            <button onclick="adresFiltreSifirla()" style="padding:4px 12px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:12px;background:#fff;cursor:pointer;color:#64748b">↺ Sıfırla</button>
+          </div>
+
           <div style="overflow-x:auto"><table id="adres-table" style="width:100%;border-collapse:collapse;font-size:13px"></table></div>
         </div>
       </div>
