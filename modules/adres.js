@@ -940,3 +940,14 @@ function adresKisiKartiAc(isim) {
   modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
   document.body.appendChild(modal);
 }
+
+// ── ADRES SAYFASI SEKME GEÇİŞİ ──────────────────────────
+function adresSekmeAc(sekme) {
+  document.getElementById('adres-panel-liste').style.display    = sekme === 'liste'    ? '' : 'none';
+  document.getElementById('adres-panel-mukerrer').style.display = sekme === 'mukerrer' ? '' : 'none';
+  const tabL = document.getElementById('adres-tab-liste');
+  const tabM = document.getElementById('adres-tab-mukerrer');
+  if (tabL) { tabL.style.borderBottomColor = sekme === 'liste'    ? '#1A237E' : 'transparent'; tabL.style.color = sekme === 'liste'    ? '#1A237E' : '#94a3b8'; }
+  if (tabM) { tabM.style.borderBottomColor = sekme === 'mukerrer' ? '#1A237E' : 'transparent'; tabM.style.color = sekme === 'mukerrer' ? '#1A237E' : '#94a3b8'; }
+}
+window.adresSekmeAc = adresSekmeAc;
