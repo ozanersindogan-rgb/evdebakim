@@ -99,66 +99,102 @@ async function adresManuelEkle() {
   } catch(e){showToast('Hata: '+e.message);}
 }
 
+// ── DURUM ──────────────────────────────
+window._adresSortKol = 'isim';
+window._adresSortDir = 1;
+window._adresHizmetFiltre = new Set(); // boş = HEPSI
+
+function adresHizmetFiltre(hz) {
+  const s = window._adresHizmetFiltre;
+  if (hz === 'HEPSI') { s.clear(); }
+  else {
+    if (s.has(hz)) s.delete(hz); else s.add(hz);
+    if (s.size === 0) {} // hepsi gibi
+  }
+  // Buton görünümlerini güncelle
+  const secilenler = [...s];
+  const BTN = { 'HEPSI':'afh-hepsi','KADIN BANYO':'afh-kadin','ERKEK BANYO':'afh-erkek','KUAFÖR':'afh-kuafor','TEMİZLİK':'afh-temizlik' };
+  const HZ_RENK = { 'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100' };
+  Object.entries(BTN).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const aktif = key === 'HEPSI' ? s.size === 0 : s.has(key);
+    const renk = key === 'HEPSI' ? '#1A237E' : (HZ_RENK[key] || '#1A237E');
+    el.style.background = aktif ? renk : '#fff';
+    el.style.color       = aktif ? '#fff' : renk;
+  });
+  adresRender();
+}
+
+function adresFiltreSifirla() {
+  ['adres-ara','af-mahalle','af-telefon','af-adres'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  window._adresHizmetFiltre.clear();
+  adresHizmetFiltre('HEPSI');
+}
+
+function adresSortBy(kol) {
+  if (window._adresSortKol === kol) window._adresSortDir *= -1;
+  else { window._adresSortKol = kol; window._adresSortDir = 1; }
+  adresRender();
+}
+
 function adresRender() {
-  const ara = (document.getElementById('adres-ara')?.value||'').toUpperCase();
-  const tablo = document.getElementById('adres-table');
-  const sayac = document.getElementById('adres-count');
-  // Manuel ekleme formunu yerleştir (her açılışta güncelle — mahalle listesi dinamik)
+  const araVal    = (document.getElementById('adres-ara')?.value     || '').toUpperCase();
+  const mAra      = (document.getElementById('af-mahalle')?.value    || '').toUpperCase();
+  const tAra      = (document.getElementById('af-telefon')?.value    || '').replace(/\s/g,'');
+  const aAra      = (document.getElementById('af-adres')?.value      || '').toUpperCase();
+  const hzFiltre  = window._adresHizmetFiltre || new Set();
+  const tablo     = document.getElementById('adres-table');
+  const sayac     = document.getElementById('adres-count');
+
+  // Manuel ekleme formunu yerleştir
   const manuelContainer = document.getElementById('adres-manuel-form') || (() => {
-    const div=document.createElement('div');div.id='adres-manuel-form';
+    const div = document.createElement('div'); div.id = 'adres-manuel-form';
     tablo && tablo.parentNode && tablo.parentNode.insertBefore(div, tablo);
     return div;
   })();
-  if(manuelContainer) {
-    const mahOpts = getAdresMahalleler().map(m=>`<option value="${m}">${m}</option>`).join('');
-    manuelContainer.innerHTML=`
+  if (manuelContainer) {
+    const mahOpts = getAdresMahalleler().map(m => `<option value="${m}">${m}</option>`).join('');
+    manuelContainer.innerHTML = `
       <div style="background:#EEF2FF;border:1.5px solid #c7d2fe;border-radius:12px;padding:14px 16px;margin-bottom:16px">
         <div style="font-weight:800;color:#1A237E;font-size:13px;margin-bottom:10px">➕ Manuel Tekli Kayıt Ekle / Güncelle</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">
-
           <div style="flex:1;min-width:150px">
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">İSİM SOYİSİM *</label>
             <input id="am-isim" type="text" placeholder="AHMET YILMAZ"
               style="width:100%;padding:7px 10px;border:1.5px solid #c7d2fe;border-radius:7px;font-size:13px;text-transform:uppercase">
           </div>
-
           <div style="min-width:130px">
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">MAHALLE</label>
             <select id="am-mahalle" style="width:100%;padding:7px 10px;border:1.5px solid #c7d2fe;border-radius:7px;font-size:13px;background:#fff">
               <option value="">Seçin...</option>${mahOpts}
             </select>
           </div>
-
           <div style="min-width:130px">
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:5px">HİZMET TÜRÜ</label>
             <div style="display:flex;flex-direction:column;gap:4px">
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-                <input type="checkbox" id="amh-kadin" value="KADIN BANYO" style="width:15px;height:15px;accent-color:#C2185B"> <span style="color:#C2185B;font-weight:700">Kadın Banyo</span>
-              </label>
+                <input type="checkbox" id="amh-kadin"    value="KADIN BANYO" style="width:15px;height:15px;accent-color:#C2185B"> <span style="color:#C2185B;font-weight:700">Kadın Banyo</span></label>
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-                <input type="checkbox" id="amh-erkek" value="ERKEK BANYO" style="width:15px;height:15px;accent-color:#1565C0"> <span style="color:#1565C0;font-weight:700">Erkek Banyo</span>
-              </label>
+                <input type="checkbox" id="amh-erkek"    value="ERKEK BANYO" style="width:15px;height:15px;accent-color:#1565C0"> <span style="color:#1565C0;font-weight:700">Erkek Banyo</span></label>
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-                <input type="checkbox" id="amh-kuafor" value="KUAFÖR" style="width:15px;height:15px;accent-color:#2E7D32"> <span style="color:#2E7D32;font-weight:700">Kuaför</span>
-              </label>
+                <input type="checkbox" id="amh-kuafor"   value="KUAFÖR"      style="width:15px;height:15px;accent-color:#2E7D32"> <span style="color:#2E7D32;font-weight:700">Kuaför</span></label>
               <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-                <input type="checkbox" id="amh-temizlik" value="TEMİZLİK" style="width:15px;height:15px;accent-color:#E65100"> <span style="color:#E65100;font-weight:700">Temizlik</span>
-              </label>
+                <input type="checkbox" id="amh-temizlik" value="TEMİZLİK"   style="width:15px;height:15px;accent-color:#E65100"> <span style="color:#E65100;font-weight:700">Temizlik</span></label>
             </div>
           </div>
-
           <div style="min-width:120px">
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">1. TELEFON</label>
             <input id="am-tel" type="tel" placeholder="532 123 45 67"
               style="width:100%;padding:7px 10px;border:1.5px solid #c7d2fe;border-radius:7px;font-size:13px">
           </div>
-
           <div style="min-width:120px">
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">2. TELEFON</label>
             <input id="am-tel2" type="tel" placeholder="533 987 65 43"
               style="width:100%;padding:7px 10px;border:1.5px solid #c7d2fe;border-radius:7px;font-size:13px">
           </div>
-
           <div style="min-width:120px">
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">AKTİF TELEFON</label>
             <select id="am-tel-aktif" style="width:100%;padding:7px 10px;border:1.5px solid #c7d2fe;border-radius:7px;font-size:13px;background:#fff">
@@ -166,86 +202,215 @@ function adresRender() {
               <option value="2">2. Telefon</option>
             </select>
           </div>
-
           <div>
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">DOĞUM TARİHİ</label>
             <input id="am-dogum" type="date"
               style="padding:7px 10px;border:1.5px solid #c7d2fe;border-radius:7px;font-size:13px">
           </div>
-
           <div style="flex:2;min-width:180px">
             <label style="font-size:11px;font-weight:700;color:#64748b;display:block;margin-bottom:3px">ADRES</label>
             <input id="am-adres" type="text" placeholder="Sokak, No, Daire"
               style="width:100%;padding:7px 10px;border:1.5px solid #c7d2fe;border-radius:7px;font-size:13px">
           </div>
-
           <button onclick="adresManuelEkle()"
             style="background:#1A237E;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
             💾 Kaydet
           </button>
         </div>
-        <div style="font-size:11px;color:#6366f1;margin-top:6px">💡 Mevcut ismi yazarsanız bilgileri güncellenir. Hizmet türü seçerseniz sadece o hizmet kaydı güncellenir, boş bırakırsanız tümü.</div>
+        <div style="font-size:11px;color:#6366f1;margin-top:6px">💡 Mevcut ismi yazarsanız bilgileri güncellenir.</div>
       </div>`;
   }
+
   if (!tablo) return;
-  const tumIsimler = Object.keys(window._adresBilgi).sort();
-  const filtered = ara ? tumIsimler.filter(k=>k.includes(ara)) : tumIsimler;
-  if (sayac) sayac.textContent = filtered.length+' kayıt';
-  if (!filtered.length) {
-    tablo.innerHTML='<tr><td style="text-align:center;padding:24px;color:#94a3b8">Kayıt bulunamadı — Excel yükleyin</td></tr>';
+
+  // Tüm benzersiz isimler: adres_bilgi + allData birleşimi
+  const isimSet = new Set();
+  Object.keys(window._adresBilgi || {}).forEach(k => isimSet.add(k));
+  (allData||[]).forEach(r => { if (r.ISIM_SOYISIM) isimSet.add(r.ISIM_SOYISIM); });
+  let tumIsimler = [...isimSet];
+
+  // Her isim için önce temel veri objesi oluştur
+  let rows = tumIsimler.map(isim => {
+    const b   = (window._adresBilgi || {})[isim] || {};
+    const vd  = (allData||[]).find(x => x.ISIM_SOYISIM === isim) || {};
+    const hizmetler = [...new Set((allData||[]).filter(x => x.ISIM_SOYISIM === isim).map(x => x['HİZMET']).filter(Boolean))];
+    const mahalle   = vd.MAHALLE || b.mahalle || '';
+    const dogum     = vd.DOGUM_TARIHI || b.dogum || '';
+    const aktifTel  = (b.telAktif === '2' && b.tel2) ? b.tel2 : (b.tel || vd.TELEFON || '');
+    const digerTel  = (b.telAktif === '2' && b.tel2) ? b.tel  : (b.tel2 || vd.TELEFON2 || '');
+    const adresV    = b.adres || vd.ADRES || '';
+    return { isim, b, vd, hizmetler, mahalle, dogum, aktifTel, digerTel, adresV };
+  });
+
+  // HİZMET FİLTRESİ
+  if (hzFiltre.size > 0) {
+    rows = rows.filter(r => r.hizmetler.some(h => hzFiltre.has(h)));
+  }
+
+  // GENEL ARAMA
+  if (araVal) {
+    rows = rows.filter(r =>
+      r.isim.includes(araVal) ||
+      r.mahalle.toUpperCase().includes(araVal) ||
+      r.adresV.toUpperCase().includes(araVal) ||
+      r.aktifTel.replace(/\s/g,'').includes(araVal) ||
+      r.digerTel.replace(/\s/g,'').includes(araVal)
+    );
+  }
+
+  // SÜTUN FİLTRELERİ
+  if (mAra) rows = rows.filter(r => r.mahalle.toUpperCase().includes(mAra));
+  if (tAra) rows = rows.filter(r =>
+    r.aktifTel.replace(/\s/g,'').includes(tAra) || r.digerTel.replace(/\s/g,'').includes(tAra));
+  if (aAra) rows = rows.filter(r => r.adresV.toUpperCase().includes(aAra));
+
+  // SIRALAMA
+  const kol = window._adresSortKol || 'isim';
+  const dir = window._adresSortDir || 1;
+  const kolVal = r => {
+    if (kol === 'isim')    return r.isim;
+    if (kol === 'mahalle') return r.mahalle;
+    if (kol === 'tel')     return r.aktifTel;
+    if (kol === 'adres')   return r.adresV;
+    if (kol === 'dogum')   return r.dogum;
+    if (kol === 'hizmet')  return r.hizmetler.join(',');
+    return '';
+  };
+  rows.sort((a, b) => dir * kolVal(a).localeCompare(kolVal(b), 'tr'));
+
+  if (sayac) sayac.textContent = rows.length + ' kayıt';
+
+  const HZ_RENK = { 'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100' };
+  const HZ_BG   = { 'KADIN BANYO':'#fce4ec','ERKEK BANYO':'#e3f2fd','KUAFÖR':'#e8f5e9','TEMİZLİK':'#fff3e0' };
+  const TUMU    = ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'];
+
+  const sIcon = (k) => {
+    if (window._adresSortKol !== k) return '⇅';
+    return window._adresSortDir === 1 ? '↑' : '↓';
+  };
+  const thStyle = "padding:9px 11px;text-align:left;cursor:pointer;white-space:nowrap;user-select:none";
+  const ev = s => String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+
+  if (!rows.length) {
+    tablo.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#94a3b8">Kayıt bulunamadı</td></tr>';
     return;
   }
-  tablo.innerHTML=`
-    <thead><tr style="background:#1A237E;color:#fff">
-      <th style="padding:9px 12px;text-align:left">İSİM SOYİSİM</th>
-      <th style="padding:9px 12px;text-align:left">HİZMET</th>
-      <th style="padding:9px 12px;text-align:left">TELEFON</th>
-      <th style="padding:9px 12px;text-align:left">DOGUM / YAŞ</th>
-      <th style="padding:9px 12px;text-align:left">MAHALLE</th>
-      <th style="padding:9px 12px;text-align:left">ADRES</th>
-      <th style="padding:9px 8px;width:40px"></th>
-    </tr></thead>
+
+  tablo.innerHTML = `
+    <thead>
+      <tr style="background:#1A237E;color:#fff">
+        <th style="${thStyle}" onclick="adresSortBy('isim')">İSİM SOYİSİM ${sIcon('isim')}</th>
+        <th style="${thStyle}" onclick="adresSortBy('hizmet')">HİZMET ${sIcon('hizmet')}</th>
+        <th style="${thStyle}" onclick="adresSortBy('tel')">TELEFON ${sIcon('tel')}</th>
+        <th style="${thStyle}" onclick="adresSortBy('dogum')">DOGUM / YAŞ ${sIcon('dogum')}</th>
+        <th style="${thStyle}" onclick="adresSortBy('mahalle')">MAHALLE ${sIcon('mahalle')}</th>
+        <th style="${thStyle}" onclick="adresSortBy('adres')">ADRES ${sIcon('adres')}</th>
+        <th style="padding:9px 8px;width:40px"></th>
+      </tr>
+    </thead>
     <tbody>
-      ${filtered.map((isim,i)=>{
-        const b=window._adresBilgi[isim]||{};
-        const vd=allData.find(x=>x.ISIM_SOYISIM===isim);
-        const mahalle=vd?.MAHALLE||'';
-        const dogum=vd?.DOGUM_TARIHI||b.dogum||'';
-        // DD.MM.YYYY → YYYY-MM-DD (input type=date için)
-        const dogumInput=(()=>{if(!dogum)return'';if(/^\d{2}\.\d{2}\.\d{4}$/.test(dogum)){const[d,m,y]=dogum.split('.');return`${y}-${m}-${d}`;}return dogum;})();
-        const yas=hesaplaYas(dogum);
-        const hizmetler=[...new Set(allData.filter(x=>x.ISIM_SOYISIM===isim).map(x=>x['HİZMET']).filter(Boolean))];
-        const HZ_RENK={'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFOR':'#2E7D32','TEMİZLİK':'#E65100'};
-        const bg=i%2===0?'#fff':'#f8fafc';
-        const ev=s=>String(s||'').replace(/'/g,"\\'").replace(/"/g,'&quot;');
+      ${rows.map((r, i) => {
+        const dogumInput = (()=>{
+          const d = r.dogum;
+          if (!d) return '';
+          if (/^\d{2}\.\d{2}\.\d{4}$/.test(d)) { const [dd,mm,yy]=d.split('.'); return `${yy}-${mm}-${dd}`; }
+          return d;
+        })();
+        const yas = hesaplaYas(r.dogum);
+        const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+        const isimEsc = ev(r.isim);
+
+        // HİZMET inline pill'leri — tıklanınca toggle
+        const hizPills = TUMU.map(hz => {
+          const aktif = r.hizmetler.includes(hz);
+          const renkF = aktif ? HZ_RENK[hz] : '#cbd5e1';
+          const bgF   = aktif ? HZ_BG[hz]   : '#f1f5f9';
+          return `<span
+            onclick="adresHizmetDegistir('${isimEsc}','${hz}')"
+            title="${aktif ? hz + ' — kaldırmak için tıkla' : hz + ' — eklemek için tıkla'}"
+            style="background:${bgF};color:${renkF};padding:2px 8px;border-radius:10px;
+              font-weight:700;font-size:10px;white-space:nowrap;display:inline-block;
+              margin:1px;cursor:pointer;border:1.5px solid ${renkF};
+              transition:all .15s;${aktif?'':'opacity:.5'}">
+            ${hz === 'KADIN BANYO' ? '♀ K.Banyo' : hz === 'ERKEK BANYO' ? '♂ E.Banyo' : hz === 'KUAFÖR' ? '✂ Kuaför' : '🧹 Temiz.'}
+          </span>`;
+        }).join('');
+
+        const telHtml = r.aktifTel
+          ? `<a href="tel:${r.aktifTel.replace(/\s/g,'')}" style="color:#0369a1;text-decoration:none">📞 ${r.aktifTel}</a>
+             ${r.digerTel ? `<div style="color:#94a3b8;font-size:11px">📞 ${r.digerTel}</div>` : ''}`
+          : '<span style="color:#94a3b8">—</span>';
+
+        const dogumHtml = r.dogum
+          ? `${r.dogum}${yas !== null ? ` <span style="background:#16a34a;color:#fff;border-radius:8px;padding:1px 6px;font-weight:800;font-size:11px">${yas}</span>` : ''}`
+          : '<span style="color:#94a3b8">—</span>';
+
         return `<tr style="background:${bg}" id="adres-row-${i}">
-          <td style="padding:8px 12px;font-weight:700;border-bottom:1px solid #e2e8f0;font-size:12px;cursor:pointer;color:#1A237E;text-decoration:underline dotted" onclick="adresKisiKartiAc('${ev(isim)}')">${isim}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:11px">
-            ${hizmetler.length?hizmetler.map(h=>`<span style="background:${HZ_RENK[h]||'#64748b'}18;color:${HZ_RENK[h]||'#64748b'};padding:1px 7px;border-radius:8px;font-weight:700;white-space:nowrap;display:inline-block;margin:1px">${h}</span>`).join(''):'<span style="color:#94a3b8">—</span>'}
-          </td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#0369a1">
-            ${(()=>{
-              const aktifTel=(b.telAktif==='2'&&b.tel2)?b.tel2:(b.tel||'');
-              const diger=(b.telAktif==='2'&&b.tel2)?b.tel:(b.tel2||'');
-              return (aktifTel?`<a href="tel:${aktifTel.replace(/\s/g,'')}" style="color:#0369a1;text-decoration:none;display:block">📞 ${aktifTel}</a>`:'<span style="color:#94a3b8">—</span>')
-                    +(diger?`<span style="color:#94a3b8;font-size:11px">📞 ${diger}</span>`:'');
-            })()}
-          </td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:12px">
-            ${dogum?`<span style="color:#374151">${dogum}</span>${yas!==null?` <span style="background:#16a34a;color:#fff;border-radius:8px;padding:1px 7px;font-weight:800;font-size:11px">${yas}</span>`:''}` : '<span style="color:#94a3b8">—</span>'}
-          </td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#7c3aed">${mahalle||'—'}</td>
-          <td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#546E7A">${b.adres||'—'}</td>
-          <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:center;white-space:nowrap">
-            <button onclick="adresEditAc('${ev(isim)}')"
-              style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px;color:#475569;margin-right:4px">✏️</button>
-            <button onclick="adresSil('${ev(isim)}')"
+          <td style="padding:8px 11px;font-weight:700;border-bottom:1px solid #e2e8f0;font-size:12px;color:#1A237E;cursor:pointer;text-decoration:underline dotted"
+              onclick="adresKisiKartiAc('${isimEsc}')">${r.isim}</td>
+          <td style="padding:6px 11px;border-bottom:1px solid #e2e8f0">${hizPills}</td>
+          <td style="padding:8px 11px;border-bottom:1px solid #e2e8f0;font-size:12px">${telHtml}</td>
+          <td style="padding:8px 11px;border-bottom:1px solid #e2e8f0;font-size:12px">${dogumHtml}</td>
+          <td style="padding:8px 11px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#7c3aed">${r.mahalle||'—'}</td>
+          <td style="padding:8px 11px;border-bottom:1px solid #e2e8f0;font-size:12px;color:#546E7A">${r.adresV||'—'}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #e2e8f0;text-align:center;white-space:nowrap">
+            <button onclick="adresEditAc('${isimEsc}')"
+              style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px;margin-right:3px">✏️</button>
+            <button onclick="adresSil('${isimEsc}')"
               style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:3px 8px;cursor:pointer;font-size:12px;color:#dc2626">🗑️</button>
           </td>
         </tr>`;
       }).join('')}
     </tbody>`;
 }
+
+// ── İNLINE HİZMET TOGGLE ─────────────────────────────────
+async function adresHizmetDegistir(isim, hizmet) {
+  const kayitlar = (allData||[]).filter(r => r.ISIM_SOYISIM === isim);
+  const mevcutHizmetler = [...new Set(kayitlar.map(r => r['HİZMET']).filter(Boolean))];
+  const varMi = mevcutHizmetler.includes(hizmet);
+
+  if (varMi) {
+    // Kaldır: o hizmetin kaydını iptal et (DURUM=İPTAL)
+    if (!confirm(`"${isim}" kişisinin "${hizmet}" hizmetini kaldırmak istiyor musunuz?\n(Kayıtlar silinmez, pasife alınır)`)) return;
+    const ilgili = kayitlar.filter(r => r['HİZMET'] === hizmet && r._fbId);
+    await Promise.all(ilgili.map(r => {
+      r.DURUM = 'İPTAL';
+      return firebase.firestore().collection('vatandaslar').doc(r._fbId).update({ DURUM: 'İPTAL' });
+    }));
+    showToast(`✅ ${hizmet} pasife alındı`);
+  } else {
+    // Ekle: mevcut en son kayıttan kopyala
+    if (!confirm(`"${isim}" kişisine "${hizmet}" hizmetini eklemek istiyor musunuz?`)) return;
+    const referans = kayitlar[0] || {};
+    const sonAy = (allData||[]).filter(r => r.AY).map(r => r.AY)
+      .sort((a,b) => AY_TAM.indexOf(b) - AY_TAM.indexOf(a))[0] || 'OCAK';
+    const yeni = {
+      ISIM_SOYISIM: isim,
+      MAHALLE: referans.MAHALLE || '',
+      'HİZMET': hizmet,
+      AY: sonAy,
+      DURUM: 'AKTİF',
+      CİNSİYET: hizmet === 'ERKEK BANYO' ? 'ERKEK' : (hizmet === 'KADIN BANYO' ? 'KADIN' : (referans.CİNSİYET || '')),
+      TELEFON: referans.TELEFON || '',
+      TELEFON2: referans.TELEFON2 || '',
+      ADRES: referans.ADRES || '',
+      DOGUM_TARIHI: referans.DOGUM_TARIHI || '',
+      BANYO1:'',BANYO2:'',BANYO3:'',BANYO4:'',BANYO5:'',
+      SAC1:'',SAC2:'',TIRNAK1:'',TIRNAK2:'',SAKAL1:'',SAKAL2:''
+    };
+    const fbId = await fbAddDoc(yeni);
+    yeni._fbId = fbId;
+    allData.push(yeni);
+    showToast(`✅ ${hizmet} eklendi`);
+  }
+  adresRender();
+}
+window.adresHizmetDegistir = adresHizmetDegistir;
+window.adresSortBy = adresSortBy;
+window.adresHizmetFiltre = adresHizmetFiltre;
+window.adresFiltreSifirla = adresFiltreSifirla;
+
 
 function adresDuzenle(){} // artık kullanılmıyor
 
