@@ -602,56 +602,194 @@ async function adresEditKaydet() {
 }
 
 async function adresIndir() {
-  const isimSet=new Set();
-  allData.forEach(r=>{if(r.ISIM_SOYISIM)isimSet.add(r.ISIM_SOYISIM);});
-  Object.keys(window._adresBilgi).forEach(k=>isimSet.add(k));
-  const tumIsimler=[...isimSet].sort();
-  if(!tumIsimler.length){showToast('Kayıt yok');return;}
+  // Tüm benzersiz isimleri topla
+  const isimSet = new Set();
+  (allData||[]).forEach(r => { if(r.ISIM_SOYISIM) isimSet.add(r.ISIM_SOYISIM); });
+  Object.keys(window._adresBilgi||{}).forEach(k => isimSet.add(k));
+  const tumIsimler = [...isimSet].sort((a,b) => a.localeCompare(b,'tr'));
+  if (!tumIsimler.length) { showToast('Kayıt yok'); return; }
+
   try {
-    const te=new TextEncoder();const enc=s=>te.encode(s);
-    const escXml=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    const ss=[];const ssIdx={};
-    const S=v=>{const k=String(v==null?'':v);if(!k)return null;if(ssIdx[k]===undefined){ssIdx[k]=ss.length;ss.push(k);}return ssIdx[k];};
-    const dataRows=[
-      ['İSİM SOYİSİM','1. TELEFON','2. TELEFON','AKTİF TEL','MAHALLE','ADRES','DOGUM TARİHİ','HİZMET(LER)'],
-      ...tumIsimler.map(isim=>{
-        const b=window._adresBilgi[isim]||{};
-        const r=allData.find(x=>x.ISIM_SOYISIM===isim);
-        const hizmetler=[...new Set(allData.filter(x=>x.ISIM_SOYISIM===isim).map(x=>x['HİZMET']).filter(Boolean))].join(' | ');
-        const dogum=b.dogum||r?.DOGUM_TARIHI||'';
-        const aktifLabel=b.telAktif==='2'?'2. Telefon':'1. Telefon';
-        return[isim,b.tel||r?.TELEFON||'',b.tel2||r?.TELEFON2||'',aktifLabel,r?.MAHALLE||'',b.adres||r?.ADRES||'',dogum,hizmetler];
-      })
-    ];
-    dataRows.forEach(row=>row.forEach(v=>{if(v)S(v);}));
-    const COLS='ABCDEF'.split('');
-    let rowsXml='';
-    dataRows.forEach((row,ri)=>{
-      let cx='';
-      row.forEach((v,ci)=>{
-        const ref=COLS[ci]+(ri+1);
-        const idx=S(v);
-        if(idx===null)cx+=`<c r="${ref}" s="0"/>`;
-        else cx+=`<c r="${ref}" s="${ri===0?0:1}" t="s"><v>${idx}</v></c>`;
+    const te  = new TextEncoder();
+    const enc = s => te.encode(s);
+    const esc = s => String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    // ── Shared Strings ──────────────────────────────────────────
+    const ss = []; const ssIdx = {};
+    const S = v => {
+      const k = String(v==null?'':v);
+      if (!k) return null;
+      if (ssIdx[k] === undefined) { ssIdx[k] = ss.length; ss.push(k); }
+      return ssIdx[k];
+    };
+
+    // ── Veri satırları ──────────────────────────────────────────
+    // Sütunlar: A İSİM | B HİZMET | C 1.TEL | D 2.TEL | E MAHALLE | F ADRES | G DOĞUM | H YAŞ
+    const BASLIK = ['İSİM SOYİSİM','HİZMET(LER)','1. TELEFON','2. TELEFON','MAHALLE','ADRES','DOĞUM TARİHİ','YAŞ'];
+
+    const dataRows = [BASLIK, ...tumIsimler.map(isim => {
+      const b  = (window._adresBilgi||{})[isim] || {};
+      const vd = (allData||[]).find(x => x.ISIM_SOYISIM === isim) || {};
+      const hizmetler = [...new Set((allData||[]).filter(x=>x.ISIM_SOYISIM===isim).map(x=>x['HİZMET']).filter(Boolean))].join(' | ');
+      const dogum = b.dogum || vd.DOGUM_TARIHI || '';
+      const yas   = (() => {
+        if (!dogum) return '';
+        let d = dogum;
+        if (/^\d{2}\.\d{2}\.\d{4}$/.test(d)) { const [dd,mm,yy]=d.split('.'); d=`${yy}-${mm}-${dd}`; }
+        const diff = Date.now() - new Date(d).getTime();
+        const y = Math.floor(diff / (365.25*24*3600*1000));
+        return isNaN(y)||y<0||y>120 ? '' : String(y);
+      })();
+      const tel1 = b.tel  || vd.TELEFON  || '';
+      const tel2 = b.tel2 || vd.TELEFON2 || '';
+      const mah  = vd.MAHALLE || b.mahalle || '';
+      const adresV = b.adres || vd.ADRES || '';
+      return [isim, hizmetler, tel1, tel2, mah, adresV, dogum, yas];
+    })];
+
+    // Shared strings indexle
+    dataRows.forEach(row => row.forEach(v => { if(v) S(v); }));
+
+    // ── Sütun referansları (A–H) ──────────────────────────────
+    const COLS = ['A','B','C','D','E','F','G','H'];
+
+    // ── Styles ───────────────────────────────────────────────────
+    // Stil indeksleri:
+    // 0 = başlık  (koyu lacivert arka plan, beyaz kalın yazı, kenarlık, ortalı)
+    // 1 = normal tek  (beyaz, ince kenarlık, sol hizalı)
+    // 2 = normal çift (açık gri zebra, ince kenarlık, sol hizalı)
+    // 3 = hizmet (lacivert tint, ince kenarlık)
+    // 4 = tel     (mavi tint)
+    // 5 = yas     (yeşil, kalın, ortalı)
+
+    const borderDef = `<border><left style="thin"><color rgb="FFD0D0D0"/></left><right style="thin"><color rgb="FFD0D0D0"/></right><top style="thin"><color rgb="FFD0D0D0"/></top><bottom style="thin"><color rgb="FFD0D0D0"/></bottom><diagonal/></border>`;
+    const borderHeader = `<border><left style="medium"><color rgb="FF1A237E"/></left><right style="medium"><color rgb="FF1A237E"/></right><top style="medium"><color rgb="FF1A237E"/></top><bottom style="medium"><color rgb="FF1A237E"/></bottom><diagonal/></border>`;
+
+    const fontsXml = [
+      `<font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>`,   // 0 başlık
+      `<font><sz val="10"/><color rgb="FF1E293B"/><name val="Calibri"/></font>`,         // 1 normal
+      `<font><sz val="10"/><b/><color rgb="FF1A237E"/><name val="Calibri"/></font>`,     // 2 isim
+      `<font><sz val="10"/><color rgb="FF1A237E"/><name val="Calibri"/></font>`,         // 3 hizmet
+      `<font><sz val="10"/><color rgb="FF0369A1"/><name val="Calibri"/></font>`,         // 4 tel
+      `<font><sz val="10"/><b/><color rgb="FF166534"/><name val="Calibri"/></font>`,     // 5 yaş
+    ].join('');
+
+    const fillsXml = [
+      `<fill><patternFill patternType="none"/></fill>`,
+      `<fill><patternFill patternType="gray125"/></fill>`,
+      `<fill><patternFill patternType="solid"><fgColor rgb="FF1A237E"/></patternFill></fill>`,  // 2 başlık
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill>`,  // 3 beyaz
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFF1F5FF"/></patternFill></fill>`,  // 4 zebra mavi
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFEEF2FF"/></patternFill></fill>`,  // 5 hizmet tint
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFE0F2FE"/></patternFill></fill>`,  // 6 tel tint
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFF0FDF4"/></patternFill></fill>`,  // 7 yaş tint
+    ].join('');
+
+    // xf indeksleri — (fontId, fillId, borderId, alignment)
+    const xfs = [
+      // 0: Başlık — lacivert, beyaz kalın, ortalı, kalın kenarlık
+      `<xf numFmtId="0" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="0"/></xf>`,
+      // 1: Normal tek satır — beyaz
+      `<xf numFmtId="0" fontId="1" fillId="3" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 2: Normal çift satır — zebra
+      `<xf numFmtId="0" fontId="1" fillId="4" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 3: İsim tek — beyaz, lacivert kalın
+      `<xf numFmtId="0" fontId="2" fillId="3" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 4: İsim çift — zebra, lacivert kalın
+      `<xf numFmtId="0" fontId="2" fillId="4" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 5: Hizmet tek — tint arka plan
+      `<xf numFmtId="0" fontId="3" fillId="5" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 6: Hizmet çift
+      `<xf numFmtId="0" fontId="3" fillId="5" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 7: Tel tek — açık mavi
+      `<xf numFmtId="0" fontId="4" fillId="6" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 8: Tel çift
+      `<xf numFmtId="0" fontId="4" fillId="6" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>`,
+      // 9: Yaş tek — yeşil tint, kalın, ortalı
+      `<xf numFmtId="0" fontId="5" fillId="7" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`,
+      // 10: Yaş çift
+      `<xf numFmtId="0" fontId="5" fillId="7" borderId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>`,
+    ].join('');
+
+    const stylesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="6">${fontsXml}</fonts>
+  <fills count="8">${fillsXml}</fills>
+  <borders count="2">${borderHeader}${borderDef}</borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="11">${xfs}</cellXfs>
+</styleSheet>`;
+
+    // ── Satır XML üretimi ────────────────────────────────────────
+    // Sütun → hangi stil çiftini kullan: [tek, çift]
+    // A=İsim[3,4] B=Hizmet[5,6] C,D=Tel[7,8] E,F,G=Normal[1,2] H=Yaş[9,10]
+    const colStyle = (ci, cift) => {
+      if (ci === 0) return cift ? 4 : 3;       // İsim
+      if (ci === 1) return 5;                   // Hizmet (her iki sıra aynı)
+      if (ci === 2 || ci === 3) return 7;       // Tel
+      if (ci === 7) return cift ? 10 : 9;       // Yaş
+      return cift ? 2 : 1;                      // Normal
+    };
+
+    let rowsXml = '';
+    dataRows.forEach((row, ri) => {
+      const cift = ri % 2 === 0; // 0=başlık(tek), 1=çift, 2=tek...
+      let cx = '';
+      row.forEach((v, ci) => {
+        const ref = COLS[ci] + (ri + 1);
+        const idx = S(v);
+        const s   = ri === 0 ? 0 : colStyle(ci, cift);
+        if (idx === null) cx += `<c r="${ref}" s="${s}"/>`;
+        else              cx += `<c r="${ref}" s="${s}" t="s"><v>${idx}</v></c>`;
       });
-      rowsXml+=`<row r="${ri+1}" ht="18" customHeight="1">${cx}</row>`;
+      const ht = ri === 0 ? '22' : '18';
+      rowsXml += `<row r="${ri+1}" ht="${ht}" customHeight="1">${cx}</row>`;
     });
-    const sharedXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${ss.length}" uniqueCount="${ss.length}">${ss.map(s=>`<si><t xml:space="preserve">${escXml(s)}</t></si>`).join('')}</sst>`;
-    const fontsXml='<font><sz val="11"/><b/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><sz val="10"/><color rgb="FF263238"/><name val="Calibri"/></font>';
-    const fillsXml='<fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1A237E"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill>';
-    const cellXfs='<xf numFmtId="0" fontId="0" fillId="2" borderId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="1" fillId="3" borderId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>';
-    const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2">${fontsXml}</fonts><fills count="4">${fillsXml}</fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2">${cellXfs}</cellXfs></styleSheet>`;
-    const sheetXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetFormatPr defaultRowHeight="18"/><cols><col min="1" max="1" width="28" customWidth="1"/><col min="2" max="2" width="18" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/><col min="4" max="4" width="45" customWidth="1"/><col min="5" max="5" width="16" customWidth="1"/><col min="6" max="6" width="28" customWidth="1"/></cols><sheetData>${rowsXml}</sheetData></worksheet>`;
-    const wbXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Adres Listesi" sheetId="1" r:id="rId1"/></sheets></workbook>`;
-    const RELS=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`;
-    const APP_RELS=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
-    const CT=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>`;
-    const zip=await buildZip([['[Content_Types].xml',enc(CT),true],['_rels/.rels',enc(APP_RELS),true],['xl/workbook.xml',enc(wbXml),false],['xl/_rels/workbook.xml.rels',enc(RELS),true],['xl/worksheets/sheet1.xml',enc(sheetXml),false],['xl/styles.xml',enc(stylesXml),false],['xl/sharedStrings.xml',enc(sharedXml),false]]);
-    const blob=new Blob([zip],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='adres_telefon.xlsx';
-    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-    showToast('Excel indirildi: '+tumIsimler.length+' kişi');
-  } catch(e){console.error(e);showToast('Hata: '+e.message);}
+
+    // ── Sheet XML ───────────────────────────────────────────────
+    const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <sheetFormatPr defaultRowHeight="18"/>
+  <cols>
+    <col min="1" max="1" width="32" customWidth="1"/>
+    <col min="2" max="2" width="26" customWidth="1"/>
+    <col min="3" max="3" width="16" customWidth="1"/>
+    <col min="4" max="4" width="16" customWidth="1"/>
+    <col min="5" max="5" width="18" customWidth="1"/>
+    <col min="6" max="6" width="30" customWidth="1"/>
+    <col min="7" max="7" width="14" customWidth="1"/>
+    <col min="8" max="8" width="6"  customWidth="1"/>
+  </cols>
+  <sheetData>${rowsXml}</sheetData>
+  <autoFilter ref="A1:H1"/>
+</worksheet>`;
+
+    // ── Ortak XML parçaları ─────────────────────────────────────
+    const sharedXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${ss.length}" uniqueCount="${ss.length}">${ss.map(s=>`<si><t xml:space="preserve">${esc(s)}</t></si>`).join('')}</sst>`;
+    const wbXml     = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Adres Listesi" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+    const RELS      = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/></Relationships>`;
+    const APP_RELS  = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+    const CT        = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/></Types>`;
+
+    // ── ZIP oluştur & indir ─────────────────────────────────────
+    const zip = await buildZip([
+      ['[Content_Types].xml',        enc(CT),        true],
+      ['_rels/.rels',                enc(APP_RELS),  true],
+      ['xl/workbook.xml',            enc(wbXml),     false],
+      ['xl/_rels/workbook.xml.rels', enc(RELS),      true],
+      ['xl/worksheets/sheet1.xml',   enc(sheetXml),  false],
+      ['xl/styles.xml',              enc(stylesXml), false],
+      ['xl/sharedStrings.xml',       enc(sharedXml), false],
+    ]);
+    const blob = new Blob([zip], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'adres_telefon.xlsx';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✅ Excel indirildi: ' + tumIsimler.length + ' kişi');
+  } catch(e) { console.error(e); showToast('Hata: ' + e.message); }
 }
 
 async function adresYukle(input) {
