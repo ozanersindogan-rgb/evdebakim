@@ -223,11 +223,8 @@ function adresRender() {
 
   if (!tablo) return;
 
-  // Tüm benzersiz isimler: adres_bilgi + allData birleşimi
-  const isimSet = new Set();
-  Object.keys(window._adresBilgi || {}).forEach(k => isimSet.add(k));
-  (allData||[]).forEach(r => { if (r.ISIM_SOYISIM) isimSet.add(r.ISIM_SOYISIM); });
-  let tumIsimler = [...isimSet];
+  // Sadece adres_bilgi koleksiyonundaki isimler (allData birleşimi kaldırıldı)
+  let tumIsimler = Object.keys(window._adresBilgi || {});
 
   // Her isim için önce temel veri objesi oluştur
   let rows = tumIsimler.map(isim => {
@@ -602,11 +599,8 @@ async function adresEditKaydet() {
 }
 
 async function adresIndir() {
-  // Tüm benzersiz isimleri topla
-  const isimSet = new Set();
-  (allData||[]).forEach(r => { if(r.ISIM_SOYISIM) isimSet.add(r.ISIM_SOYISIM); });
-  Object.keys(window._adresBilgi||{}).forEach(k => isimSet.add(k));
-  const tumIsimler = [...isimSet].sort((a,b) => a.localeCompare(b,'tr'));
+  // Sadece adres_bilgi koleksiyonundaki isimler
+  const tumIsimler = Object.keys(window._adresBilgi || {}).sort((a,b) => a.localeCompare(b,'tr'));
   if (!tumIsimler.length) { showToast('Kayıt yok'); return; }
 
   try {
