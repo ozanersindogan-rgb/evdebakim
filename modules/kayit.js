@@ -597,6 +597,38 @@ function gkIsimSecildi() {
 }
 
 function gkUyariGuncelle() {
+  // ── AKTİF DURUM KORUMASI (görsel) ──
+  const durumEl = document.getElementById('gk-durum-mevcut');
+  const durumUyari = document.getElementById('gk-durum-uyari');
+  const kaydetBtn = _gkKaydetBtn();
+  const mevcutDurum = durumEl ? (durumEl.value || '').trim() : '';
+  const aktifDisi = mevcutDurum && mevcutDurum !== 'AKTİF';
+
+  if (durumUyari) {
+    if (aktifDisi) {
+      const durumRenk = {'İPTAL':'#dc2626','VEFAT':'#374151','BEKLEME':'#d97706','PASİF':'#6366f1'}[mevcutDurum] || '#374151';
+      durumUyari.innerHTML = `
+        <div style="background:${durumRenk};color:#fff;padding:10px 14px;border-radius:8px;font-weight:600;font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">⛔</span>
+          <span>Bu vatandaş <strong>${mevcutDurum}</strong> durumunda — kayıt eklenemez!</span>
+          <button onclick="(function(){document.querySelector('[onclick*=\\'durum-guncelle\\']')?.click()||document.querySelector('[data-tab=\\'durum-guncelle\\']')?.click();})()" 
+            style="margin-left:auto;background:#fff;color:${durumRenk};border:none;border-radius:6px;padding:4px 10px;font-weight:700;cursor:pointer;font-size:12px">
+            Durum Güncelle →
+          </button>
+        </div>`;
+      durumUyari.style.display = 'block';
+    } else {
+      durumUyari.innerHTML = '';
+      durumUyari.style.display = 'none';
+    }
+  }
+  if (kaydetBtn) {
+    kaydetBtn.disabled = aktifDisi;
+    kaydetBtn.style.opacity = aktifDisi ? '0.4' : '';
+    kaydetBtn.style.cursor = aktifDisi ? 'not-allowed' : '';
+    kaydetBtn.title = aktifDisi ? `Vatandaş ${mevcutDurum} durumunda — önce Durum Güncelle yapın` : '';
+  }
+
   // TC uyarısı
   const tcEl = document.getElementById('gk-tc');
   const tcUyari = document.getElementById('gk-tc-uyari');
@@ -696,15 +728,12 @@ async function gkKaydet() {
   if (!rec) { _gkIslemDevam = false; showToast('Vatandas bulunamadi'); return; }
 
   // ── AKTİF DURUM KORUMASI ──
-  if (rec.DURUM && rec.DURUM !== 'AKTİF') {
+  if (!rec.DURUM || rec.DURUM !== 'AKTİF') {
     _gkIslemDevam = false;
-    const durumRenk = {'İPTAL':'#dc2626','VEFAT':'#374151','BEKLEME':'#d97706','PASİF':'#6366f1'}[rec.DURUM] || '#374151';
-    showToast(`⛔ ${isim} kaydı ${rec.DURUM} durumunda — önce Durum Güncelle ekranından AKTİF yapın`);
-    // Durum Güncelle sekmesine yönlendir
-    if (confirm(`"${isim}" kişisinin durumu "${rec.DURUM}" olarak kayıtlı.\n\nDurum Güncelle ekranına gitmek ister misiniz?`)) {
-      document.querySelector('[onclick*="durum-guncelle"]')?.click()
-        || document.querySelector('[data-tab="durum-guncelle"]')?.click();
-    }
+    const durumLabel = rec.DURUM || 'BELİRSİZ';
+    showToast(`⛔ ${isim} — ${durumLabel} durumunda kayıt eklenemez. Önce Durum Güncelle yapın.`);
+    document.querySelector('[onclick*="durum-guncelle"]')?.click()
+      || document.querySelector('[data-tab="durum-guncelle"]')?.click();
     return;
   }
 
