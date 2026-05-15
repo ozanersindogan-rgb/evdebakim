@@ -1396,122 +1396,72 @@ function vatSortBy(col) {
 }
 
 function filterVat() {
-  // ── YENİ MODEL: kbData (vatandaslar_bilgi) kaynak ──
-  // Her vatandaş her ayda görünür. Seçili ay varsa o aya ait allData kaydı zenginleştirme için eklenir.
+  // allData tabanlı model — DURUM bilgisi kbData'dan zenginleştirilir
   const srch = document.getElementById('vat-search').value.toLocaleLowerCase('tr-TR');
   const mah  = document.getElementById('vat-mah').value;
   const hepsiDurum = ['AKTİF','PASİF','İPTAL','VEFAT','BEKLEME'];
   const tumSeçili  = hepsiDurum.every(d => _vatSeciliDurumlar.has(d));
 
-  // kbData yoksa (henüz yüklenmedi) eski allData modeline fallback
-  const kaynak = (typeof kbData !== 'undefined' && kbData && kbData.length > 0) ? 'kb' : 'all';
-
-  if (kaynak === 'kb') {
-    // allData üzerinde hızlı arama haritası: isim+hizmet → ay kaydı listesi
-    const _adMap = {};
-    allData.forEach(r => {
-      const key = (r.ISIM_SOYISIM||'').toLocaleUpperCase('tr-TR') + '|' + (r['HİZMET']||'');
-      if (!_adMap[key]) _adMap[key] = [];
-      _adMap[key].push(r);
-    });
-
-    // kbData'yı genişlet: her kişi x hizmet kombinasyonu için bir satır
-    const genisletilmis = [];
+  // kbData haritası: isim → DURUM (kbData yoksa allData.DURUM kullanılır)
+  const _kbDurumMap = {};
+  if (typeof kbData !== 'undefined' && kbData) {
     kbData.forEach(kb => {
-      const hizmetler = Array.isArray(kb.HIZMETLER) && kb.HIZMETLER.length
-        ? kb.HIZMETLER
-        : (kb.HIZMET ? [kb.HIZMET] : []);
-      if (!hizmetler.length) {
-        // Hiç hizmet yoksa yine de tek satır göster
-        genisletilmis.push({ _kb: kb, _hz: '', _ayKayit: null });
-      } else {
-        hizmetler.forEach(hz => {
-          genisletilmis.push({ _kb: kb, _hz: hz, _ayKayit: null });
-        });
-      }
-    });
-
-    // Seçili ay varsa allData'dan eşleştir
-    genisletilmis.forEach(row => {
-      if (!vatAy) { row._ayKayit = null; return; }
-      const key = (row._kb.AD_SOYAD||'').toLocaleUpperCase('tr-TR') + '|' + row._hz;
-      const ayKayitlar = _adMap[key] || [];
-      row._ayKayit = ayKayitlar.find(r => r.AY === vatAy) || null;
-    });
-
-    // Filtrele
-    vatFiltered = genisletilmis.filter(row => {
-      const kb = row._kb;
-      const hz = row._hz;
-      const hizmetler = Array.isArray(kb.HIZMETLER) && kb.HIZMETLER.length ? kb.HIZMETLER : (kb.HIZMET ? [kb.HIZMET] : []);
-      const hOk = !vatHizmet || hz === vatHizmet || hizmetler.includes(vatHizmet);
-      // Ay filtresi: seçili ay varsa sadece o ayda kaydı olanları göster
-      const aOk = vatAy ? (row._ayKayit !== null) : true;
-      const isim = (kb.AD_SOYAD||'').toLocaleLowerCase('tr-TR');
-      const mahlc = (kb.MAHALLE||'').toLocaleLowerCase('tr-TR');
-      const sOk = !srch || isim.includes(srch) || mahlc.includes(srch);
-      const mOk = !mah || kb.MAHALLE === mah;
-      const durum = kb.DURUM || 'AKTİF';
-      const dOk = tumSeçili || _vatSeciliDurumlar.has(durum);
-      return hOk && aOk && sOk && mOk && dOk;
-    });
-
-    // _vatFiltered artık genişletilmiş nesneler — renderVat bunu bilmeli
-    window._vatKaynak = 'kb';
-  } else {
-    // Eski allData modeli (fallback)
-    window._vatKaynak = 'all';
-    vatFiltered = allData.filter(r => {
-      const hOk = !vatHizmet || r['HİZMET'] === vatHizmet;
-      const aOk = vatAy ? r.AY === vatAy : true;
-      const sOk = !srch || (r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch) || (r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
-      const mOk = !mah || r.MAHALLE === mah;
-      const dOk = tumSeçili || _vatSeciliDurumlar.has(r.DURUM||'');
-      return hOk && aOk && sOk && mOk && dOk;
+      if (kb.DURUM) _kbDurumMap[(kb.AD_SOYAD||'').toLocaleUpperCase('tr-TR')] = kb.DURUM;
     });
   }
+
+  const getDurum = (r) => {
+    const isimUp = (r.ISIM_SOYISIM||'').toLocaleUpperCase('tr-TR');
+    return _kbDurumMap[isimUp] || r.DURUM || 'AKTİF';
+  };
+
+  vatFiltered = allData.filter(r => {
+    const hOk = !vatHizmet || r['HİZMET'] === vatHizmet;
+    const aOk = vatAy ? r.AY === vatAy : true;
+    const sOk = !srch || (r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch) || (r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
+    const mOk = !mah || r.MAHALLE === mah;
+    const durum = getDurum(r);
+    const dOk = tumSeçili || _vatSeciliDurumlar.has(durum);
+    return hOk && aOk && sOk && mOk && dOk;
+  });
+
+  // DURUM bilgisini allData satırlarına yansıt (renderVat durBadge için)
+  vatFiltered.forEach(r => {
+    const isimUp = (r.ISIM_SOYISIM||'').toLocaleUpperCase('tr-TR');
+    if (_kbDurumMap[isimUp]) r.DURUM = _kbDurumMap[isimUp];
+  });
+
+  window._vatKaynak = 'all';
   vatPage = 1; renderVat();
 }
 
 function renderVat() {
-  const isKB = window._vatKaynak === 'kb';
   const total = vatFiltered.length;
   const tp    = Math.ceil(total / PER);
 
-  // Sıralama önce uygula (slice öncesi)
+  // Sıralama
   if (vatSortCol) {
-    const _getVal = (row, col) => {
-      if (isKB) {
-        const kb = row._kb; const ak = row._ayKayit;
-        if (col === 'isim')    return (kb.AD_SOYAD||'').toLocaleUpperCase('tr-TR');
-        if (col === 'mahalle') return (kb.MAHALLE||'').toLocaleUpperCase('tr-TR');
-        if (col === 'durum')   return (kb.DURUM||'').toLocaleUpperCase('tr-TR');
-        if (col === 'hizmet')  return (row._hz||'').toLocaleUpperCase('tr-TR');
-        if (col === 'ay')      return (ak?.AY||'');
-      } else {
-        const colMap = { isim:'ISIM_SOYISIM', mahalle:'MAHALLE', ay:'AY', durum:'DURUM', hizmet:'HİZMET' };
-        return ((row[colMap[col]||col])||'').toString().toLocaleUpperCase('tr-TR');
-      }
-    };
+    const colMap = { isim:'ISIM_SOYISIM', mahalle:'MAHALLE', ay:'AY', durum:'DURUM', hizmet:'HİZMET' };
+    const key = colMap[vatSortCol] || vatSortCol;
     vatFiltered.sort((a,b)=>{
-      const va = _getVal(a, vatSortCol);
-      const vb = _getVal(b, vatSortCol);
-      return vatSortDir==='asc' ? va.localeCompare(vb,'tr') : vb.localeCompare(va,'tr');
+      const va=(a[key]||'').toString().toLocaleUpperCase('tr-TR');
+      const vb=(b[key]||'').toString().toLocaleUpperCase('tr-TR');
+      return vatSortDir==='asc'?va.localeCompare(vb,'tr'):vb.localeCompare(va,'tr');
     });
   }
 
   const slice = vatFiltered.slice((vatPage-1)*PER, vatPage*PER);
   document.getElementById('vat-count').textContent = `${total} kayıt`;
 
-  const isKuafor   = vatHizmet==='KUAFÖR';
-  const _th = 'padding:7px 6px;text-align:left;white-space:nowrap;position:relative;font-size:12px';
-  const _sor = (col) => vatSortCol===col?(vatSortDir==='asc'?'↑':'↓'):'⇅';
+  const isKuafor = vatHizmet === 'KUAFÖR';
+  const _th = 'padding:7px 6px;text-align:left;white-space:nowrap;font-size:12px';
+  const _sor = col => vatSortCol===col?(vatSortDir==='asc'?'↑':'↓'):'⇅';
 
   const thead = `<thead><tr style="background:var(--primary);color:#fff">
     <th style="${_th}"><div onclick="vatSortBy('hizmet')" style="cursor:pointer">HİZMET ${_sor('hizmet')}</div></th>
-    <th style="${_th}"><div onclick="vatSortBy('isim')" style="cursor:pointer">İSİM SOYİSİM ${_sor('isim')}</div></th>
+    <th style="${_th}"><div onclick="vatSortBy('isim')"   style="cursor:pointer">İSİM SOYİSİM ${_sor('isim')}</div></th>
     <th style="${_th}"><div onclick="vatSortBy('mahalle')" style="cursor:pointer">MAHALLE ${_sor('mahalle')}</div></th>
-    <th style="${_th}"><div onclick="vatSortBy('ay')" style="cursor:pointer">AY ${_sor('ay')}</div></th>
+    <th style="${_th}"><div onclick="vatSortBy('ay')"     style="cursor:pointer">AY ${_sor('ay')}</div></th>
     ${isKuafor
       ? `<th style="${_th}">Saç</th><th style="${_th}">Tırnak</th><th style="${_th}">Sakal</th>`
       : `<th style="${_th}">TARİHLER</th>`}
@@ -1522,92 +1472,41 @@ function renderVat() {
     <th style="width:36px"></th>
   </tr></thead>`;
 
-  const tbody = slice.map(row => {
-    if (isKB) {
-      // ── kbData modeli ──
-      const kb  = row._kb;
-      const ak  = row._ayKayit; // seçili aya ait allData kaydı (null olabilir)
-      const hz  = row._hz;
-      const isim = kb.AD_SOYAD || '—';
-      const durum = kb.DURUM || 'AKTİF';
-      const yas = hesaplaYas(kb.DOGUM_TARIHI || '');
-      const tel = kb.TELEFON || (ak?.TELEFON) || '—';
-      const ayGoster = ak ? `<span style="font-size:11px;font-weight:700;color:var(--purple)">${ak.AY}</span>` : `<span style="font-size:10px;color:#94a3b8">—</span>`;
-      // Tarihler: seçili ay kaydından
-      let tarihHucre = '—';
-      if (ak) {
-        if (isKuafor) {
-          tarihHucre = `
-            <td style="white-space:nowrap">${ak.SAC1?`<span class="date-chip">${fmt(ak.SAC1)}</span>`:''}${ak.SAC2?`<span class="date-chip">${fmt(ak.SAC2)}</span>`:''}</td>
-            <td style="white-space:nowrap">${ak.TIRNAK1?`<span class="date-chip">${fmt(ak.TIRNAK1)}</span>`:''}${ak.TIRNAK2?`<span class="date-chip">${fmt(ak.TIRNAK2)}</span>`:''}</td>
-            <td style="white-space:nowrap">${ak.SAKAL1?`<span class="date-chip">${fmt(ak.SAKAL1)}</span>`:''}${ak.SAKAL2?`<span class="date-chip">${fmt(ak.SAKAL2)}</span>`:''}</td>`;
-        } else {
-          tarihHucre = `<td>${getBanyolar(ak)}</td>`;
-        }
-      } else {
-        tarihHucre = isKuafor ? '<td>—</td><td>—</td><td>—</td>' : '<td style="color:#94a3b8;font-size:11px">—</td>';
-      }
-      const notlar = ak ? [ak.NOT1,ak.NOT2,ak.NOT3].filter(Boolean).join(' • ') : (kb.NOT||'');
-      // Edit: allData index varsa onu kullan, yoksa kbData üzerinden
-      const globalIdx = ak ? allData.indexOf(ak) : -1;
-      const editBtn = globalIdx >= 0
-        ? `<button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>`
-        : `<button class="btn" onclick="kbDuzenle('${kb._fbId}')" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Profil Düzenle">✏️</button>`;
-      const silBtn = globalIdx >= 0
-        ? `<button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>`
-        : '';
-      const showAy = ak?.AY || vatAy || '';
-      return `<tr onclick="showDetail('${esc(isim)}','${esc(hz)}','${esc(showAy)}')" style="cursor:pointer">
-        <td><span class="hizmet-dot dot-${HIZMET_COLORS[hz]||'pasif'}"></span><span style="font-size:11px;font-weight:700">${hz||'—'}</span></td>
-        <td class="name-cell">${isim}</td>
-        <td class="mahalle-cell">${kb.MAHALLE||'—'}</td>
-        <td>${ayGoster}</td>
-        ${tarihHucre}
-        <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
-        <td style="font-size:11px;color:var(--text-soft);max-width:160px">${notlar||'—'}</td>
-        <td style="font-size:11px;white-space:nowrap;color:#0369a1">${tel && tel!=='—'?`<a href="tel:${tel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${tel}</a>`:'—'}</td>
-        <td>${durBadge(durum)}</td>
-        <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">${editBtn}${silBtn}</td>
-      </tr>`;
-    } else {
-      // ── Eski allData modeli (fallback) ──
-      const r = row;
-      const globalIdx = allData.indexOf(r);
-      const _isimKey = r.ISIM_SOYISIM;
-      const _adresBilgiObj = window._adresBilgi || {};
-      const kbilgi = _adresBilgiObj[_isimKey]
-        || _adresBilgiObj[(_isimKey||'').toLowerCase()]
-        || _adresBilgiObj[(_isimKey||'').toUpperCase()]
-        || (() => { const k = Object.keys(_adresBilgiObj).find(k => k.toLowerCase() === (_isimKey||'').toLowerCase()); return k ? _adresBilgiObj[k] : null; })()
-        || KUAFOR_BILGI[_isimKey] || {};
-      const yas = hesaplaYas(r.DOGUM_TARIHI || kbilgi.dogum || '');
-      return `<tr onclick="showDetail('${esc(r.ISIM_SOYISIM)}','${esc(r['HİZMET'])}','${esc(r.AY)}')" style="cursor:pointer">
-        <td><span class="hizmet-dot dot-${HIZMET_COLORS[r['HİZMET']]}"></span><span style="font-size:11px;font-weight:700">${r['HİZMET']}</span></td>
-        <td class="name-cell">${r.ISIM_SOYISIM}</td>
-        <td class="mahalle-cell">${r.MAHALLE}</td>
-        <td style="font-size:11px;font-weight:700;color:var(--purple)">${r.AY}</td>
-        ${isKuafor?`
-          <td style="white-space:nowrap">${r.SAC1?`<span class="date-chip">${fmt(r.SAC1)}</span>`:''}${r.SAC2?`<span class="date-chip">${fmt(r.SAC2)}</span>`:''}</td>
-          <td style="white-space:nowrap">${r.TIRNAK1?`<span class="date-chip">${fmt(r.TIRNAK1)}</span>`:''}${r.TIRNAK2?`<span class="date-chip">${fmt(r.TIRNAK2)}</span>`:''}</td>
-          <td style="white-space:nowrap">${r.SAKAL1?`<span class="date-chip">${fmt(r.SAKAL1)}</span>`:''}${r.SAKAL2?`<span class="date-chip">${fmt(r.SAKAL2)}</span>`:''}</td>
-        `:`<td>${getBanyolar(r)}</td>`}
-        <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
-        <td style="font-size:11px;color:var(--text-soft);max-width:160px">${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')||'—'}</td>
-        <td style="font-size:11px;white-space:nowrap;color:#0369a1">${(()=>{const aktTel=(r.TELEFON_AKTIF==='2'&&r.TELEFON2)?r.TELEFON2:(r.TELEFON||kbilgi.tel||'');return aktTel?`<a href="tel:${aktTel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${aktTel}</a>`:'—';})()}</td>
-        <td>${durBadge(r.DURUM)}</td>
-        <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">
-          <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
-          <button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>
-        </td>
-      </tr>`;
-    }
+  const _adresBilgiObj = window._adresBilgi || {};
+  const tbody = slice.map(r => {
+    const globalIdx = allData.indexOf(r);
+    const _isimKey = r.ISIM_SOYISIM || '';
+    const kbilgi = _adresBilgiObj[_isimKey]
+      || _adresBilgiObj[_isimKey.toLowerCase()]
+      || _adresBilgiObj[_isimKey.toUpperCase()]
+      || (() => { const k = Object.keys(_adresBilgiObj).find(k => k.toLowerCase() === _isimKey.toLowerCase()); return k ? _adresBilgiObj[k] : null; })()
+      || KUAFOR_BILGI[_isimKey] || {};
+    const yas = hesaplaYas(r.DOGUM_TARIHI || kbilgi.dogum || '');
+    const aktTel = (r.TELEFON_AKTIF==='2' && r.TELEFON2) ? r.TELEFON2 : (r.TELEFON || kbilgi.tel || '');
+    return `<tr onclick="showDetail('${esc(r.ISIM_SOYISIM)}','${esc(r['HİZMET'])}','${esc(r.AY)}')" style="cursor:pointer">
+      <td><span class="hizmet-dot dot-${HIZMET_COLORS[r['HİZMET']]||'pasif'}"></span><span style="font-size:11px;font-weight:700">${r['HİZMET']||'—'}</span></td>
+      <td class="name-cell">${r.ISIM_SOYISIM||'—'}</td>
+      <td class="mahalle-cell">${r.MAHALLE||'—'}</td>
+      <td style="font-size:11px;font-weight:700;color:var(--purple)">${r.AY||'—'}</td>
+      ${isKuafor ? `
+        <td style="white-space:nowrap">${r.SAC1?`<span class="date-chip">${fmt(r.SAC1)}</span>`:''}${r.SAC2?`<span class="date-chip">${fmt(r.SAC2)}</span>`:''}</td>
+        <td style="white-space:nowrap">${r.TIRNAK1?`<span class="date-chip">${fmt(r.TIRNAK1)}</span>`:''}${r.TIRNAK2?`<span class="date-chip">${fmt(r.TIRNAK2)}</span>`:''}</td>
+        <td style="white-space:nowrap">${r.SAKAL1?`<span class="date-chip">${fmt(r.SAKAL1)}</span>`:''}${r.SAKAL2?`<span class="date-chip">${fmt(r.SAKAL2)}</span>`:''}</td>
+      ` : `<td>${getBanyolar(r)}</td>`}
+      <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
+      <td style="font-size:11px;color:var(--text-soft);max-width:160px">${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')||'—'}</td>
+      <td style="font-size:11px;white-space:nowrap;color:#0369a1">${aktTel?`<a href="tel:${aktTel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${aktTel}</a>`:'—'}</td>
+      <td>${durBadge(r.DURUM)}</td>
+      <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">
+        <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
+        <button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>
+      </td>
+    </tr>`;
   }).join('');
 
   document.getElementById('vat-table').innerHTML = `
     ${thead}
-    <tbody>${tbody}
-    ${slice.length===0?`<tr><td colspan="10" class="no-data">Kayıt bulunamadı</td></tr>`:''}
-    </tbody>`;
+    <tbody>${tbody}${slice.length===0?`<tr><td colspan="10" class="no-data">Kayıt bulunamadı</td></tr>`:''}</tbody>`;
 
   let pags='';
   for(let i=1;i<=tp;i++){
