@@ -521,6 +521,14 @@ async function kbYukle() {
     kbData = [];
     snap.forEach(d => kbData.push({ _fbId: d.id, ...d.data() }));
     if (kbData.length===0 && allData.length>0) { await kbAllDatadanDoldur(); return; }
+    // allData'dan DURUM alanını kbData'ya aktar (vatandaslar_bilgi'de henüz DURUM yoksa)
+    kbData.forEach(kb => {
+      if (!kb.DURUM) {
+        const isimUp = (kb.AD_SOYAD||'').toLocaleUpperCase('tr-TR');
+        const ayKayit = allData.find(r => (r.ISIM_SOYISIM||'').toLocaleUpperCase('tr-TR') === isimUp);
+        if (ayKayit && ayKayit.DURUM) kb.DURUM = ayKayit.DURUM;
+      }
+    });
     const mevcut=new Set(kbData.map(r=>(r.AD_SOYAD||'').toLocaleUpperCase("tr-TR")));
     const eksik=[...new Set(allData.filter(r=>!r._tpRef).map(r=>r.ISIM_SOYISIM).filter(Boolean))].filter(n=>!mevcut.has(n.toLocaleUpperCase("tr-TR")));
     for (const isim of eksik) {
@@ -531,6 +539,10 @@ async function kbYukle() {
     }
     if (eksik.length) showToast(eksik.length+' yeni kisi eklendi');
     kbMahalleListesiDoldur(); kbRender();
+    // Vatandaşlar sekmesini kbData ile güncelle
+    if (typeof buildMahFilter === 'function') buildMahFilter();
+    if (typeof buildAyTabs   === 'function') buildAyTabs();
+    if (typeof filterVat     === 'function') filterVat();
   } catch (e) { showToast('Kisi bilgileri yuklenemedi: '+e.message); }
 }
 async function kbAllDatadanDoldur() {
@@ -544,6 +556,9 @@ async function kbAllDatadanDoldur() {
     }
     showToast(tek.length+' kisi yuklendi');
     kbMahalleListesiDoldur(); kbRender();
+    if (typeof buildMahFilter === 'function') buildMahFilter();
+    if (typeof buildAyTabs   === 'function') buildAyTabs();
+    if (typeof filterVat     === 'function') filterVat();
   } catch (e) { showToast('Hata: '+e.message); }
 }
 

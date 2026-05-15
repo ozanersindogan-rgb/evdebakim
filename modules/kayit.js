@@ -423,25 +423,24 @@ function setVatDurum(durum, el) {
 
 function buildAyTabs() {
   const bugun = new Date();
-  const bugunAyIdx = bugun.getMonth(); // 0=Ocak, 11=Aralık
-  const mevcutAylar = new Set(getMevcutAylar()); // Firestore'da kaydı olan aylar
+  const bugunAyIdx = bugun.getMonth();
+  const mevcutAylar = new Set(getMevcutAylar());
 
-  // Eğer vatAy boşsa veya geçersizse mevcut en son aya otomatik git
-  if (!vatAy || !mevcutAylar.has(vatAy)) {
-    const aylarSirali = getMevcutAylar();
-    vatAy = aylarSirali[aylarSirali.length - 1] || '';
-  }
+  // Tümü seçeneği ekle — vatAy='' ise tüm vatandaşlar görünür
+  const tumBtn = `<button class="ay-btn${vatAy===''?' active':''}" onclick="setAy('',this)">Tümü</button>`;
 
-  document.getElementById('ay-tab-vat').innerHTML = AY_LISTESI.map((a, idx) => {
-    const varMi = mevcutAylar.has(a);       // Bu ayda Firestore'da kayıt var mı
-    const gelecekAy = idx > bugunAyIdx;     // Henüz gelmemiş ay
-    const kapali = gelecekAy && !varMi;     // Kilitli: gelecek ay VE hiç kaydı yok
+  const ayBtnler = AY_LISTESI.map((a, idx) => {
+    const varMi = mevcutAylar.has(a);
+    const gelecekAy = idx > bugunAyIdx;
+    const kapali = gelecekAy && !varMi;
     const aktif = a === vatAy;
     return `<button class="ay-btn${aktif ? ' active' : ''}${kapali ? ' ay-kapali' : ''}"
       data-ay="${a}"
       ${kapali ? 'disabled title="Bu ay henüz başlamadı"' : `onclick="setAy('${a}',this)"`}
-    >${AY_LABELS[a]}${varMi ? '' : ''}</button>`;
+    >${AY_LABELS[a]}</button>`;
   }).join('');
+
+  document.getElementById('ay-tab-vat').innerHTML = tumBtn + ayBtnler;
 }
 function setAy(a, el) {
   vatAy = a;
@@ -452,13 +451,14 @@ function setAy(a, el) {
 }
 
 function buildMahFilter() {
-  const mahs=[...new Set(allData.map(r=>r.MAHALLE).filter(Boolean))].sort();
-  const sel=document.getElementById('vat-mah');
+  const kaynak = (typeof kbData !== 'undefined' && kbData && kbData.length > 0) ? kbData.map(r=>r.MAHALLE) : allData.map(r=>r.MAHALLE);
+  const mahs = [...new Set(kaynak.filter(Boolean))].sort();
+  const sel = document.getElementById('vat-mah');
   if (!sel) return;
-  const mevcut = sel.value; // seçili değeri koru
+  const mevcut = sel.value;
   sel.innerHTML = '<option value="">Tümü</option>';
   mahs.forEach(m=>{const o=document.createElement('option');o.value=o.textContent=m;sel.appendChild(o);});
-  if (mevcut) sel.value = mevcut; // filtre aktifse koru
+  if (mevcut) sel.value = mevcut;
 }
 function updateFormForHizmet() {} // legacy stub — not used
 function gkUpdateIsimler() {
@@ -1343,14 +1343,24 @@ function duKaydet() {
     r.IPTAL_NEDEN = neden;
     if (neden) r.NOT1 = r.NOT1 ? r.NOT1 + ' | ' + neden : neden;
     const idx = allData.indexOf(r);
-    // Sadece değişen alanları gönder — daha güvenli ve hızlı
     const changes = { DURUM: yeniDurum, IPTAL_TARIHI: tarih, IPTAL_NEDEN: neden };
     if (neden) changes.NOT1 = r.NOT1;
     fbUpdateDoc(idx, changes);
   });
+  // ── vatandaslar_bilgi'ye de DURUM yaz ──
+  if (typeof kbData !== 'undefined' && kbData) {
+    const isimUp = isim.toLocaleUpperCase('tr-TR');
+    const kart = kbData.find(k => (k.AD_SOYAD||'').toLocaleUpperCase('tr-TR') === isimUp);
+    if (kart) {
+      kart.DURUM = yeniDurum;
+      firebase.firestore().collection('vatandaslar_bilgi').doc(kart._fbId)
+        .update({ DURUM: yeniDurum }).catch(e => console.warn('kb durum sync:', e));
+    }
+  }
   duRecs.push({isim,hizmet,eskiDurum,yeniDurum,tarih,neden});
   renderDuTable(); duTemizle();
   refreshAll();
+  if (typeof filterVat === 'function') filterVat();
   showToast(`✅ ${isim} durumu → ${yeniDurum}`);
 }
 function duTemizle() {
@@ -1386,124 +1396,217 @@ function vatSortBy(col) {
 }
 
 function filterVat() {
-  const srch=document.getElementById('vat-search').value.toLocaleLowerCase('tr-TR');
-  const mah=document.getElementById('vat-mah').value;
-  // Durum: çoklu seçim Set'inden oku
+  // ── YENİ MODEL: kbData (vatandaslar_bilgi) kaynak ──
+  // Her vatandaş her ayda görünür. Seçili ay varsa o aya ait allData kaydı zenginleştirme için eklenir.
+  const srch = document.getElementById('vat-search').value.toLocaleLowerCase('tr-TR');
+  const mah  = document.getElementById('vat-mah').value;
   const hepsiDurum = ['AKTİF','PASİF','İPTAL','VEFAT','BEKLEME'];
-  const tumSeçili = hepsiDurum.every(d => _vatSeciliDurumlar.has(d));
+  const tumSeçili  = hepsiDurum.every(d => _vatSeciliDurumlar.has(d));
 
-  vatFiltered=allData.filter(r=>{
-    const hOk=!vatHizmet||r['HİZMET']===vatHizmet;
-    const aOk = vatAy ? r.AY===vatAy : true;
-    const sOk=!srch||(r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch)||(r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
-    const mOk=!mah||r.MAHALLE===mah;
-    const dOk=tumSeçili || _vatSeciliDurumlar.has(r.DURUM||'');
-    const ayOk = !_vatKolFiltre.ay || r.AY === _vatKolFiltre.ay;
-    const durKolOk = !_vatKolFiltre.durum || r.DURUM === _vatKolFiltre.durum;
-    return hOk&&aOk&&sOk&&mOk&&dOk&&ayOk&&durKolOk;
-  });
-  vatPage=1; renderVat();
+  // kbData yoksa (henüz yüklenmedi) eski allData modeline fallback
+  const kaynak = (typeof kbData !== 'undefined' && kbData && kbData.length > 0) ? 'kb' : 'all';
+
+  if (kaynak === 'kb') {
+    // allData üzerinde hızlı arama haritası: isim+hizmet → ay kaydı listesi
+    const _adMap = {};
+    allData.forEach(r => {
+      const key = (r.ISIM_SOYISIM||'').toLocaleUpperCase('tr-TR') + '|' + (r['HİZMET']||'');
+      if (!_adMap[key]) _adMap[key] = [];
+      _adMap[key].push(r);
+    });
+
+    // kbData'yı genişlet: her kişi x hizmet kombinasyonu için bir satır
+    const genisletilmis = [];
+    kbData.forEach(kb => {
+      const hizmetler = Array.isArray(kb.HIZMETLER) && kb.HIZMETLER.length
+        ? kb.HIZMETLER
+        : (kb.HIZMET ? [kb.HIZMET] : []);
+      if (!hizmetler.length) {
+        // Hiç hizmet yoksa yine de tek satır göster
+        genisletilmis.push({ _kb: kb, _hz: '', _ayKayit: null });
+      } else {
+        hizmetler.forEach(hz => {
+          genisletilmis.push({ _kb: kb, _hz: hz, _ayKayit: null });
+        });
+      }
+    });
+
+    // Seçili ay varsa allData'dan eşleştir
+    genisletilmis.forEach(row => {
+      if (!vatAy) { row._ayKayit = null; return; }
+      const key = (row._kb.AD_SOYAD||'').toLocaleUpperCase('tr-TR') + '|' + row._hz;
+      const ayKayitlar = _adMap[key] || [];
+      row._ayKayit = ayKayitlar.find(r => r.AY === vatAy) || null;
+    });
+
+    // Filtrele
+    vatFiltered = genisletilmis.filter(row => {
+      const kb = row._kb;
+      const hz = row._hz;
+      const hizmetler = Array.isArray(kb.HIZMETLER) && kb.HIZMETLER.length ? kb.HIZMETLER : (kb.HIZMET ? [kb.HIZMET] : []);
+      const hOk = !vatHizmet || hz === vatHizmet || hizmetler.includes(vatHizmet);
+      // Ay filtresi: seçili ay varsa sadece o ayda kaydı olanları göster
+      const aOk = vatAy ? (row._ayKayit !== null) : true;
+      const isim = (kb.AD_SOYAD||'').toLocaleLowerCase('tr-TR');
+      const mahlc = (kb.MAHALLE||'').toLocaleLowerCase('tr-TR');
+      const sOk = !srch || isim.includes(srch) || mahlc.includes(srch);
+      const mOk = !mah || kb.MAHALLE === mah;
+      const durum = kb.DURUM || 'AKTİF';
+      const dOk = tumSeçili || _vatSeciliDurumlar.has(durum);
+      return hOk && aOk && sOk && mOk && dOk;
+    });
+
+    // _vatFiltered artık genişletilmiş nesneler — renderVat bunu bilmeli
+    window._vatKaynak = 'kb';
+  } else {
+    // Eski allData modeli (fallback)
+    window._vatKaynak = 'all';
+    vatFiltered = allData.filter(r => {
+      const hOk = !vatHizmet || r['HİZMET'] === vatHizmet;
+      const aOk = vatAy ? r.AY === vatAy : true;
+      const sOk = !srch || (r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch) || (r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
+      const mOk = !mah || r.MAHALLE === mah;
+      const dOk = tumSeçili || _vatSeciliDurumlar.has(r.DURUM||'');
+      return hOk && aOk && sOk && mOk && dOk;
+    });
+  }
+  vatPage = 1; renderVat();
 }
 
 function renderVat() {
-  const total=vatFiltered.length;
-  const tp=Math.ceil(total/PER);
-  const slice=vatFiltered.slice((vatPage-1)*PER,vatPage*PER);
-  document.getElementById('vat-count').textContent=`${total} kayıt`;
+  const isKB = window._vatKaynak === 'kb';
+  const total = vatFiltered.length;
+  const tp    = Math.ceil(total / PER);
 
-  const isKuafor = vatHizmet==='KUAFÖR';
-  const isErkekBanyo = vatHizmet==='ERKEK BANYO';
-  const isTemizlik = vatHizmet==='TEMİZLİK';
-
-  // Kolon filtre dropdown seçenekleri (filtrelenmiş tüm veri üzerinden değil, allData üzerinden)
-  const _allTem = vatHizmet ? allData.filter(r=>r['HİZMET']===vatHizmet) : allData;
-  const _aylar = [...new Set(_allTem.map(r=>r.AY).filter(Boolean))].sort((a,b)=>{
-    const s=['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
-    return s.indexOf(a)-s.indexOf(b);
-  });
-  const _durumlar = [...new Set(_allTem.map(r=>r.DURUM||'').filter(Boolean))].sort();
-  const _dd = 'margin-top:3px;width:100%;font-size:10px;border:1px solid rgba(255,255,255,0.3);border-radius:4px;background:rgba(255,255,255,0.15);color:#fff;padding:2px 4px;cursor:pointer';
-  const _th = 'padding:7px 6px;text-align:left;white-space:nowrap;position:relative;font-size:12px';
-
-  // Sıralama ok işareti
-  const _sor = (col) => vatSortCol===col?(vatSortDir==='asc'?'↑':'↓'):'⇅';
-
-  const thead = `<thead><tr style="background:var(--primary);color:#fff">
-    <th style="${_th}">
-      <div onclick="vatSortBy('hizmet')" style="cursor:pointer">Hizmet ${_sor('hizmet')}</div>
-    </th>
-    <th style="${_th}">
-      <div onclick="vatSortBy('isim')" style="cursor:pointer">İsim Soyisim ${_sor('isim')}</div>
-    </th>
-    <th style="${_th}">
-      <div onclick="vatSortBy('mahalle')" style="cursor:pointer">Mahalle ${_sor('mahalle')}</div>
-    </th>
-    <th style="${_th}">
-      <div onclick="vatSortBy('ay')" style="cursor:pointer">Ay ${_sor('ay')}</div>
-      <select onchange="_vatKolFiltre.ay=this.value;filterVat()" style="${_dd}">
-        <option value="">Tümü</option>
-        ${_aylar.map(a=>`<option value="${a}" ${_vatKolFiltre.ay===a?'selected':''}>${a}</option>`).join('')}
-      </select>
-    </th>
-    ${isKuafor?`<th style="${_th};max-width:130px">Saç</th><th style="${_th};max-width:130px">Tırnak</th><th style="${_th};max-width:130px">Sakal</th>`:`<th style="${_th}">Tarihler</th>`}
-    <th style="${_th}">Yaş</th>
-    <th style="${_th}">Notlar</th>
-    <th style="${_th}">Telefon</th>
-    <th style="${_th}">Adres</th>
-    <th style="${_th}">
-      <div onclick="vatSortBy('durum')" style="cursor:pointer">Durum ${_sor('durum')}</div>
-      <select onchange="_vatKolFiltre.durum=this.value;filterVat()" style="${_dd}">
-        <option value="">Tümü</option>
-        ${_durumlar.map(d=>`<option value="${d}" ${_vatKolFiltre.durum===d?'selected':''}>${d}</option>`).join('')}
-      </select>
-    </th>
-    <th style="width:36px"></th>
-  </tr></thead>`;
-
-  // Sıralama uygula
+  // Sıralama önce uygula (slice öncesi)
   if (vatSortCol) {
-    const colMap = { isim:'ISIM_SOYISIM', mahalle:'MAHALLE', ay:'AY', durum:'DURUM', hizmet:"HİZMET" };
-    const key = colMap[vatSortCol] || vatSortCol;
-    slice.sort((a,b)=>{
-      const va=(a[key]||'').toString().toUpperCase();
-      const vb=(b[key]||'').toString().toUpperCase();
-      return vatSortDir==='asc'?va.localeCompare(vb,'tr'):vb.localeCompare(va,'tr');
+    const _getVal = (row, col) => {
+      if (isKB) {
+        const kb = row._kb; const ak = row._ayKayit;
+        if (col === 'isim')    return (kb.AD_SOYAD||'').toLocaleUpperCase('tr-TR');
+        if (col === 'mahalle') return (kb.MAHALLE||'').toLocaleUpperCase('tr-TR');
+        if (col === 'durum')   return (kb.DURUM||'').toLocaleUpperCase('tr-TR');
+        if (col === 'hizmet')  return (row._hz||'').toLocaleUpperCase('tr-TR');
+        if (col === 'ay')      return (ak?.AY||'');
+      } else {
+        const colMap = { isim:'ISIM_SOYISIM', mahalle:'MAHALLE', ay:'AY', durum:'DURUM', hizmet:'HİZMET' };
+        return ((row[colMap[col]||col])||'').toString().toLocaleUpperCase('tr-TR');
+      }
+    };
+    vatFiltered.sort((a,b)=>{
+      const va = _getVal(a, vatSortCol);
+      const vb = _getVal(b, vatSortCol);
+      return vatSortDir==='asc' ? va.localeCompare(vb,'tr') : vb.localeCompare(va,'tr');
     });
   }
 
-  document.getElementById('vat-table').innerHTML=`
-    ${thead}
-    <tbody>${slice.map((r,ri)=>{
-      const globalIdx=allData.indexOf(r);
+  const slice = vatFiltered.slice((vatPage-1)*PER, vatPage*PER);
+  document.getElementById('vat-count').textContent = `${total} kayıt`;
+
+  const isKuafor   = vatHizmet==='KUAFÖR';
+  const _th = 'padding:7px 6px;text-align:left;white-space:nowrap;position:relative;font-size:12px';
+  const _sor = (col) => vatSortCol===col?(vatSortDir==='asc'?'↑':'↓'):'⇅';
+
+  const thead = `<thead><tr style="background:var(--primary);color:#fff">
+    <th style="${_th}"><div onclick="vatSortBy('hizmet')" style="cursor:pointer">HİZMET ${_sor('hizmet')}</div></th>
+    <th style="${_th}"><div onclick="vatSortBy('isim')" style="cursor:pointer">İSİM SOYİSİM ${_sor('isim')}</div></th>
+    <th style="${_th}"><div onclick="vatSortBy('mahalle')" style="cursor:pointer">MAHALLE ${_sor('mahalle')}</div></th>
+    <th style="${_th}"><div onclick="vatSortBy('ay')" style="cursor:pointer">AY ${_sor('ay')}</div></th>
+    ${isKuafor
+      ? `<th style="${_th}">Saç</th><th style="${_th}">Tırnak</th><th style="${_th}">Sakal</th>`
+      : `<th style="${_th}">TARİHLER</th>`}
+    <th style="${_th}">YAŞ</th>
+    <th style="${_th}">NOTLAR</th>
+    <th style="${_th}">TELEFON</th>
+    <th style="${_th}"><div onclick="vatSortBy('durum')" style="cursor:pointer">DURUM ${_sor('durum')}</div></th>
+    <th style="width:36px"></th>
+  </tr></thead>`;
+
+  const tbody = slice.map(row => {
+    if (isKB) {
+      // ── kbData modeli ──
+      const kb  = row._kb;
+      const ak  = row._ayKayit; // seçili aya ait allData kaydı (null olabilir)
+      const hz  = row._hz;
+      const isim = kb.AD_SOYAD || '—';
+      const durum = kb.DURUM || 'AKTİF';
+      const yas = hesaplaYas(kb.DOGUM_TARIHI || '');
+      const tel = kb.TELEFON || (ak?.TELEFON) || '—';
+      const ayGoster = ak ? `<span style="font-size:11px;font-weight:700;color:var(--purple)">${ak.AY}</span>` : `<span style="font-size:10px;color:#94a3b8">—</span>`;
+      // Tarihler: seçili ay kaydından
+      let tarihHucre = '—';
+      if (ak) {
+        if (isKuafor) {
+          tarihHucre = `
+            <td style="white-space:nowrap">${ak.SAC1?`<span class="date-chip">${fmt(ak.SAC1)}</span>`:''}${ak.SAC2?`<span class="date-chip">${fmt(ak.SAC2)}</span>`:''}</td>
+            <td style="white-space:nowrap">${ak.TIRNAK1?`<span class="date-chip">${fmt(ak.TIRNAK1)}</span>`:''}${ak.TIRNAK2?`<span class="date-chip">${fmt(ak.TIRNAK2)}</span>`:''}</td>
+            <td style="white-space:nowrap">${ak.SAKAL1?`<span class="date-chip">${fmt(ak.SAKAL1)}</span>`:''}${ak.SAKAL2?`<span class="date-chip">${fmt(ak.SAKAL2)}</span>`:''}</td>`;
+        } else {
+          tarihHucre = `<td>${getBanyolar(ak)}</td>`;
+        }
+      } else {
+        tarihHucre = isKuafor ? '<td>—</td><td>—</td><td>—</td>' : '<td style="color:#94a3b8;font-size:11px">—</td>';
+      }
+      const notlar = ak ? [ak.NOT1,ak.NOT2,ak.NOT3].filter(Boolean).join(' • ') : (kb.NOT||'');
+      // Edit: allData index varsa onu kullan, yoksa kbData üzerinden
+      const globalIdx = ak ? allData.indexOf(ak) : -1;
+      const editBtn = globalIdx >= 0
+        ? `<button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>`
+        : `<button class="btn" onclick="kbDuzenle('${kb._fbId}')" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Profil Düzenle">✏️</button>`;
+      const silBtn = globalIdx >= 0
+        ? `<button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>`
+        : '';
+      const showAy = ak?.AY || vatAy || '';
+      return `<tr onclick="showDetail('${esc(isim)}','${esc(hz)}','${esc(showAy)}')" style="cursor:pointer">
+        <td><span class="hizmet-dot dot-${HIZMET_COLORS[hz]||'pasif'}"></span><span style="font-size:11px;font-weight:700">${hz||'—'}</span></td>
+        <td class="name-cell">${isim}</td>
+        <td class="mahalle-cell">${kb.MAHALLE||'—'}</td>
+        <td>${ayGoster}</td>
+        ${tarihHucre}
+        <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
+        <td style="font-size:11px;color:var(--text-soft);max-width:160px">${notlar||'—'}</td>
+        <td style="font-size:11px;white-space:nowrap;color:#0369a1">${tel && tel!=='—'?`<a href="tel:${tel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${tel}</a>`:'—'}</td>
+        <td>${durBadge(durum)}</td>
+        <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">${editBtn}${silBtn}</td>
+      </tr>`;
+    } else {
+      // ── Eski allData modeli (fallback) ──
+      const r = row;
+      const globalIdx = allData.indexOf(r);
       const _isimKey = r.ISIM_SOYISIM;
       const _adresBilgiObj = window._adresBilgi || {};
       const kbilgi = _adresBilgiObj[_isimKey]
-        || _adresBilgiObj[_isimKey.toLowerCase()]
-        || _adresBilgiObj[_isimKey.toUpperCase()]
-        || (() => { const k = Object.keys(_adresBilgiObj).find(k => k.toLowerCase() === _isimKey.toLowerCase()); return k ? _adresBilgiObj[k] : null; })()
+        || _adresBilgiObj[(_isimKey||'').toLowerCase()]
+        || _adresBilgiObj[(_isimKey||'').toUpperCase()]
+        || (() => { const k = Object.keys(_adresBilgiObj).find(k => k.toLowerCase() === (_isimKey||'').toLowerCase()); return k ? _adresBilgiObj[k] : null; })()
         || KUAFOR_BILGI[_isimKey] || {};
       const yas = hesaplaYas(r.DOGUM_TARIHI || kbilgi.dogum || '');
       return `<tr onclick="showDetail('${esc(r.ISIM_SOYISIM)}','${esc(r['HİZMET'])}','${esc(r.AY)}')" style="cursor:pointer">
-      <td><span class="hizmet-dot dot-${HIZMET_COLORS[r['HİZMET']]}"></span><span style="font-size:11px;font-weight:700">${r['HİZMET']}</span></td>
-      <td class="name-cell">${r.ISIM_SOYISIM}</td>
-      <td class="mahalle-cell">${r.MAHALLE}</td>
-      <td style="font-size:11px;font-weight:700;color:var(--purple)">${r.AY}</td>
-      ${isKuafor?`
-        <td style="white-space:nowrap;max-width:130px">${r.SAC1?`<span class="date-chip">${fmt(r.SAC1)}</span>`:''}${r.SAC2?`<span class="date-chip">${fmt(r.SAC2)}</span>`:''}</td>
-        <td style="white-space:nowrap;max-width:130px">${r.TIRNAK1?`<span class="date-chip">${fmt(r.TIRNAK1)}</span>`:''}${r.TIRNAK2?`<span class="date-chip">${fmt(r.TIRNAK2)}</span>`:''}</td>
-        <td style="white-space:nowrap;max-width:130px">${r.SAKAL1?`<span class="date-chip">${fmt(r.SAKAL1)}</span>`:''}${r.SAKAL2?`<span class="date-chip">${fmt(r.SAKAL2)}</span>`:''}</td>
-      `:`<td>${getBanyolar(r)}</td>`}
-      <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
-      <td style="font-size:11px;color:var(--text-soft);max-width:160px">${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')||'—'}</td>
-      <td style="font-size:11px;white-space:nowrap;color:#0369a1">${(()=>{const aktTel=(r.TELEFON_AKTIF==='2'&&r.TELEFON2)?r.TELEFON2:(r.TELEFON||kbilgi.tel||'');return aktTel?`<a href="tel:${aktTel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${aktTel}</a>`:'—';})()}</td>
-      <td style="font-size:11px;color:var(--text-soft);max-width:180px">${r.ADRES||kbilgi.adres||'—'}</td>
-      <td>${durBadge(r.DURUM)}</td>
-      <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">
-        <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
-        <button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>
-      </td>
-    </tr>`;}).join('')}
-    ${slice.length===0?'<tr><td colspan="10" class="no-data">Kayıt bulunamadı</td></tr>':''}
+        <td><span class="hizmet-dot dot-${HIZMET_COLORS[r['HİZMET']]}"></span><span style="font-size:11px;font-weight:700">${r['HİZMET']}</span></td>
+        <td class="name-cell">${r.ISIM_SOYISIM}</td>
+        <td class="mahalle-cell">${r.MAHALLE}</td>
+        <td style="font-size:11px;font-weight:700;color:var(--purple)">${r.AY}</td>
+        ${isKuafor?`
+          <td style="white-space:nowrap">${r.SAC1?`<span class="date-chip">${fmt(r.SAC1)}</span>`:''}${r.SAC2?`<span class="date-chip">${fmt(r.SAC2)}</span>`:''}</td>
+          <td style="white-space:nowrap">${r.TIRNAK1?`<span class="date-chip">${fmt(r.TIRNAK1)}</span>`:''}${r.TIRNAK2?`<span class="date-chip">${fmt(r.TIRNAK2)}</span>`:''}</td>
+          <td style="white-space:nowrap">${r.SAKAL1?`<span class="date-chip">${fmt(r.SAKAL1)}</span>`:''}${r.SAKAL2?`<span class="date-chip">${fmt(r.SAKAL2)}</span>`:''}</td>
+        `:`<td>${getBanyolar(r)}</td>`}
+        <td style="text-align:center;font-weight:800;font-size:13px;color:${yas&&yas>=75?'#b45309':yas&&yas>=60?'#0369a1':'#374151'}">${yas!==null?yas:'—'}</td>
+        <td style="font-size:11px;color:var(--text-soft);max-width:160px">${[r.NOT1,r.NOT2,r.NOT3].filter(Boolean).join(' • ')||'—'}</td>
+        <td style="font-size:11px;white-space:nowrap;color:#0369a1">${(()=>{const aktTel=(r.TELEFON_AKTIF==='2'&&r.TELEFON2)?r.TELEFON2:(r.TELEFON||kbilgi.tel||'');return aktTel?`<a href="tel:${aktTel.replace(/\s/g,'')}" onclick="event.stopPropagation()" style="color:#0369a1;text-decoration:none">📞 ${aktTel}</a>`:'—';})()}</td>
+        <td>${durBadge(r.DURUM)}</td>
+        <td onclick="event.stopPropagation()" style="text-align:center;padding:4px;white-space:nowrap">
+          <button class="btn" onclick="openEditModal(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;border-radius:6px;cursor:pointer" title="Düzenle">✏️</button>
+          <button class="btn" onclick="silVatandas(${globalIdx})" style="padding:3px 8px;font-size:11px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;border-radius:6px;cursor:pointer;margin-left:3px" title="Sil">🗑️</button>
+        </td>
+      </tr>`;
+    }
+  }).join('');
+
+  document.getElementById('vat-table').innerHTML = `
+    ${thead}
+    <tbody>${tbody}
+    ${slice.length===0?`<tr><td colspan="10" class="no-data">Kayıt bulunamadı</td></tr>`:''}
     </tbody>`;
 
   let pags='';
