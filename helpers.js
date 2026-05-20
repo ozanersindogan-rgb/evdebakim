@@ -63,14 +63,19 @@ function concat(...arrays){
 
 
 // ═══════════════════════════════════════════════════════════
-// YEDEKLEME SİSTEMİ
-// ─ Yedekler bilgisayara JSON dosyası olarak indirilir (Firestore limiti yok)
-// ─ Her gün ilk girişte (08:30 sonrası) otomatik yedek indirmesi tetiklenir
-// ─ Geri yükleme: JSON dosyası seç → Firestore'a aktar
+// YEDEKLEME SİSTEMİ — GitHub Gist
+// ─ Yedekler GitHub Gist'e JSON olarak kaydedilir
+// ─ Her hafta bir yedek tutulur, eski yedek üzerine yazılır
+// ─ Geri yükleme: Gist'ten çek → Firestore'a aktar
 // ═══════════════════════════════════════════════════════════
 
-const YEDEK_KOLEKSIYON = 'yedekler';
-const YEDEK_MAKS = 5;
+// GitHub token kodda saklanmaz — localStorage'dan okunur
+// İlk yedek alımında otomatik sorulur
+function _githubTokenOku() { return localStorage.getItem('evdebakim_github_token') || ''; }
+function _githubTokenYaz(t) { localStorage.setItem('evdebakim_github_token', t); }
+const GIST_ACIKLAMA = 'evdebakim-yedek';
+
+const YEDEK_KOLEKSIYON = 'yedekler'; // geriye dönük uyumluluk
 
 function trBugunTarih() {
   return new Date().toLocaleDateString('tr-TR', {
@@ -85,20 +90,18 @@ function trSaat() {
   }));
 }
 
+// Haftalık kontrol: son yedekten 7 gün geçmişse otomatik al
 async function yedekGunlukKontrol() {
   try {
+    const _token = _githubTokenOku(); if (!_token) { console.log('[Yedek] GitHub token girilmemiş, atlandı.'); return; }
     const bugun = trBugunTarih();
-    const saat  = trSaat();
-    const trDakika = parseInt(new Date().toLocaleTimeString('tr-TR', { timeZone: 'Europe/Istanbul', minute: '2-digit' }));
-    const trToplamDakika = saat * 60 + trDakika;
-    if (trToplamDakika < 8 * 60 + 30) {
-      console.log(`[Yedek] Saat ${saat}:${String(trDakika).padStart(2,'0')} — yedek saati henüz gelmedi`);
-      return;
-    }
-    const sonYedek = localStorage.getItem('evdebakim_son_yedek');
-    if (sonYedek === bugun) {
-      console.log(`[Yedek] Bugün (${bugun}) zaten yedek alınmış.`);
-      return;
+    const sonYedek = localStorage.getItem('evdebakim_son_gist_yedek');
+    if (sonYedek) {
+      const gecenGun = Math.floor((new Date(bugun) - new Date(sonYedek)) / 86400000);
+      if (gecenGun < 7) {
+        console.log(`[Yedek] Son yedek ${sonYedek} (${gecenGun} gün önce) — henüz 7 gün dolmadı.`);
+        return;
+      }
     }
     await yedekAl(`Otomatik — ${bugun}`);
   } catch(e) {
@@ -106,10 +109,20 @@ async function yedekGunlukKontrol() {
   }
 }
 
+// Mevcut Gist ID'sini localStorage'dan oku/yaz
+function _gistIdOku()  { return localStorage.getItem('evdebakim_gist_id') || null; }
+function _gistIdYaz(id){ localStorage.setItem('evdebakim_gist_id', id); }
+
 async function yedekAl(aciklama) {
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   if (!allData.length) { showToast('⚠️ Yedeklenecek veri yok'); return; }
-  showToast('💾 Yedek kaydediliyor...');
+  let GITHUB_TOKEN = _githubTokenOku();
+  if (!GITHUB_TOKEN) {
+    GITHUB_TOKEN = (prompt('GitHub Personal Access Token girin (gist scope):') || '').trim();
+    if (!GITHUB_TOKEN) { showToast('⚠️ Token girilmedi'); return; }
+    _githubTokenYaz(GITHUB_TOKEN);
+  }
+  showToast('💾 Gist\'e yedek alınıyor...');
   try {
     const bugun = trBugunTarih();
     const zaman = new Date().toISOString();
@@ -119,118 +132,131 @@ async function yedekAl(aciklama) {
       aylar: [...new Set(allData.map(r=>r.AY).filter(Boolean))],
     };
     const temizVeri = allData.map(r => { const {_fbId,...rest}=r; return rest; });
+    const icerik = JSON.stringify({
+      meta: { tarih: bugun, zaman, aciklama: aciklama || `Manuel — ${bugun}`, ozet, olusturan: currentUser?.ad || 'Sistem' },
+      veri: temizVeri
+    }, null, 2);
 
-    // Firestore'a kaydet — veri JSON string olarak saklanır (1MB altı)
-    await firebase.firestore().collection(YEDEK_KOLEKSIYON).doc(bugun).set({
-      tarih: bugun,
-      zaman,
-      aciklama: aciklama || `Otomatik — ${bugun}`,
-      ozet,
-      olusturan: currentUser?.ad || 'Sistem',
-      veri: JSON.stringify(temizVeri),
+    const dosyaAdi = `evdebakim_yedek_${bugun}.json`;
+    const mevcutId = _gistIdOku();
+
+    let url, method, body;
+    if (mevcutId) {
+      // Mevcut Gist'i güncelle (üzerine yaz)
+      url    = `https://api.github.com/gists/${mevcutId}`;
+      method = 'PATCH';
+      body   = JSON.stringify({ description: `${GIST_ACIKLAMA} — ${bugun}`, files: { [dosyaAdi]: { content: icerik } } });
+    } else {
+      // Yeni Gist oluştur
+      url    = 'https://api.github.com/gists';
+      method = 'POST';
+      body   = JSON.stringify({ description: `${GIST_ACIKLAMA} — ${bugun}`, public: false, files: { [dosyaAdi]: { content: icerik } } });
+    }
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json', 'Accept': 'application/vnd.github.v3+json' },
+      body
     });
-
-    localStorage.setItem('evdebakim_son_yedek', bugun);
-    showToast(`✅ Yedek kaydedildi — ${ozet.toplamKayit} kayıt`);
-
-    // Eski yedekleri temizle (5 günlük limit)
-    await yedekEskilerSil();
-
+    if (!res.ok) {
+      const hata = await res.json().catch(()=>({}));
+      throw new Error(`GitHub API ${res.status}: ${hata.message || res.statusText}`);
+    }
+    const gist = await res.json();
+    _gistIdYaz(gist.id);
+    localStorage.setItem('evdebakim_son_gist_yedek', bugun);
+    localStorage.setItem('evdebakim_gist_url', gist.html_url);
+    showToast(`✅ Gist'e yedeklendi — ${ozet.toplamKayit} kayıt`);
     if(document.getElementById('page-yedekler')?.classList.contains('active')) yedekSayfaYukle();
   } catch(e) {
     console.error('[Yedek] Hata:', e);
-    showToast('❌ Yedek kaydedilemedi: ' + e.message);
+    showToast('❌ Yedek alınamadı: ' + e.message);
   }
 }
 
-async function yedekEskilerSil() {
-  try {
-    const snap = await firebase.firestore().collection(YEDEK_KOLEKSIYON)
-      .orderBy('tarih', 'desc').get();
-    if (snap.size <= YEDEK_MAKS) return;
-    const silinecekler = snap.docs.slice(YEDEK_MAKS);
-    await Promise.all(silinecekler.map(d => d.ref.delete()));
-    console.log(`[Yedek] ${silinecekler.length} eski yedek silindi.`);
-  } catch(e) {
-    console.warn('[Yedek] Eski yedek temizleme hatası:', e.message);
-  }
+function yedekEskilerSil() {
+  // Gist tabanlı sistemde eski yedek otomatik üzerine yazılır, ekstra silme gerekmez.
+  console.log('[Yedek] Gist sistemi — üzerine yaz aktif.');
 }
 
 async function yedekSayfaYukle() {
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   const liste = document.getElementById('yedek-liste');
   if(!liste) return;
-  const bugun = trBugunTarih();
+
+  const sonYedek  = localStorage.getItem('evdebakim_son_gist_yedek') || '—';
+  const gistUrl   = localStorage.getItem('evdebakim_gist_url') || '';
+  const gistId    = _gistIdOku() || '';
+  const tokenVar  = _githubTokenOku() ? '✅ Tanımlı' : '❌ Girilmemiş';
   const allDataOzet = allData.length
     ? `${allData.length} kayıt · ${allData.filter(r=>r.DURUM==='AKTİF').length} aktif`
     : 'Veri yüklenmedi';
 
-  liste.innerHTML = `<div style="text-align:center;padding:20px;color:#94a3b8">⏳ Yedekler yükleniyor...</div>`;
-
-  let yedekler = [];
-  try {
-    const snap = await firebase.firestore().collection(YEDEK_KOLEKSIYON)
-      .orderBy('tarih', 'desc').limit(YEDEK_MAKS + 2).get();
-    yedekler = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  } catch(e) {
-    liste.innerHTML = `<div style="color:#ef4444;padding:16px">❌ Yedekler yüklenemedi: ${e.message}</div>`;
-    return;
-  }
-
-  const sonYedek = yedekler.length ? yedekler[0].tarih : '—';
-
-  const yedekSatirlari = yedekler.map(y => {
-    const bugunMu = y.tarih === bugun;
-    const ozet = y.ozet || {};
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #f1f5f9;gap:8px">
-      <div style="flex:1;min-width:0">
-        <div style="font-weight:700;font-size:13px">${bugunMu ? '⭐ ' : ''}${y.tarih}
-          <span style="font-size:11px;font-weight:400;color:#64748b;margin-left:6px">${y.aciklama||''}</span>
-        </div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:2px">
-          ${ozet.toplamKayit||'?'} kayıt · ${ozet.aktif||'?'} aktif
-        </div>
-      </div>
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button onclick="yedekIndir('${y.id}')"
-          style="background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;color:#15803d;cursor:pointer">⬇️ İndir</button>
-        <button onclick="yedekGeriYukle('${y.id}','${y.tarih}',${ozet.toplamKayit||0})"
-          style="background:#fff7ed;border:1px solid #fed7aa;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;color:#c2410c;cursor:pointer">🔄 Yükle</button>
-        <button onclick="yedekSil('${y.id}','${y.tarih}')"
-          style="background:#fef2f2;border:1px solid #fca5a5;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;color:#dc2626;cursor:pointer">🗑️</button>
-      </div>
-    </div>`;
-  }).join('');
-
   liste.innerHTML = `
     <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px;margin-bottom:16px">
-      <div style="font-weight:800;color:#15803d;margin-bottom:6px">☁️ Firestore Yedekleme</div>
-      <div style="font-size:13px;color:#166534">
-        Yedekler otomatik olarak buluta kaydedilir. Son 5 gün saklanır.<br>
-        Son yedek: <strong>${sonYedek}</strong> &nbsp;·&nbsp; Mevcut veri: <strong>${allDataOzet}</strong>
+      <div style="font-weight:800;color:#15803d;margin-bottom:6px">☁️ GitHub Gist Yedekleme</div>
+      <div style="font-size:13px;color:#166534;line-height:1.7">
+        Token: <strong>${tokenVar}</strong> <span onclick="localStorage.removeItem('evdebakim_github_token');yedekSayfaYukle();showToast('Token silindi');" style="font-size:11px;color:#dc2626;cursor:pointer;text-decoration:underline">sıfırla</span><br>
+        Son yedek: <strong>${sonYedek}</strong><br>
+        Mevcut veri: <strong>${allDataOzet}</strong><br>
+        ${gistUrl ? `Gist: <a href="${gistUrl}" target="_blank" style="color:#1A237E">${gistId.substring(0,12)}…</a>` : 'Henüz yedek alınmamış'}
       </div>
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px">
-      <div style="font-weight:700;margin-bottom:10px">💾 Şimdi Yedek Al</div>
+      <div style="font-weight:700;margin-bottom:10px">☁️ Şimdi Gist'e Yedekle</div>
       <button onclick="yedekAl()" style="background:#1A237E;color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;cursor:pointer;width:100%">
-        ☁️ Firestore'a Yedekle (${allData.length} kayıt)
+        ☁️ Gist'e Yedek Al (${allData.length} kayıt)
       </button>
     </div>
-    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;margin-bottom:12px">
-      <div style="padding:12px 14px;font-weight:700;background:#f8fafc;border-bottom:1px solid #e2e8f0">
-        📋 Kayıtlı Yedekler (${yedekler.length}/${YEDEK_MAKS})
-      </div>
-      ${yedekler.length ? yedekSatirlari : '<div style="padding:16px;color:#94a3b8;text-align:center">Henüz yedek yok</div>'}
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:12px">
+      <div style="font-weight:700;margin-bottom:10px">🔄 Gist'ten Geri Yükle</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:10px">Kayıtlı Gist'ten son yedeği çeker ve Firestore'a yükler.</div>
+      <button onclick="yedekGisttenGeriYukle()" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;color:#c2410c;cursor:pointer;width:100%">
+        ⚠️ Gist'ten Geri Yükle
+      </button>
     </div>
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px">
-      <div style="font-weight:700;margin-bottom:10px">🔄 Dosyadan Geri Yükle</div>
-      <div style="font-size:12px;color:#64748b;margin-bottom:10px">Daha önce indirdiğiniz JSON yedek dosyasını seçin.</div>
+      <div style="font-weight:700;margin-bottom:10px">📂 JSON Dosyasından Geri Yükle</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:10px">Daha önce indirdiğiniz veya kaydettiğiniz JSON dosyasını seçin.</div>
       <input type="file" id="yedek-dosya-input" accept=".json" onchange="yedekDosyaSecildi(this)" style="display:none">
       <button onclick="document.getElementById('yedek-dosya-input').click()"
-        style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;color:#c2410c;cursor:pointer;width:100%">
+        style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px 20px;font-size:14px;font-weight:700;color:#334155;cursor:pointer;width:100%">
         📂 JSON Dosyası Seç ve Geri Yükle
       </button>
     </div>`;
+}
+
+async function yedekGisttenGeriYukle() {
+  if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
+  const GITHUB_TOKEN = _githubTokenOku();
+  if (!GITHUB_TOKEN) { showToast('⚠️ GitHub token girilmemiş'); return; }
+  const gistId = _gistIdOku();
+  if (!gistId) { showToast('❌ Kayıtlı Gist bulunamadı. Önce yedek alın.'); return; }
+  try {
+    showToast('⏳ Gist çekiliyor...');
+    const res = await fetch(`https://api.github.com/gists/${gistId}`, {
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) throw new Error(`GitHub API ${res.status}`);
+    const gist = await res.json();
+    const dosyaAdi = Object.keys(gist.files).find(f => f.startsWith('evdebakim_yedek_'));
+    if (!dosyaAdi) throw new Error('Gist\'te yedek dosyası bulunamadı');
+    const icerikRes = await fetch(gist.files[dosyaAdi].raw_url);
+    const json = await icerikRes.json();
+    const yedekVeri = json.veri || json;
+    const tarih = json.meta?.tarih || dosyaAdi;
+    const kayitSayisi = Array.isArray(yedekVeri) ? yedekVeri.length : '?';
+    if (!confirm(
+      `⚠️ DİKKAT — GERİ YÜKLEME\n\n"${tarih}" tarihli Gist yedeği geri yüklenecek.\n` +
+      `${kayitSayisi} kayıt var.\n\nMevcut TÜM veriler silinip yedekteki veriler yüklenecek.\n` +
+      `Bu işlem GERİ ALINAMAZ!\n\nDevam etmek istiyor musunuz?`
+    )) return;
+    const girdi = prompt(`Son onay için "EVET" yazın:`);
+    if ((girdi||'').trim().toUpperCase() !== 'EVET') { showToast('İptal edildi'); return; }
+    await _yedekGeriYukleVeri(yedekVeri, tarih);
+  } catch(e) {
+    showToast('❌ Gist geri yükleme hatası: ' + e.message);
+  }
 }
 
 async function yedekIndir(yedekId) {
@@ -326,6 +352,8 @@ function yedekJsonSecDosya() {
   if (inp) inp.click();
 }
 window.yedekJsonSecDosya = yedekJsonSecDosya;
+window.yedekGisttenGeriYukle = yedekGisttenGeriYukle;
+window.yedekAl = yedekAl;
 
 async function yedekJsonDosyaSecildi(inputEl) {
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
