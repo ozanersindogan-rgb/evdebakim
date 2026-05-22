@@ -17,8 +17,8 @@ function ziyaretSay(r) {
 }
 
 function renderMahalle() {
-  const ay=document.getElementById('mah-ay').value;
-  const hiz=document.getElementById('mah-hizmet').value;
+  const ay=document.getElementById('mah-ay')?.value||'';
+  const hiz=document.getElementById('mah-hizmet')?.value||'';
   const yil=document.getElementById('mah-yil')?.value||'';
   // Yıl filtresi: tarih alanlarından yıl çıkar (BANYO1 vb DD.MM.YYYY formatında)
   const data=allData.filter(r=>{
@@ -98,8 +98,8 @@ function renderMahalle() {
 }
 
 async function mahIndir() {
-  const ay=document.getElementById('mah-ay').value;
-  const hiz=document.getElementById('mah-hizmet').value;
+  const ay=document.getElementById('mah-ay')?.value||'';
+  const hiz=document.getElementById('mah-hizmet')?.value||'';
   const data=allData.filter(r=>(!ay||r.AY===ay)&&(!hiz||r['HİZMET']===hiz));
   const stats={};
   data.forEach(r=>{
