@@ -226,6 +226,40 @@
   .loading { display: flex; align-items: center; justify-content: center; padding: 32px; gap: 10px; color: var(--text-muted); font-size: 13px; }
   .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── TOPLU SİLME ── */
+  .bulk-modal .modal { width: 580px; max-width: 95vw; }
+  .bulk-preview { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+  .bulk-arrow { display: flex; align-items: center; gap: 10px; margin: 6px 0; font-size: 13px; }
+  .bulk-del { background: var(--danger-bg); color: var(--danger); padding: 5px 10px; border-radius: var(--radius); font-weight: 600; flex:1; }
+  .bulk-keep { background: var(--success-bg); color: var(--success); padding: 5px 10px; border-radius: var(--radius); font-weight: 600; flex:1; }
+  .bulk-move-list { font-size: 11px; color: var(--text-muted); margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--border); }
+  .bulk-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 8px; }
+  .merge-preview-box { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
+  .merge-row { display: flex; align-items: stretch; }
+  .merge-side { flex: 1; padding: 12px; }
+  .merge-side.del-side { background: var(--danger-bg); border-right: 1px solid var(--border); }
+  .merge-side.keep-side { background: var(--success-bg); }
+  .merge-side-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+  .merge-side.del-side .merge-side-label { color: var(--danger); }
+  .merge-side.keep-side .merge-side-label { color: var(--success); }
+  .merge-side-name { font-size: 14px; font-weight: 600; }
+  .merge-side.del-side .merge-side-name { color: var(--danger); }
+  .merge-side.keep-side .merge-side-name { color: var(--success); }
+  .merge-side-count { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+  .merge-arrow-center { display: flex; align-items: center; justify-content: center; padding: 0 8px; background: var(--bg); border-right: 1px solid var(--border); }
+  .merge-move-info { background: var(--accent-bg); border: 1px solid #bfdbfe; border-radius: var(--radius); padding: 10px 12px; font-size: 12px; color: var(--accent); margin-bottom: 8px; }
+  .bulk-dup-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px; }
+  .bulk-dup-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .bulk-dup-name { font-weight: 600; font-size: 13px; flex:1; }
+  .bulk-dup-count { font-size: 11px; color: var(--text-muted); }
+  .bulk-dup-records { display: flex; flex-direction: column; gap: 4px; }
+  .bulk-rec-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 5px; font-size: 12px; }
+  .bulk-rec-row.will-delete { background: var(--danger-bg); }
+  .bulk-rec-row.will-keep { background: var(--success-bg); }
+  .bulk-rec-badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 20px; flex-shrink:0; }
+  .bulk-rec-row.will-delete .bulk-rec-badge { background: var(--danger); color: #fff; }
+  .bulk-rec-row.will-keep .bulk-rec-badge { background: var(--success); color: #fff; }
 </style>
 </head>
 <body>
@@ -258,6 +292,10 @@
       <button class="btn" onclick="loadData()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Yenile
+      </button>
+      <button class="btn btn-danger" onclick="openBulkDelete()" id="bulkDeleteBtn" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        Toplu Mükerrer Sil
       </button>
       <button class="btn" onclick="doLogout()">Çıkış</button>
     </div>
@@ -358,6 +396,54 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('mergeModal')">İptal</button>
       <button class="btn" style="background:#7c3aed;border-color:#7c3aed;color:#fff" onclick="confirmMerge()">Birleştir</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- TOPLU SİLME MODAL -->
+<div class="modal-backdrop bulk-modal" id="bulkDeleteModal">
+  <div class="modal" style="width:600px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-icon" style="background:var(--danger-bg)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </div>
+      <span class="modal-title">Toplu Mükerrer Silme</span>
+      <button class="modal-close" onclick="closeModal('bulkDeleteModal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+      <div id="bulkDeletePreview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('bulkDeleteModal')">İptal</button>
+      <button class="btn btn-danger" id="bulkDeleteConfirmBtn" onclick="confirmBulkDelete()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+        Tümünü Sil
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- BİRLEŞTİRME ÖNIZLEME MODAL -->
+<div class="modal-backdrop" id="mergePreviewModal">
+  <div class="modal" style="width:560px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-icon" style="background:#f3e8ff">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+      </div>
+      <span class="modal-title">Birleştirme Önizleme</span>
+      <button class="modal-close" onclick="closeModal('mergePreviewModal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="mergePreviewContent"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('mergePreviewModal')">İptal</button>
+      <button class="btn" style="background:#7c3aed;border-color:#7c3aed;color:#fff" onclick="confirmMergeFromPreview()">Birleştir</button>
     </div>
   </div>
 </div>
@@ -492,6 +578,9 @@ function processData() {
   document.getElementById('cnt-all').textContent    = total;
   document.getElementById('cnt-dup').textContent    = duplicateNames.length;
   document.getElementById('cnt-sim').textContent    = [...new Set(similarGroups.flat())].length;
+  // Toplu sil butonunu göster/gizle
+  const bulkBtn = document.getElementById('bulkDeleteBtn');
+  if(bulkBtn) bulkBtn.style.display = duplicateNames.length > 0 ? '' : 'none';
 }
 
 function levenshtein(a, b) {
@@ -716,10 +805,49 @@ async function confirmRename() {
 }
 
 function openMerge(fromName, toName) {
-  pendingMerge={from:fromName.trim(),to:toName.trim()};
-  document.getElementById('mergeFrom').textContent=fromName.trim()+' ('+(nameGroups[fromName.trim()]||[]).length+' kayıt)';
-  document.getElementById('mergeTo').textContent=toName.trim()+' ('+(nameGroups[toName.trim()]||[]).length+' kayıt)';
-  openModal('mergeModal');
+  // Önizleme modalını kullan
+  const from = fromName.trim(), to = toName.trim();
+  const fromRecs = nameGroups[from] || [];
+  const toRecs   = nameGroups[to]   || [];
+  pendingMerge = {from, to};
+
+  const fromHiz = [...new Set(fromRecs.map(r=>r['HİZMET']).filter(Boolean))];
+  const toHiz   = [...new Set(toRecs.map(r=>r['HİZMET']).filter(Boolean))];
+  const fromAylar = [...new Set(fromRecs.map(r=>r.AY).filter(Boolean))].join(', ') || '—';
+  const toAylar   = [...new Set(toRecs.map(r=>r.AY).filter(Boolean))].join(', ') || '—';
+
+  document.getElementById('mergePreviewContent').innerHTML = `
+    <div class="merge-preview-box">
+      <div class="merge-row">
+        <div class="merge-side del-side">
+          <div class="merge-side-label">🗑 SİLİNECEK İSİM</div>
+          <div class="merge-side-name">${from}</div>
+          <div class="merge-side-count">${fromRecs.length} kayıt · ${fromAylar}</div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">${fromHiz.map(h=>'<span class="hizmet-pill '+( HZ_CLASS[h]||'')+'" style="margin-right:3px">'+h.split(' ')[0]+'</span>').join('')}</div>
+        </div>
+        <div class="merge-arrow-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </div>
+        <div class="merge-side keep-side">
+          <div class="merge-side-label">✅ KALACAK İSİM</div>
+          <div class="merge-side-name">${to}</div>
+          <div class="merge-side-count">${toRecs.length} kayıt · ${toAylar}</div>
+          <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">${toHiz.map(h=>'<span class="hizmet-pill '+( HZ_CLASS[h]||'')+'" style="margin-right:3px">'+h.split(' ')[0]+'</span>').join('')}</div>
+        </div>
+      </div>
+    </div>
+    <div class="merge-move-info">
+      📦 <strong>${fromRecs.length} kayıt</strong> "${from}" isiminden "${to}" ismine taşınacak.
+      Birleşim sonrası toplam: <strong>${fromRecs.length + toRecs.length} kayıt</strong>
+    </div>
+    <p style="color:var(--text-muted);font-size:12px">⚠️ "${from}" ismi sistemden kaldırılacak. Bu işlem geri alınamaz.</p>
+  `;
+  openModal('mergePreviewModal');
+}
+
+function confirmMergeFromPreview() {
+  closeModal('mergePreviewModal');
+  confirmMerge();
 }
 
 async function confirmMerge() {
@@ -735,6 +863,87 @@ async function confirmMerge() {
     closeModal('mergeModal'); showToast('✓ Birleştirildi: '+from+' → '+to);
   } catch(e){ showToast('Hata: '+e.message,'danger'); }
   pendingMerge=null;
+}
+
+
+// ── TOPLU SİLME ──
+let pendingBulkDelete = [];
+
+function openBulkDelete() {
+  const dups = duplicateNames.slice(); // mükerrer isimlerin listesi
+  if(!dups.length){ showToast('Mükerrer kayıt yok', 'default'); return; }
+
+  pendingBulkDelete = [];
+  let html = `<div class="bulk-section-title" style="margin-bottom:12px">
+    ${dups.length} mükerrer isim bulundu. Her isim için <strong>en son kayıt korunacak</strong>, eskiler silinecek.
+  </div>`;
+
+  dups.forEach(name => {
+    const recs = nameGroups[name] || [];
+    // En son kaydı bul (AY sırasına göre - son ayı koru, diğerlerini sil)
+    const AY_ORDER = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+    const sorted = [...recs].sort((a,b) => {
+      const ai = AY_ORDER.indexOf(a.AY||''), bi = AY_ORDER.indexOf(b.AY||'');
+      return bi - ai; // azalan: en son ay önce
+    });
+    const keepRec = sorted[0];
+    const deleteRecs = sorted.slice(1);
+
+    deleteRecs.forEach(r => pendingBulkDelete.push(r._id));
+
+    html += `<div class="bulk-dup-item">
+      <div class="bulk-dup-header">
+        <div class="bulk-dup-name">${name}</div>
+        <div class="bulk-dup-count">${recs.length} kayıt → ${deleteRecs.length} silinecek</div>
+      </div>
+      <div class="bulk-dup-records">
+        <div class="bulk-rec-row will-keep">
+          <span class="bulk-rec-badge">KALACAK</span>
+          <span>${keepRec.AY||'?'}</span>
+          <span class="hizmet-pill ${HZ_CLASS[keepRec['HİZMET']]||''}">${keepRec['HİZMET']||'—'}</span>
+          <span style="color:var(--text-muted);font-size:11px">${keepRec.MAHALLE||''}</span>
+        </div>
+        ${deleteRecs.map(r => `
+        <div class="bulk-rec-row will-delete">
+          <span class="bulk-rec-badge">SİLİNECEK</span>
+          <span>${r.AY||'?'}</span>
+          <span class="hizmet-pill ${HZ_CLASS[r['HİZMET']]||''}">${r['HİZMET']||'—'}</span>
+          <span style="color:var(--text-muted);font-size:11px">${r.MAHALLE||''}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('bulkDeletePreview').innerHTML = html;
+  document.getElementById('bulkDeleteConfirmBtn').textContent = pendingBulkDelete.length + ' Kaydı Sil';
+  openModal('bulkDeleteModal');
+}
+
+async function confirmBulkDelete() {
+  if(!pendingBulkDelete.length) return;
+  const btn = document.getElementById('bulkDeleteConfirmBtn');
+  btn.disabled = true; btn.textContent = 'Siliniyor...';
+  try {
+    // Firebase 500 limit - parçalara böl
+    const chunks = [];
+    for(let i=0; i<pendingBulkDelete.length; i+=400) chunks.push(pendingBulkDelete.slice(i,i+400));
+    for(const chunk of chunks) {
+      const batch = db.batch();
+      chunk.forEach(id => batch.delete(db.collection('vatandaslar').doc(id)));
+      await batch.commit();
+    }
+    allRecords = allRecords.filter(r => !pendingBulkDelete.includes(r._id));
+    processData();
+    if(selectedName) selectName(selectedName);
+    renderList();
+    closeModal('bulkDeleteModal');
+    showToast('✓ ' + pendingBulkDelete.length + ' mükerrer kayıt silindi', 'success');
+    pendingBulkDelete = [];
+  } catch(e) {
+    showToast('Hata: ' + e.message, 'danger');
+    btn.disabled = false;
+    btn.textContent = pendingBulkDelete.length + ' Kaydı Sil';
+  }
 }
 
 function showToast(msg, type='default') {
