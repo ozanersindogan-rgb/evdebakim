@@ -980,10 +980,8 @@ let pendingIFix = []; // [{oldName, newName, ids:[]}]
 
 function openIFixModal() {
   pendingIFix = [];
-  // I harfi içeren isimleri bul (sadece büyük I, İ değil)
   const affected = [];
   Object.keys(nameGroups).forEach(name => {
-    // Büyük I var mı? (İ değil)
     if(name.includes('I')) {
       const newName = name.replace(/I/g, 'İ');
       if(newName !== name) {
@@ -998,7 +996,7 @@ function openIFixModal() {
   const listEl = document.getElementById('iFixList');
 
   if(!affected.length) {
-    statusEl.innerHTML = '<span style="color:var(--success)">✓ Düzeltilecek isim yok. Tüm isimler zaten İ kullanıyor.</span>';
+    statusEl.innerHTML = '<span style="color:var(--success)">✓ Düzeltilecek isim yok.</span>';
     listEl.innerHTML = '';
     btn.disabled = true;
     openModal('iFixModal');
@@ -1006,33 +1004,55 @@ function openIFixModal() {
   }
 
   pendingIFix = affected;
-  const totalRec = affected.reduce((s,a)=>s+a.count,0);
-  statusEl.innerHTML = `<strong>${affected.length} isim</strong> ve <strong>${totalRec} kayıt</strong> etkilenecek.`;
 
-  listEl.innerHTML = affected.map(a => `
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:var(--surface)">
-      <div style="flex:1">
-        <span style="color:var(--danger);font-weight:600;font-size:13px">${a.oldName}</span>
-        <span style="color:var(--text-muted);margin:0 6px">→</span>
-        <span style="color:var(--success);font-weight:600;font-size:13px">${a.newName}</span>
-      </div>
-      <span class="badge badge-muted">${a.count} kayıt</span>
+  function updateStatus() {
+    const checked = affected.filter((_,i) => {
+      const cb = document.getElementById('ifix-cb-'+i);
+      return cb && cb.checked;
+    });
+    const totalRec = checked.reduce((s,a)=>s+a.count,0);
+    statusEl.innerHTML = `<strong>${checked.length}/${affected.length} isim</strong> seçili · <strong>${totalRec} kayıt</strong> düzeltilecek.`;
+    btn.disabled = checked.length === 0;
+    btn.textContent = checked.length > 0 ? totalRec + ' Kaydı Düzelt' : 'Düzelt';
+  }
+
+  listEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;margin-bottom:8px;border-bottom:1px solid var(--border)">
+      <input type="checkbox" id="ifix-all" checked onchange="
+        document.querySelectorAll('[id^=ifix-cb-]').forEach(c=>c.checked=this.checked);
+        (${updateStatus.toString()})();
+      " style="width:15px;height:15px;cursor:pointer">
+      <label for="ifix-all" style="font-size:12px;font-weight:600;cursor:pointer;color:var(--text-muted)">Tümünü Seç / Kaldır</label>
     </div>
-  `).join('');
+    ${affected.map((a,i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:5px;background:var(--surface)">
+      <input type="checkbox" id="ifix-cb-${i}" checked onchange="(${updateStatus.toString()})()" style="width:15px;height:15px;cursor:pointer;flex-shrink:0">
+      <label for="ifix-cb-${i}" style="flex:1;cursor:pointer;display:flex;align-items:center;gap:6px">
+        <span style="color:var(--danger);font-weight:600;font-size:13px">${a.oldName}</span>
+        <span style="color:var(--text-muted)">→</span>
+        <span style="color:var(--success);font-weight:600;font-size:13px">${a.newName}</span>
+      </label>
+      <span class="badge badge-muted">${a.count} kayıt</span>
+    </div>`).join('')}
+  `;
 
-  btn.disabled = false;
-  btn.textContent = totalRec + ' Kaydı Düzelt';
+  updateStatus();
   openModal('iFixModal');
 }
 
 async function confirmIFix() {
   if(!pendingIFix.length) return;
+  // Sadece seçili olanları al
+  const selected = pendingIFix.filter((_,i) => {
+    const cb = document.getElementById('ifix-cb-'+i);
+    return cb && cb.checked;
+  });
+  if(!selected.length) return;
   const btn = document.getElementById('iFixConfirmBtn');
   btn.disabled = true; btn.textContent = 'Düzeltiliyor...';
   try {
-    // Tüm ID'leri düzelt - batch olarak
     const allUpdates = [];
-    pendingIFix.forEach(a => {
+    selected.forEach(a => {
       a.ids.forEach(id => allUpdates.push({id, newName: a.newName}));
     });
 
@@ -1046,18 +1066,17 @@ async function confirmIFix() {
     }
 
     // Lokal güncelle
-    pendingIFix.forEach(a => {
+    selected.forEach(a => {
       a.ids.forEach(id => {
         const rec = allRecords.find(r=>r._id===id);
         if(rec) rec.ISIM_SOYISIM = a.newName;
       });
     });
 
-    const totalRec = pendingIFix.reduce((s,a)=>s+a.count,0);
+    const totalRec = selected.reduce((s,a)=>s+a.count,0);
     processData();
     if(selectedName) {
-      // Seçili isim değişti mi?
-      const found = pendingIFix.find(a=>a.oldName===selectedName);
+      const found = selected.find(a=>a.oldName===selectedName);
       if(found) selectName(found.newName);
       else selectName(selectedName);
     }
