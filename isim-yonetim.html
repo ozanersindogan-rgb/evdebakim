@@ -297,6 +297,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
         Toplu Mükerrer Sil
       </button>
+      <button class="btn" onclick="openIFixModal()" id="iFixBtn" style="background:#f0fdf4;border-color:#86efac;color:#16a34a">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        I → İ Düzelt
+      </button>
       <button class="btn" onclick="doLogout()">Çıkış</button>
     </div>
   </div>
@@ -444,6 +448,30 @@
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('mergePreviewModal')">İptal</button>
       <button class="btn" style="background:#7c3aed;border-color:#7c3aed;color:#fff" onclick="confirmMergeFromPreview()">Birleştir</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- I → İ DÜZELTME MODAL -->
+<div class="modal-backdrop" id="iFixModal">
+  <div class="modal" style="width:580px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-icon" style="background:#f0fdf4">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+      </div>
+      <span class="modal-title">I → İ Düzeltme</span>
+      <button class="modal-close" onclick="closeModal('iFixModal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div id="iFixStatus" style="margin-bottom:12px;font-size:13px;color:var(--text-muted)">Analiz ediliyor...</div>
+      <div id="iFixList" style="max-height:50vh;overflow-y:auto"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('iFixModal')">İptal</button>
+      <button class="btn" style="background:#16a34a;border-color:#16a34a;color:#fff" id="iFixConfirmBtn" onclick="confirmIFix()" disabled>Düzelt</button>
     </div>
   </div>
 </div>
@@ -943,6 +971,103 @@ async function confirmBulkDelete() {
     showToast('Hata: ' + e.message, 'danger');
     btn.disabled = false;
     btn.textContent = pendingBulkDelete.length + ' Kaydı Sil';
+  }
+}
+
+
+// ── I → İ DÜZELTME ──
+let pendingIFix = []; // [{oldName, newName, ids:[]}]
+
+function openIFixModal() {
+  pendingIFix = [];
+  // I harfi içeren isimleri bul (sadece büyük I, İ değil)
+  const affected = [];
+  Object.keys(nameGroups).forEach(name => {
+    // Büyük I var mı? (İ değil)
+    if(name.includes('I')) {
+      const newName = name.replace(/I/g, 'İ');
+      if(newName !== name) {
+        const recs = nameGroups[name] || [];
+        affected.push({ oldName: name, newName, ids: recs.map(r=>r._id), count: recs.length });
+      }
+    }
+  });
+
+  const btn = document.getElementById('iFixConfirmBtn');
+  const statusEl = document.getElementById('iFixStatus');
+  const listEl = document.getElementById('iFixList');
+
+  if(!affected.length) {
+    statusEl.innerHTML = '<span style="color:var(--success)">✓ Düzeltilecek isim yok. Tüm isimler zaten İ kullanıyor.</span>';
+    listEl.innerHTML = '';
+    btn.disabled = true;
+    openModal('iFixModal');
+    return;
+  }
+
+  pendingIFix = affected;
+  const totalRec = affected.reduce((s,a)=>s+a.count,0);
+  statusEl.innerHTML = `<strong>${affected.length} isim</strong> ve <strong>${totalRec} kayıt</strong> etkilenecek.`;
+
+  listEl.innerHTML = affected.map(a => `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:6px;background:var(--surface)">
+      <div style="flex:1">
+        <span style="color:var(--danger);font-weight:600;font-size:13px">${a.oldName}</span>
+        <span style="color:var(--text-muted);margin:0 6px">→</span>
+        <span style="color:var(--success);font-weight:600;font-size:13px">${a.newName}</span>
+      </div>
+      <span class="badge badge-muted">${a.count} kayıt</span>
+    </div>
+  `).join('');
+
+  btn.disabled = false;
+  btn.textContent = totalRec + ' Kaydı Düzelt';
+  openModal('iFixModal');
+}
+
+async function confirmIFix() {
+  if(!pendingIFix.length) return;
+  const btn = document.getElementById('iFixConfirmBtn');
+  btn.disabled = true; btn.textContent = 'Düzeltiliyor...';
+  try {
+    // Tüm ID'leri düzelt - batch olarak
+    const allUpdates = [];
+    pendingIFix.forEach(a => {
+      a.ids.forEach(id => allUpdates.push({id, newName: a.newName}));
+    });
+
+    // 400'lük parçalara böl
+    const chunks = [];
+    for(let i=0;i<allUpdates.length;i+=400) chunks.push(allUpdates.slice(i,i+400));
+    for(const chunk of chunks) {
+      const batch = db.batch();
+      chunk.forEach(({id, newName}) => batch.update(db.collection('vatandaslar').doc(id), {ISIM_SOYISIM: newName}));
+      await batch.commit();
+    }
+
+    // Lokal güncelle
+    pendingIFix.forEach(a => {
+      a.ids.forEach(id => {
+        const rec = allRecords.find(r=>r._id===id);
+        if(rec) rec.ISIM_SOYISIM = a.newName;
+      });
+    });
+
+    const totalRec = pendingIFix.reduce((s,a)=>s+a.count,0);
+    processData();
+    if(selectedName) {
+      // Seçili isim değişti mi?
+      const found = pendingIFix.find(a=>a.oldName===selectedName);
+      if(found) selectName(found.newName);
+      else selectName(selectedName);
+    }
+    renderList();
+    closeModal('iFixModal');
+    showToast('✓ ' + totalRec + ' kayıt düzeltildi', 'success');
+    pendingIFix = [];
+  } catch(e) {
+    showToast('Hata: '+e.message,'danger');
+    btn.disabled = false;
   }
 }
 
