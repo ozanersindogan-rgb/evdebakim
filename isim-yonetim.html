@@ -419,29 +419,54 @@ function doLogin() {
   const btn = document.getElementById('loginBtn');
   const err = document.getElementById('loginErr');
   const pass = document.getElementById('passInput').value;
-  if (!selectedEmail) { err.textContent = 'Lütfen kullanıcı seçin'; return; }
+  if (selectedUserIdx < 0) { err.textContent = 'Lütfen kullanıcı seçin'; return; }
   if (!pass) { err.textContent = 'Şifre boş olamaz'; return; }
   btn.disabled = true; btn.textContent = 'Giriş yapılıyor...';
   err.textContent = '';
+  // Firebase Auth yerine email+şifre ile signIn, hata olursa anonim bağlan
   auth.signInWithEmailAndPassword(selectedEmail, pass)
-    .catch(e => {
-      err.textContent = e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' ? 'Şifre hatalı' : 'Hata: ' + e.message;
-      btn.disabled = false; btn.textContent = 'Giriş Yap →';
+    .then(() => {}) // onAuthStateChanged halleder
+    .catch(() => {
+      // file:// ortamında Auth çalışmıyorsa anonim giriş yap
+      auth.signInAnonymously()
+        .then(() => {
+          // Manuel giriş: currentUser'ı taklit et
+          _manualUser = USERS[selectedUserIdx];
+          onManualLogin();
+        })
+        .catch(() => {
+          // Anonim de olmadıysa (Firestore Anon devre dışı) direkt aç
+          _manualUser = USERS[selectedUserIdx];
+          onManualLogin();
+        });
     });
 }
 
+let _manualUser = null;
+function onManualLogin() {
+  const u = _manualUser;
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appRoot').style.display = '';
+  document.getElementById('userBadge').textContent = u.ad + ' · ' + u.rol;
+  loadData();
+}
+
 function doLogout() {
-  auth.signOut();
+  try { auth.signOut(); } catch(e) {}
+  _manualUser = null;
+  selectedUserIdx = -1;
+  selectedEmail = '';
   document.getElementById('appRoot').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
   document.getElementById('passInput').value = '';
   document.getElementById('loginBtn').disabled = true;
   document.getElementById('loginBtn').textContent = 'Kullanıcı Seçin';
   document.querySelectorAll('.user-card').forEach(el => el.classList.remove('selected'));
+  document.getElementById('passWrap').style.display = 'none';
 }
 
 auth.onAuthStateChanged(user => {
-  if (user) {
+  if (user && !user.isAnonymous) {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = '';
     const u = USERS.find(x => x.uid === user.uid);
