@@ -60,7 +60,7 @@
   .login-err { font-size: 12px; color: var(--danger); margin-top: 8px; min-height: 18px; }
 
   /* ── APP ── */
-  #appRoot { display: none; }
+  #appRoot { display: none; min-height: 100vh; }
   .header {
     background: var(--surface); border-bottom: 1px solid var(--border);
     padding: 0 20px; display: flex; align-items: center; gap: 12px;
@@ -443,7 +443,7 @@ function doLogout() {
 auth.onAuthStateChanged(user => {
   if (user) {
     document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appRoot').style.display = '';
+    document.getElementById('appRoot').style.display = 'block';
     const u = USERS.find(x => x.uid === user.uid);
     document.getElementById('userBadge').textContent = u ? u.ad + ' · ' + u.rol : user.email;
     loadData();
