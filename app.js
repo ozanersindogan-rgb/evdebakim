@@ -455,13 +455,23 @@ async function fbLoadData() {
     _docsMap = {};
     window._yuklenenAylar = new Set();
 
-    snap.forEach(d => {
-      const idx = allData.length;
-      const rec = {...normalizeRecord({ ...d.data() }), _fbId: d.id};
-      allData.push(rec);
-      _docsMap[d.id] = idx;
-      if(rec.AY) window._yuklenenAylar.add(rec.AY);
-    });
+    // Veriyi parçalar halinde işle — tarayıcıyı bloke etme
+    const docs = snap.docs;
+    const CHUNK = 300;
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const chunk = docs.slice(i, i + CHUNK);
+      chunk.forEach(d => {
+        const idx = allData.length;
+        const rec = {...normalizeRecord({ ...d.data() }), _fbId: d.id};
+        allData.push(rec);
+        _docsMap[d.id] = idx;
+        if(rec.AY) window._yuklenenAylar.add(rec.AY);
+      });
+      // Her chunk arasında tarayıcıya nefes ver
+      if (i + CHUNK < docs.length) {
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
 
     if(allData.length === 0) {
       const initialData = await loadInitialData();
@@ -682,18 +692,32 @@ function refreshAll() {
     try { fn(); } catch (e) { console.warn(name + ' hatası:', e); }
   };
 
+  // ── Aktif sayfa tespiti ──
+  const aktivSayfa = document.querySelector('.page.active')?.id?.replace('page-', '') || 'dashboard';
+
+  // Her zaman çalışanlar (sidebar, form dropdown'ları — hafif)
   safe(buildSidebar, 'buildSidebar');
-  safe(renderDashboard, 'renderDashboard');
   safe(buildHizmetTabs, 'buildHizmetTabs');
   safe(buildAyTabs, 'buildAyTabs');
   safe(buildMahFilter, 'buildMahFilter');
   safe(buildFormMah, 'buildFormMah');
   safe(gkUpdateIsimler, 'gkUpdateIsimler');
   safe(duUpdateIsimler, 'duUpdateIsimler');
-  safe(filterVat, 'filterVat');
-  safe(renderGunluk, 'renderGunluk');
-  safe(renderMahalle, 'renderMahalle');
-  safe(renderExpStats, 'renderExpStats');
+
+  // Sadece aktif sayfayı render et
+  if (aktivSayfa === 'dashboard')      safe(renderDashboard, 'renderDashboard');
+  if (aktivSayfa === 'vatandaslar')    safe(filterVat, 'filterVat');
+  if (aktivSayfa === 'gunluk-kayit')   safe(renderGunluk, 'renderGunluk');
+  if (aktivSayfa === 'mahalle')        safe(renderMahalle, 'renderMahalle');
+  if (aktivSayfa === 'export')         safe(renderExpStats, 'renderExpStats');
+
+  // Aktif değilse işaretlenmiş say — navTo açılınca render edilecek
+  window._refreshPending = window._refreshPending || {};
+  if (aktivSayfa !== 'dashboard')     window._refreshPending.dashboard = true;
+  if (aktivSayfa !== 'vatandaslar')   window._refreshPending.vatandaslar = true;
+  if (aktivSayfa !== 'gunluk-kayit')  window._refreshPending['gunluk-kayit'] = true;
+  if (aktivSayfa !== 'mahalle')       window._refreshPending.mahalle = true;
+  if (aktivSayfa !== 'export')        window._refreshPending.export = true;
   // Banyo tablosu sayfası açıksa güncelle
   if (typeof banyoTabloRender === 'function') {
     const banyoPage = document.getElementById('page-personel-atama');
