@@ -354,6 +354,96 @@ function allDataOptimize() {
   // Devre dışı — eski ayların ziyaret tarihleri bellekten ve Firebase'den asla silinmez.
 }
 
+// ── YENİ AY OTOMATİK TAŞIMA ──
+// Uygulama açılışında: mevcut takvim ayında kaydı olmayan aktif vatandaşları
+// bir önceki aydaki bilgilerini kopyalayarak yeni ay kaydı oluşturur.
+async function _yeniAyOtomatikTasi() {
+  const bugunAyNo = new Date().getMonth(); // 0 tabanlı
+  const bugunAy = AY_LISTESI[bugunAyNo];
+  if (!bugunAy) return;
+
+  // Bu ay zaten kayıtları olan vatandaş+hizmet kombinasyonlarını bul
+  const buAydaVar = new Set(
+    allData
+      .filter(r => r.AY === bugunAy)
+      .map(r => r.ISIM_SOYISIM + '|' + r['HİZMET'])
+  );
+
+  // Son ayı bul (en yakın önceki ay)
+  const aySira = AY_LISTESI;
+  const sonAy = [...new Set(allData.map(r => r.AY).filter(Boolean))]
+    .filter(ay => ay !== bugunAy)
+    .sort((a, b) => aySira.indexOf(b) - aySira.indexOf(a))[0];
+
+  if (!sonAy) return; // Hiç önceki ay yok
+
+  // Son ayda AKTİF olup bu ayda kaydı olmayan vatandaşları bul
+  const tasınacaklar = allData.filter(r =>
+    r.AY === sonAy &&
+    (r.DURUM || '').toUpperCase() === 'AKTİF' &&
+    !buAydaVar.has(r.ISIM_SOYISIM + '|' + r['HİZMET'])
+  );
+
+  if (tasınacaklar.length === 0) return;
+
+  console.log(`[yeniAyTasi] ${sonAy} → ${bugunAy}: ${tasınacaklar.length} kayıt taşınacak`);
+
+  // Firestore batch ile toplu yaz (max 500/batch)
+  const BATCH_SIZE = 400;
+  for (let i = 0; i < tasınacaklar.length; i += BATCH_SIZE) {
+    const batch = firebase.firestore().batch();
+    const chunk = tasınacaklar.slice(i, i + BATCH_SIZE);
+    const yeniRecler = [];
+
+    chunk.forEach(rec => {
+      const yeniRec = {
+        ONAY_TARIHI: rec.ONAY_TARIHI || '',
+        IPTAL_NEDEN: '',
+        ISIM_SOYISIM: rec.ISIM_SOYISIM,
+        MAHALLE: rec.MAHALLE || '',
+        AY: bugunAy,
+        'HİZMET': rec['HİZMET'],
+        'CİNSİYET': rec['CİNSİYET'] || '',
+        DURUM: 'AKTİF',
+        DOGUM_TARIHI: rec.DOGUM_TARIHI || '',
+        BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'',
+        SAC1:'', SAC2:'', TIRNAK1:'', TIRNAK2:'', SAKAL1:'', SAKAL2:'',
+        NOT1: '', NOT2: '', NOT3: '',
+        TELEFON: rec.TELEFON || '',
+        TELEFON2: rec.TELEFON2 || '',
+        TELEFON_AKTIF: rec.TELEFON_AKTIF || '',
+        ADRES: rec.ADRES || '',
+        TC: rec.TC || '',
+        ENGEL: rec.ENGEL || '',
+        ENGEL_ACIKLAMA: rec.ENGEL_ACIKLAMA || '',
+      };
+      const docRef = firebase.firestore().collection('vatandaslar').doc();
+      batch.set(docRef, yeniRec);
+      yeniRecler.push({ ...yeniRec, _fbId: docRef.id });
+    });
+
+    await batch.commit();
+    yeniRecler.forEach(r => {
+      allData.push(r);
+      if (r.AY) window._yuklenenAylar.add(r.AY);
+    });
+  }
+
+  // İşlem logu
+  try {
+    await firebase.firestore().collection('islem_log').add({
+      yapan: typeof currentUser !== 'undefined' ? (currentUser.ad || '') : 'sistem',
+      uid:   typeof currentUser !== 'undefined' ? (currentUser.uid || '') : '',
+      zaman: firebase.firestore.FieldValue.serverTimestamp(),
+      isim: '—',
+      degisiklik: 'TOPLU AY TAŞIMA',
+      detay: `${sonAy} → ${bugunAy}: ${tasınacaklar.length} kayıt otomatik oluşturuldu`
+    });
+  } catch(e) { /* log hatası kritik değil */ }
+
+  showToast(`✅ ${tasınacaklar.length} vatandaş ${bugunAy} ayına taşındı`);
+}
+
 async function fbLoadData() {
   showToast('🔄 Veriler yükleniyor...');
   try {
@@ -390,6 +480,7 @@ async function fbLoadData() {
     // Personel verilerini yükle (ayarlar sayfası için)
     if (typeof personelYukle === 'function') personelYukle().catch(()=>{});
     allDataOptimize();
+    await _yeniAyOtomatikTasi(); // Yeni aya geçişte aktif vatandaşları taşı
     refreshAll();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
 
