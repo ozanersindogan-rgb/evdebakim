@@ -378,6 +378,16 @@ function navTo(id, el) {
   if(el) el.classList.add('active');
   const t=document.getElementById('page-title'); if(t) t.textContent=PAGE_TITLES[id]||id;
   try{localStorage.setItem('evdebakim_sonSayfa',id);}catch(e){}
+  // Bekleyen render varsa şimdi çalıştır
+  if (window._refreshPending?.[id]) {
+    delete window._refreshPending[id];
+    const _safe = (fn) => { try { if(typeof fn==='function') fn(); } catch(e){} };
+    if (id==='dashboard')     _safe(renderDashboard);
+    if (id==='vatandaslar')   _safe(filterVat);
+    if (id==='gunluk-kayit')  _safe(renderGunluk);
+    if (id==='mahalle')       _safe(renderMahalle);
+    if (id==='export')        _safe(renderExpStats);
+  }
   if(id==='mahalle')        if(typeof renderMahalle==='function') renderMahalle();
   if(id==='export')         {if(typeof renderExpStats==='function')renderExpStats();if(typeof expPreview==='function')expPreview();}
   if(id==='araclar')        {if(typeof arInitMahalleler==='function')arInitMahalleler();if(typeof taInit==='function')taInit();}
