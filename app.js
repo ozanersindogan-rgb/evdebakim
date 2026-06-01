@@ -362,6 +362,13 @@ async function _yeniAyOtomatikTasi() {
   const bugunAy = AY_LISTESI[bugunAyNo];
   if (!bugunAy) return;
 
+  // Daha önce bu ay taşıma yapıldıysa tekrar yapma
+  const tasimaKey = 'evdebakim_ayTasima_' + bugunAy + '_' + new Date().getFullYear();
+  if (localStorage.getItem(tasimaKey) === 'tamam') {
+    console.log('[yeniAyTasi] Bu ay zaten taşındı, atlanıyor.');
+    return;
+  }
+
   // Bu ay zaten kayıtları olan vatandaş+hizmet kombinasyonlarını bul
   const buAydaVar = new Set(
     allData
@@ -429,6 +436,9 @@ async function _yeniAyOtomatikTasi() {
     });
   }
 
+  // Başarılı — bir daha çalışmasın
+  localStorage.setItem(tasimaKey, 'tamam');
+
   // İşlem logu
   try {
     await firebase.firestore().collection('islem_log').add({
@@ -490,9 +500,12 @@ async function fbLoadData() {
     // Personel verilerini yükle (ayarlar sayfası için)
     if (typeof personelYukle === 'function') personelYukle().catch(()=>{});
     allDataOptimize();
-    await _yeniAyOtomatikTasi(); // Yeni aya geçişte aktif vatandaşları taşı
     refreshAll();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
+    // Yeni ay taşıma arka planda — hata alsa bile sayfa yüklenmiş olur
+    setTimeout(() => {
+      _yeniAyOtomatikTasi().catch(e => console.warn('[yeniAyTasi] Hata:', e.message));
+    }, 2000);
 
     // allData yüklendi — randevu defteri sayfası açıksa isim dropdown'ını güncelle
     const rdvInput = document.getElementById('rdv-isim-input');
