@@ -722,8 +722,10 @@ async function gkKaydet() {
   const seciliTipler = ['SAC','TIRNAK','SAKAL'].filter(t=>document.getElementById('gk-tip-'+t.toLowerCase())?.checked);
   const not = document.getElementById('gk-not').value;
   // tarihi geçirerek doğru ayın kaydını bul
+  const tarihAyNo = parseInt(tarih.split('-')[1], 10) - 1;
+  const tarihAyi = window.AY_LISTESI ? window.AY_LISTESI[tarihAyNo] : '';
   const adaylar = _gkKayitAdaylari(hizmet, isim, tarih);
-  const rec = adaylar[0];
+  let rec = adaylar[0];
 
   if (!rec) { _gkIslemDevam = false; showToast('Vatandas bulunamadi'); return; }
 
@@ -735,6 +737,57 @@ async function gkKaydet() {
     document.querySelector('[onclick*="durum-guncelle"]')?.click()
       || document.querySelector('[data-tab="durum-guncelle"]')?.click();
     return;
+  }
+
+  // ── YENİ AY OTOMATİK TAŞIMA ──
+  // Girilen tarihin ayı mevcut kayıttan farklıysa → o ay için yeni kayıt oluştur
+  if (tarihAyi && rec.AY && rec.AY !== tarihAyi) {
+    _gkSetBusy(true, `${tarihAyi} ayı için kayıt oluşturuluyor...`);
+    try {
+      const yeniRec = {
+        ONAY_TARIHI: rec.ONAY_TARIHI || '',
+        IPTAL_NEDEN: '',
+        ISIM_SOYISIM: rec.ISIM_SOYISIM,
+        MAHALLE: rec.MAHALLE,
+        AY: tarihAyi,
+        'HİZMET': rec['HİZMET'],
+        'CİNSİYET': rec['CİNSİYET'] || '',
+        DURUM: 'AKTİF',
+        DOGUM_TARIHI: rec.DOGUM_TARIHI || '',
+        BANYO1:'', BANYO2:'', BANYO3:'', BANYO4:'', BANYO5:'',
+        SAC1:'', SAC2:'', TIRNAK1:'', TIRNAK2:'', SAKAL1:'', SAKAL2:'',
+        NOT1: '', NOT2: '', NOT3: '',
+        TELEFON: rec.TELEFON || '',
+        TELEFON2: rec.TELEFON2 || '',
+        TELEFON_AKTIF: rec.TELEFON_AKTIF || '',
+        ADRES: rec.ADRES || '',
+        TC: rec.TC || '',
+        ENGEL: rec.ENGEL || '',
+        ENGEL_ACIKLAMA: rec.ENGEL_ACIKLAMA || '',
+      };
+      const fbPayload = Object.fromEntries(Object.entries(yeniRec).filter(([k]) => !k.startsWith('_')));
+      const docRef = await firebase.firestore().collection('vatandaslar').add(fbPayload);
+      yeniRec._fbId = docRef.id;
+      if (rec._tpFbId) { yeniRec._tpFbId = rec._tpFbId; yeniRec._tpRef = rec._tpRef; }
+      allData.push(yeniRec);
+      rec = yeniRec;
+      firebase.firestore().collection('islem_log').add({
+        yapan: typeof currentUser !== 'undefined' ? currentUser.ad : '',
+        uid:   typeof currentUser !== 'undefined' ? currentUser.uid : '',
+        zaman: firebase.firestore.FieldValue.serverTimestamp(),
+        isim: rec.ISIM_SOYISIM,
+        hizmet: rec['HİZMET'],
+        degisiklik: 'YENİ AY TAŞIMA',
+        detay: `${rec.AY} ayı için otomatik oluşturuldu`
+      }).catch(() => {});
+      showToast(`✅ ${tarihAyi} ayı için yeni kayıt oluşturuldu`);
+    } catch(e) {
+      console.error('Yeni ay kaydı oluşturulamadı:', e);
+      _gkIslemDevam = false;
+      _gkSetBusy(false);
+      showToast('❌ Yeni ay kaydı oluşturulamadı: ' + (e.message || e));
+      return;
+    }
   }
 
   const snapshot = JSON.parse(JSON.stringify(rec));
@@ -778,14 +831,23 @@ async function gkKaydet() {
       if (empty) {
         rec[empty]=tarihDB;
       } else {
-        // Tüm alanlar dolu — en eski tarihi bulup üzerine yaz, kullanıcıya bildir
-        const enEski = fields.reduce((prev, f) => {
-          const parseT = t => t && t.includes('-') ? new Date(t) : t ? new Date(t.split('.').reverse().join('-')) : new Date(0);
-          return parseT(rec[f]) < parseT(rec[prev]) ? f : prev;
-        }, fields[0]);
-        console.warn('[gkKaydet] Tüm BANYO alanları dolu, en eski tarih eziliyor:', rec[enEski], '→', tarihDB);
-        showToast('⚠️ 5 ziyaret alanı dolu — en eski kayıt güncellendi');
-        rec[enEski]=tarihDB;
+        // Tüm alanlar dolu — en eski tarihi bulup kullanıcıdan onay al
+        const parseT = t => t && t.includes('-') ? new Date(t) : t ? new Date(t.split('.').reverse().join('-')) : new Date(0);
+        const enEski = fields.reduce((prev, f) => parseT(rec[f]) < parseT(rec[prev]) ? f : prev, fields[0]);
+        const enEskiTarih = rec[enEski];
+        const onay = confirm(
+          `⚠️ 5 ziyaret alanı dolu!\n\n` +
+          `En eski kayıt: ${enEskiTarih}\n\n` +
+          `Bu kaydın üzerine yeni tarih (${tarihDB}) yazılsın mı?`
+        );
+        if (!onay) {
+          _gkIslemDevam = false;
+          _gkSetBusy(false);
+          showToast('İşlem iptal edildi');
+          return;
+        }
+        console.warn('[gkKaydet] Tüm BANYO alanları dolu, en eski tarih eziliyor:', enEskiTarih, '→', tarihDB);
+        rec[enEski] = tarihDB;
       }
     }
 
@@ -848,8 +910,14 @@ async function gkKaydet() {
 
     renderGkTable();
     gkTemizle();
-    refreshAll();
-    _gkGunlukListeyiTazele(tarih);
+    // Sadece gerekli bileşenleri güncelle (refreshAll tüm sayfayı yeniliyor ve yavaşlatıyor)
+    const _safe = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) { console.warn(name + ' hatasi:', e); } };
+    _safe(gkUpdateIsimler, 'gkUpdateIsimler');
+    _safe(duUpdateIsimler, 'duUpdateIsimler');
+    _safe(renderDashboard, 'renderDashboard');
+    _safe(renderExpStats, 'renderExpStats');
+    _safe(renderMahalle, 'renderMahalle');
+    _gkGunlukListeyiTazele(tarih); // renderGunluk buradan cagriliyor
     if (typeof navTo === 'function') {
       const navEl = document.querySelector('.nav-item[onclick*="gunluk-kayit"]');
       navTo('gunluk-kayit', navEl || null);
