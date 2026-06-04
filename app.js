@@ -668,7 +668,10 @@ async function _flushSaveQueue() {
       }, 10000);
     } else {
       _saveQueueToStorage([]);
-      if (pending.length > 0) { _saveGostergesi('kaydedildi'); refreshAll(); }
+      if (pending.length > 0) { _saveGostergesi('kaydedildi'); }
+      // ── PERFORMANS: refreshAll burada kaldırıldı ──
+      // gkKaydet() zaten gerekli render'ları yapıyor; Firestore yanıtı gelince
+      // ikinci kez tüm sayfayı yenilemeye gerek yok. Sadece pending badge güncellenir.
       clearTimeout(window._saveRetryTimer);
       window._saveRetryTimer = setTimeout(() => {
         window._flushRunning = false;
