@@ -46,7 +46,12 @@ async function syncKisiGuncelle(eskiIsim, eskiTc, vatsChanges, bilgiChanges) {
     for (const doc of snap.docs) {
       batch.update(doc.ref, vatsChanges);
       cnt++;
-      if (cnt % BATCH === 0) { await batch.commit(); batch = db.batch(); }
+      if (cnt % BATCH === 0) {
+        await batch.commit();
+        batch = db.batch();
+        // Büyük batch sonrası tarayıcıya nefes ver
+        await new Promise(r => setTimeout(r, 0));
+      }
     }
     if (cnt % BATCH !== 0) await batch.commit();
 
@@ -158,7 +163,7 @@ async function syncKbKaydet(kbEditId, changes) {
     for (const doc of snap.docs) {
       batch.update(doc.ref, vatsChanges);
       cnt++;
-      if (cnt % BATCH === 0) { await batch.commit(); batch = db.batch(); }
+      if (cnt % BATCH === 0) { await batch.commit(); batch = db.batch(); await new Promise(r => setTimeout(r, 0)); }
     }
     if (cnt % BATCH !== 0 && cnt > 0) await batch.commit();
 
