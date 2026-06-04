@@ -624,11 +624,16 @@ async function _flushSaveQueue() {
 
   if (pending.length > 0) _saveGostergesi('kaydediliyor');
 
+  // ── PERFORMANS: Her Firestore yazısı arasında tarayıcıya nefes ver ──
+  // Bu olmazsa birden fazla kuyruk öğesi varken tarayıcı "sayfa yanıt vermiyor" uyarısı verir.
+  const _yield = () => new Promise(r => setTimeout(r, 0));
+
   try {
     for (const item of pending) {
       try {
         if (item.type === 'update') {
           await firebase.firestore().collection('vatandaslar').doc(item.fbId).update(item.changes);
+          // log'u fire-and-forget bırak — await etmiyoruz, UI'ı bloklamasın
           if (currentUser) {
             firebase.firestore().collection('islem_log').add({
               yapan: currentUser.ad,
@@ -641,6 +646,8 @@ async function _flushSaveQueue() {
             }).catch(()=>{});
           }
         }
+        // Her öğeden sonra tarayıcıya bir tick ver (long-task önleme)
+        await _yield();
       } catch(e) {
         console.error('Kayit hatasi [' + item.fbId + ']:', e.code, e.message);
         // not-found: belge Firebase'de artık yok (silinmiş), tekrar denemek anlamsız — kuyruğu atla
@@ -698,7 +705,8 @@ async function fbAddDoc(rec) {
     degisiklik: 'YENİ KAYIT'
   };
   const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
-  await firebase.firestore().collection('islem_log').add(logEntry);
+  // log fire-and-forget — UI'ı bloklamasın
+  firebase.firestore().collection('islem_log').add(logEntry).catch(()=>{});
   return docRef.id;
 }
 
