@@ -1,22 +1,9 @@
 
-// 🔥 reload sonrası sayfa yönlendirme
+// 🔥 reload sonrası sayfa yönlendirme — fbLoadData içinde hallediyor, burada sadece temizlik
 document.addEventListener("DOMContentLoaded", () => {
-  // Önce postReloadPage (eski mekanizma), yoksa sonSayfa (kalıcı)
-  const page = localStorage.getItem("postReloadPage") || localStorage.getItem("evdebakim_sonSayfa");
+  // postReloadPage artık kullanılmıyor ama varsa temizle
   if (localStorage.getItem("postReloadPage")) localStorage.removeItem("postReloadPage");
-
-  if (page) {
-    // initApp tamamlanana kadar bekle, sonra navTo çağır
-    const _bekleVeGit = () => {
-      const navEl = document.getElementById('nav-' + page);
-      if (typeof navTo === 'function' && document.getElementById('page-' + page)) {
-        navTo(page, navEl || null);
-      } else {
-        setTimeout(_bekleVeGit, 150);
-      }
-    };
-    setTimeout(_bekleVeGit, 500); // veriler yüklendikten sonra
-  }
+  // Sayfa yönlendirmesi fbLoadData'nın refreshAll sonrasına taşındı
 });
 
 console.log("APP JS ÇALIŞTI");
@@ -454,8 +441,31 @@ async function _yeniAyOtomatikTasi() {
   showToast(`✅ ${tasınacaklar.length} vatandaş ${bugunAy} ayına taşındı`);
 }
 
+// ── Yükleme sırasında tıklamayı engelle (tarayıcı donma uyarısını önler) ──
+function _yuklemOverlayGoster(mesaj) {
+  let el = document.getElementById('_yukleme-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = '_yukleme-overlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(255,255,255,0.75);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;backdrop-filter:blur(2px)';
+    el.innerHTML = '<div style="width:48px;height:48px;border:5px solid #e2e8f0;border-top-color:#1A237E;border-radius:50%;animation:_spin 0.8s linear infinite"></div>'
+      + '<div id="_yukleme-mesaj" style="font-size:15px;font-weight:600;color:#1e293b"></div>';
+    const s = document.createElement('style');
+    s.textContent = '@keyframes _spin{to{transform:rotate(360deg)}}';
+    document.head.appendChild(s);
+    document.body.appendChild(el);
+  }
+  const m = document.getElementById('_yukleme-mesaj');
+  if (m) m.textContent = mesaj || 'Yükleniyor...';
+  el.style.display = 'flex';
+}
+function _yuklemOverlayGizle() {
+  const el = document.getElementById('_yukleme-overlay');
+  if (el) el.style.display = 'none';
+}
+
 async function fbLoadData() {
-  showToast('🔄 Veriler yükleniyor...');
+  _yuklemOverlayGoster('Veriler yükleniyor...');
   try {
     const snap = await firebase.firestore()
       .collection('vatandaslar')
@@ -465,10 +475,11 @@ async function fbLoadData() {
     _docsMap = {};
     window._yuklenenAylar = new Set();
 
-    // Veriyi parçalar halinde işle — tarayıcıyı bloke etme
+    // Veriyi küçük parçalarda işle — her chunk sonrası tarayıcıya nefes ver
     const docs = snap.docs;
-    const CHUNK = 300;
-    for (let i = 0; i < docs.length; i += CHUNK) {
+    const CHUNK = 150; // 300'den 150'ye düşürdük — eski bilgisayarlar için
+    const toplam = docs.length;
+    for (let i = 0; i < toplam; i += CHUNK) {
       const chunk = docs.slice(i, i + CHUNK);
       chunk.forEach(d => {
         const idx = allData.length;
@@ -477,35 +488,54 @@ async function fbLoadData() {
         _docsMap[d.id] = idx;
         if(rec.AY) window._yuklenenAylar.add(rec.AY);
       });
-      // Her chunk arasında tarayıcıya nefes ver
-      if (i + CHUNK < docs.length) {
-        await new Promise(r => setTimeout(r, 0));
-      }
+      // Her chunk sonrası tarayıcıya bir tick ver + ilerleme göster
+      _yuklemOverlayGoster(`Veriler yükleniyor... ${Math.min(i + CHUNK, toplam)} / ${toplam}`);
+      await new Promise(r => setTimeout(r, 0));
     }
 
     if(allData.length === 0) {
       const initialData = await loadInitialData();
       showToast('⏳ İlk kurulum: ' + initialData.length + ' kayıt yükleniyor...');
       await fbSeedData(initialData);
+      _yuklemOverlayGizle();
       return;
     }
 
-    await adresBilgiYukle();
-    allData.forEach(r => {
-      const bilgi = window._adresBilgi[r.ISIM_SOYISIM] || {};
-      if (!r.TELEFON && bilgi.tel) r.TELEFON = bilgi.tel;
-      if (!r.ADRES && bilgi.adres) r.ADRES = bilgi.adres;
-      if (!r.DOGUM_TARIHI && bilgi.dogum) r.DOGUM_TARIHI = bilgi.dogum;
-    });
-    // Personel verilerini yükle (ayarlar sayfası için)
-    if (typeof personelYukle === 'function') personelYukle().catch(()=>{});
+    // ── Önce sayfayı kullanılabilir hale getir, adres yüklemesi arka planda ──
     allDataOptimize();
     refreshAll();
+
+    // ── Başlangıç sayfası: ilk açılışta dashboard, yenileme sonrası kaldığı yer ──
+    const _sonSayfa = localStorage.getItem('evdebakim_sonSayfa');
+    const _hedefSayfa = _sonSayfa || 'dashboard';
+    if (typeof navTo === 'function') {
+      const navEl = document.getElementById('nav-' + _hedefSayfa);
+      navTo(_hedefSayfa, navEl || null);
+    }
+
+    _yuklemOverlayGizle();
     showToast('✅ ' + allData.length + ' kayıt yüklendi');
-    // Yeni ay taşıma arka planda — hata alsa bile sayfa yüklenmiş olur
+
+    // ── Adres bilgisi ve diğer ikincil veriler arka planda yükle ──
+    setTimeout(async () => {
+      try {
+        await adresBilgiYukle();
+        allData.forEach(r => {
+          const bilgi = window._adresBilgi[r.ISIM_SOYISIM] || {};
+          if (!r.TELEFON && bilgi.tel) r.TELEFON = bilgi.tel;
+          if (!r.ADRES && bilgi.adres) r.ADRES = bilgi.adres;
+          if (!r.DOGUM_TARIHI && bilgi.dogum) r.DOGUM_TARIHI = bilgi.dogum;
+        });
+      } catch(e) { console.warn('adresBilgi arka plan hatası:', e); }
+    }, 500);
+
+    // Personel verilerini yükle
+    if (typeof personelYukle === 'function') personelYukle().catch(()=>{});
+
+    // Yeni ay taşıma arka planda
     setTimeout(() => {
       _yeniAyOtomatikTasi().catch(e => console.warn('[yeniAyTasi] Hata:', e.message));
-    }, 2000);
+    }, 3000);
 
     // allData yüklendi — randevu defteri sayfası açıksa isim dropdown'ını güncelle
     const rdvInput = document.getElementById('rdv-isim-input');
