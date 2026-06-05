@@ -711,6 +711,9 @@ async function fbAddDoc(rec) {
 }
 
 function refreshAll() {
+  // allData değişmiş olabilir — dashboard önbelleğini sıfırla
+  if (typeof _dashCacheTemizle === 'function') _dashCacheTemizle();
+
   const safe = (fn, name) => {
     if (typeof fn !== 'function') return;
     try { fn(); } catch (e) { console.warn(name + ' hatası:', e); }
