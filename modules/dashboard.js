@@ -145,9 +145,32 @@ function _getDashStats() {
 }
 
 // allData değişince cache'i geçersiz kıl
-function _dashCacheTemizle() { _dashCache = null; _dashCacheLen = -1; }
+function _dashCacheTemizle() {
+  _dashCache = null;
+  _dashCacheLen = -1;
+  // İlk render bayrağını KORU — sadece ilk yüklemede idle kullanılır
+}
 
 function renderDashboard() {
+  // İlk render çok ağır olabilir (10k+ kayıt). Tarayıcı boşta olduğunda çalıştır.
+  if (window._dashIlkRender === undefined) {
+    window._dashIlkRender = false;
+    const _doRender = () => _renderDashboardIc();
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(_doRender, { timeout: 2000 });
+    } else {
+      setTimeout(_doRender, 50);
+    }
+    // Yükleniyor mesajı göster
+    const grid = document.getElementById('stats-grid');
+    if (grid) grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:40px 0;font-size:14px">📊 Dashboard hesaplanıyor...</div>';
+    return;
+  }
+  _renderDashboardIc();
+}
+
+function _renderDashboardIc() {
+  window._dashIlkRender = true;
   const s = _getDashStats();
   const AY_SIRA = window.AY_SIRA;
   const { sonAy, aktifTekil, oncekiTekil, toplamTekil, vefatTekil,
