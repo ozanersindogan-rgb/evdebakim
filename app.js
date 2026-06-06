@@ -477,7 +477,7 @@ async function fbLoadData() {
 
     // Veriyi küçük parçalarda işle — her chunk sonrası tarayıcıya nefes ver
     const docs = snap.docs;
-    const CHUNK = 150; // 300'den 150'ye düşürdük — eski bilgisayarlar için
+    const CHUNK = 80; // Düşük performanslı bilgisayarlar için küçük tutuyoruz
     const toplam = docs.length;
     for (let i = 0; i < toplam; i += CHUNK) {
       const chunk = docs.slice(i, i + CHUNK);
@@ -488,9 +488,9 @@ async function fbLoadData() {
         _docsMap[d.id] = idx;
         if(rec.AY) window._yuklenenAylar.add(rec.AY);
       });
-      // Her chunk sonrası tarayıcıya bir tick ver + ilerleme göster
+      // Her chunk sonrası tarayıcıya nefes ver + ilerleme göster
       _yuklemOverlayGoster(`Veriler yükleniyor... ${Math.min(i + CHUNK, toplam)} / ${toplam}`);
-      await new Promise(r => setTimeout(r, 0));
+      await new Promise(r => setTimeout(r, 10)); // 0→10ms: tarayıcıya gerçekten nefes aldırır
     }
 
     if(allData.length === 0) {
@@ -501,20 +501,44 @@ async function fbLoadData() {
       return;
     }
 
-    // ── Önce sayfayı kullanılabilir hale getir, adres yüklemesi arka planda ──
+    // ── Render + navigasyon sırası ──
+    // 1. Hafif dropdown/sidebar işlemleri
     allDataOptimize();
-    refreshAll();
 
-    // ── Başlangıç sayfası: ilk açılışta dashboard, yenileme sonrası kaldığı yer ──
+    // 2. Hedef sayfayı belirle
     const _sonSayfa = localStorage.getItem('evdebakim_sonSayfa');
     const _hedefSayfa = _sonSayfa || 'dashboard';
-    if (typeof navTo === 'function') {
-      const navEl = document.getElementById('nav-' + _hedefSayfa);
-      navTo(_hedefSayfa, navEl || null);
-    }
 
-    _yuklemOverlayGizle();
-    showToast('✅ ' + allData.length + ' kayıt yüklendi');
+    // 3. Dashboard'a gidiliyorsa idle'a ertele, diğer sayfalar için hemen render
+    if (_hedefSayfa === 'dashboard') {
+      // Sidebar ve dropdown'ları render et (hafif)
+      const _safeLite = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) {} };
+      _safeLite(buildSidebar, 'buildSidebar');
+      _safeLite(buildHizmetTabs, 'buildHizmetTabs');
+      _safeLite(buildAyTabs, 'buildAyTabs');
+      _safeLite(buildMahFilter, 'buildMahFilter');
+      _safeLite(buildFormMah, 'buildFormMah');
+      _safeLite(gkUpdateIsimler, 'gkUpdateIsimler');
+      _safeLite(duUpdateIsimler, 'duUpdateIsimler');
+      // Overlay'i kapat, sayfayı kullanılabilir hale getir
+      _yuklemOverlayGizle();
+      showToast('✅ ' + allData.length + ' kayıt yüklendi');
+      // navTo: dashboard'a git — renderDashboard idle'da çalışacak
+      if (typeof navTo === 'function') {
+        const navEl = document.getElementById('nav-dashboard');
+        navTo('dashboard', navEl || null);
+      }
+    } else {
+      // Başka sayfaya gidiliyor — önce overlay kapat, sonra o sayfayı render et
+      _yuklemOverlayGizle();
+      showToast('✅ ' + allData.length + ' kayıt yüklendi');
+      await new Promise(r => setTimeout(r, 20));
+      refreshAll();
+      if (typeof navTo === 'function') {
+        const navEl = document.getElementById('nav-' + _hedefSayfa);
+        navTo(_hedefSayfa, navEl || null);
+      }
+    }
 
     // ── Adres bilgisi ve diğer ikincil veriler arka planda yükle ──
     setTimeout(async () => {
