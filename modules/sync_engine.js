@@ -95,7 +95,19 @@ async function syncKisiGuncelle(eskiIsim, eskiTc, vatsChanges, bilgiChanges) {
 //   Hem vatandaslar hem vatandas_bilgi senkronize edilir.
 // ─────────────────────────────────────────────
 async function syncSaveEdit(eskiIsim, eskiTc, tümChanges) {
-  // tümChanges: modal'dan okunan tüm alan-değer çifti
+  // ── PERFORMANS: Sadece yayılması gereken alanlar değiştiyse sync engine'i çalıştır ──
+  // Tarih, durum, not gibi alanlar değişmişse vatandaslar_bilgi'ye yayılmaya gerek yok.
+  // Bu kontrol sayesinde çoğu düzenleme tek döküman güncellemiyle biter.
+  const YAYILAN_ALANLAR = ['ISIM_SOYISIM','MAHALLE','TC','TELEFON','TELEFON2',
+                            'ADRES','DOGUM_TARIHI','ENGEL','ENGEL_YUZDE','ENGEL_ACIKLAMA'];
+
+  const yayilanDegisti = YAYILAN_ALANLAR.some(k => k in tümChanges);
+  const isimDegisti = tümChanges.ISIM_SOYISIM && tümChanges.ISIM_SOYISIM !== eskiIsim;
+
+  if (!yayilanDegisti) {
+    // Sadece tek döküman güncellendi (fbUpdateDoc zaten yaptı), sync gerekmez
+    return;
+  }
 
   // vatandas_bilgi'ye gidecek alanları ayır
   const BILGI_ALANLARI = ['ISIM_SOYISIM','MAHALLE','TC','TELEFON','TELEFON2',
@@ -103,13 +115,16 @@ async function syncSaveEdit(eskiIsim, eskiTc, tümChanges) {
   const bilgiChanges = {};
   BILGI_ALANLARI.forEach(k => {
     if (k in tümChanges) {
-      // vatandas_bilgi'de AD_SOYAD kullanılır
       const bilgiKey = k === 'ISIM_SOYISIM' ? 'AD_SOYAD' : k;
       bilgiChanges[bilgiKey] = tümChanges[k];
     }
   });
 
-  await syncKisiGuncelle(eskiIsim, eskiTc, tümChanges, bilgiChanges);
+  // Yayılan alanlar değiştiyse: sadece o alanları vatandaslar'a yay (diğerlerini değil)
+  const vatsChanges = {};
+  YAYILAN_ALANLAR.forEach(k => { if (k in tümChanges) vatsChanges[k] = tümChanges[k]; });
+
+  await syncKisiGuncelle(eskiIsim, eskiTc, vatsChanges, bilgiChanges);
 
   // İsim değiştiyse: kbData'daki eski isim referansları da güncelle
   if (tümChanges.ISIM_SOYISIM && tümChanges.ISIM_SOYISIM !== eskiIsim) {

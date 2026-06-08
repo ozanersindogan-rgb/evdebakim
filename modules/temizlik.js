@@ -378,34 +378,36 @@ function navTo(id, el) {
   if(el) el.classList.add('active');
   const t=document.getElementById('page-title'); if(t) t.textContent=PAGE_TITLES[id]||id;
   try{localStorage.setItem('evdebakim_sonSayfa',id);}catch(e){}
-  // Bekleyen render varsa şimdi çalıştır
-  if (window._refreshPending?.[id]) {
-    delete window._refreshPending[id];
-    const _safe = (fn) => { try { if(typeof fn==='function') fn(); } catch(e){} };
-    if (id==='dashboard')     _safe(renderDashboard);
-    if (id==='vatandaslar')   _safe(filterVat);
-    if (id==='gunluk-kayit')  _safe(renderGunluk);
-    if (id==='mahalle')       _safe(renderMahalle);
-    if (id==='export')        _safe(renderExpStats);
-  }
-  if(id==='mahalle')        if(typeof renderMahalle==='function') renderMahalle();
-  if(id==='export')         {if(typeof renderExpStats==='function')renderExpStats();if(typeof expPreview==='function')expPreview();}
-  if(id==='araclar')        {if(typeof arInitMahalleler==='function')arInitMahalleler();if(typeof taInit==='function')taInit();}
-  if(id==='islem-log')      if(typeof renderIslemLog==='function')renderIslemLog();
-  if(id==='adres-guncelle') if(typeof adresRender==='function')adresRender();
-  if(id==='temizlik-plan')  tpFirestoreYukle();
-  if(id==='kisi-bilgi')     if(typeof kbYukle==='function')kbYukle();
-  if(id==='takvim')         { if(typeof renderTakvim==='function')renderTakvim(); if(typeof _verilemediiBadgeGuncelle==='function')_verilemediiBadgeGuncelle(); }
-  if(id==='sayi-ver')       if(typeof svRender==='function')svRender();
-  if(id==='plan')           { if(typeof renderPlan==='function')renderPlan(); if(typeof rdvSayfaInit==='function')rdvSayfaInit(); }
-  if(id==='yedekler')       if(typeof yedekSayfaYukle==='function')yedekSayfaYukle();
-  if(id==='personel-atama') if(typeof banyoTabloRender==='function')banyoTabloRender();
-  if(id==='ayarlar')        if(typeof ayarlarPersonelRender==='function')ayarlarPersonelRender();
-  if(id==='gunluk-periyot') if(typeof periyotYukle==='function')periyotYukle();
-  if(id==='analiz')         if(typeof analizRender==='function')analizRender();
-  if(id==='stok-temizlik')  if(typeof stokRender==='function')stokRender('temizlik');
-  if(id==='stok-medikal')   if(typeof stokRender==='function')stokRender('medikal');
-  if(id==='hemsire-takip') if(typeof hmYukle==='function')hmYukle();
+
+  const _safe = (fn) => { try { if(typeof fn==='function') fn(); } catch(e){} };
+
+  // ── Bekleyen render varsa + her sayfa geçişinde gerekli render'lar ──
+  // Çift render önlendi: _refreshPending temizlendi ise tekrar çağrılmaz
+  const wasPending = !!(window._refreshPending?.[id]);
+  if (wasPending) delete window._refreshPending[id];
+
+  if (id==='dashboard')     _safe(renderDashboard);
+  if (id==='vatandaslar')   _safe(filterVat);
+  if (id==='gunluk-kayit')  _safe(renderGunluk);
+  if (id==='mahalle')       _safe(renderMahalle);
+  if (id==='export')        { _safe(renderExpStats); _safe(expPreview); }
+  if (id==='araclar')       { _safe(arInitMahalleler); _safe(taInit); }
+  if (id==='islem-log')     _safe(renderIslemLog);
+  if (id==='adres-guncelle') _safe(adresRender);
+  if (id==='temizlik-plan') _safe(tpFirestoreYukle);
+  if (id==='kisi-bilgi')    _safe(kbYukle);
+  if (id==='takvim')        { _safe(renderTakvim); _safe(_verilemediiBadgeGuncelle); }
+  if (id==='sayi-ver')      _safe(svRender);
+  if (id==='plan')          { _safe(renderPlan); _safe(rdvSayfaInit); }
+  if (id==='yedekler')      _safe(yedekSayfaYukle);
+  if (id==='personel-atama') _safe(banyoTabloRender);
+  if (id==='ayarlar')       _safe(ayarlarPersonelRender);
+  if (id==='gunluk-periyot') _safe(periyotYukle);
+  if (id==='analiz')        _safe(analizRender);
+  if (id==='stok-temizlik') { if(typeof stokRender==='function') stokRender('temizlik'); }
+  if (id==='stok-medikal')  { if(typeof stokRender==='function') stokRender('medikal'); }
+  if (id==='hemsire-takip') _safe(hmYukle);
+
   if(typeof mobMenuKapat==='function')mobMenuKapat();
   const mbnMap={dashboard:'mbn-dashboard',gunluk:'mbn-gunluk','gunluk-kayit':'mbn-gunluk-kayit',vatandaslar:'mbn-vatandaslar'};
   if(mbnMap[id]){document.querySelectorAll('.mbn-item').forEach(b=>b.classList.remove('active'));document.getElementById(mbnMap[id])?.classList.add('active');}
