@@ -1060,11 +1060,13 @@ async function saveEdit() {
       await syncSaveEdit(eskiIsim, eskiTc, changes);
     }
 
-    // Ekranları yenile
+    // Ekranları yenile — sadece gerekli olanları
     if (typeof filterVat    === 'function') filterVat();
     if (typeof buildSidebar === 'function') buildSidebar();
-    if (typeof renderDashboard === 'function') renderDashboard();
-    if (typeof kbRender     === 'function') kbRender();
+    // Dashboard cache'i temizle ama hemen render etme (aktifse zaten görünür)
+    if (typeof _dashCacheTemizle === 'function') _dashCacheTemizle();
+    const _apEdit = document.querySelector('.page.active')?.id?.replace('page-', '') || '';
+    if (_apEdit === 'dashboard' && typeof renderDashboard === 'function') renderDashboard();
 
     closeEditModal();
     showToast('✅ Kaydedildi');
