@@ -777,7 +777,7 @@ function refreshAll() {
   const aktivSayfa = document.querySelector('.page.active')?.id?.replace('page-', '') || 'dashboard';
 
   // Her zaman çalışanlar (sidebar, form dropdown'ları — hafif)
-  safe(buildSidebar, 'buildSidebar');
+  if(!window._sidebarBuilt){ safe(buildSidebar, 'buildSidebar'); window._sidebarBuilt=true; }
   safe(buildHizmetTabs, 'buildHizmetTabs');
   safe(buildAyTabs, 'buildAyTabs');
   safe(buildMahFilter, 'buildMahFilter');
