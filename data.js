@@ -78,20 +78,13 @@ function initApp() {
 
 
 // ============ SIDEBAR ============
-
 function buildSidebar() {
-  if(window._sidebarCache && Date.now()-window._sidebarCache.ts < 30000){
-    const el=document.getElementById('sidebar-mini');
-    if(el) el.innerHTML=window._sidebarCache.html;
-    return;
-  }
-
   const AY_SIRA = window.AY_SIRA;
   const sonAy = [...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>AY_SIRA.indexOf(b)-AY_SIRA.indexOf(a))[0];
   const sonAyAktif = allData.filter(r=>r.AY===sonAy && r.DURUM==='AKTİF');
   const byH = {};
   HIZMET_KEYS.forEach(h => byH[h] = sonAyAktif.filter(r=>r['HİZMET']===h).length);
-  const _html = `
+  document.getElementById('sidebar-mini').innerHTML = `
     <div class="mini-stat"><div class="v">${new Set(allData.filter(r=>r.DURUM==='AKTİF'&&r.AY===([...new Set(allData.map(r=>r.AY).filter(Boolean))].sort((a,b)=>['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'].indexOf(b)-['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'].indexOf(a))[0])).map(r=>r['HİZMET']+'|'+r.ISIM_SOYISIM)).size}</div><div class="l">Aktif</div></div>
     <div class="mini-stat"><div class="v">${allData.length}</div><div class="l">Toplam</div></div>
     <div class="mini-stat"><div class="v">${byH['KADIN BANYO']||0}</div><div class="l">Kad. Banyo</div></div>
@@ -99,8 +92,6 @@ function buildSidebar() {
     <div class="mini-stat"><div class="v">${byH['KUAFÖR']||0}</div><div class="l">Kuaför</div></div>
     <div class="mini-stat"><div class="v">${byH['TEMİZLİK']||0}</div><div class="l">Temizlik</div></div>
   `;
-  document.getElementById('sidebar-mini').innerHTML = _html;
-  window._sidebarCache={ts:Date.now(),html:_html};
 }
 
 // ============ NAV ============

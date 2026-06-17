@@ -777,7 +777,7 @@ function refreshAll() {
   const aktivSayfa = document.querySelector('.page.active')?.id?.replace('page-', '') || 'dashboard';
 
   // Her zaman çalışanlar (sidebar, form dropdown'ları — hafif)
-  if(!window._sidebarBuilt){safe(buildSidebar,'buildSidebar');window._sidebarBuilt=true;}
+  safe(buildSidebar, 'buildSidebar');
   safe(buildHizmetTabs, 'buildHizmetTabs');
   safe(buildAyTabs, 'buildAyTabs');
   safe(buildMahFilter, 'buildMahFilter');
@@ -786,9 +786,9 @@ function refreshAll() {
   safe(duUpdateIsimler, 'duUpdateIsimler');
 
   // Sadece aktif sayfayı render et
-  if (aktivSayfa === 'dashboard')      setTimeout(()=>safe(renderDashboard,'renderDashboard'),0);
+  if (aktivSayfa === 'dashboard')      safe(renderDashboard, 'renderDashboard');
   if (aktivSayfa === 'vatandaslar')    safe(filterVat, 'filterVat');
-  if (aktivSayfa === 'gunluk-kayit')   setTimeout(()=>safe(renderGunluk,'renderGunluk'),0);
+  if (aktivSayfa === 'gunluk-kayit')   safe(renderGunluk, 'renderGunluk');
   if (aktivSayfa === 'mahalle')        safe(renderMahalle, 'renderMahalle');
   if (aktivSayfa === 'export')         safe(renderExpStats, 'renderExpStats');
 
