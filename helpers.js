@@ -120,7 +120,8 @@ function _gistDosyalarYaz(arr) {
   localStorage.setItem('evdebakim_gist_dosyalar', JSON.stringify(arr));
 }
 
-async function yedekAl(aciklama) {
+async function yedekAl(){ console.warn("[Yedek] Geçici olarak devre dışı bırakıldı"); return; }
+/*
   if(!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   if (!allData.length) { showToast('⚠️ Yedeklenecek veri yok'); return; }
   let GITHUB_TOKEN = _githubTokenOku();
@@ -456,3 +457,5 @@ window.yedekJsonDosyaSecildi = yedekJsonDosyaSecildi;
 // Artık kullanılmıyor ama eski çağrılar için boş bırakıldı
 function yedekleriGoster() { navTo('yedekler', document.getElementById('nav-yedekler')); }
 function yedekModalKapat() {}
+
+*/
