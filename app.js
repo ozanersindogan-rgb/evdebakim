@@ -469,6 +469,7 @@ async function fbLoadData() {
   try {
     const snap = await firebase.firestore()
       .collection('vatandaslar')
+      .where('AY','==', (localStorage.getItem('aktifAy') || new Date().toLocaleDateString('tr-TR',{month:'long',year:'numeric'})))
       .get();
 
     allData = [];
@@ -777,7 +778,7 @@ function refreshAll() {
   const aktivSayfa = document.querySelector('.page.active')?.id?.replace('page-', '') || 'dashboard';
 
   // Her zaman çalışanlar (sidebar, form dropdown'ları — hafif)
-  if(!window._sidebarBuilt){ safe(buildSidebar, 'buildSidebar'); window._sidebarBuilt=true; }
+  safe(buildSidebar, 'buildSidebar');
   safe(buildHizmetTabs, 'buildHizmetTabs');
   safe(buildAyTabs, 'buildAyTabs');
   safe(buildMahFilter, 'buildMahFilter');
