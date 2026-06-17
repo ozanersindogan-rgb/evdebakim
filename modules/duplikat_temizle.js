@@ -8,6 +8,23 @@ let _dtKorunan = {};
 // Toplu seçim için seçili fbId seti
 let _dtSecili = new Set();
 
+// Akıllı puanlama
+function dtPuanla(r){
+  let p=0;
+  ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5','SAC1','SAC2','SAKAL1','SAKAL2','TIRNAK1','TIRNAK2','TIRNAK3']
+    .forEach(f=>{ if(r[f]) p+=10; });
+  ['NOT1','NOT2','NOT3'].forEach(f=>{ if(r[f]) p+=5; });
+  if(r.ONAY_TARIHI) p+=20;
+  if(r.IPTAL_TARIHI) p+=20;
+  return p;
+}
+
+function dtTarihImza(r){
+ return ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5','SAC1','SAC2','SAKAL1','SAKAL2','TIRNAK1','TIRNAK2','TIRNAK3']
+ .map(f=>r[f]).filter(Boolean).sort().join('|');
+}
+
+
 function dtTara() {
   _dtSonuc = [];
   _dtKorunan = {};
@@ -23,8 +40,24 @@ function dtTara() {
   for (const [key, liste] of Object.entries(gruplar)) {
     if (liste.length < 2) continue;
     const [isim, hizmet, ay] = key.split('__');
-    // Varsayılan: ilk kayıt korunan
-    _dtKorunan[_dtSonuc.length] = 0;
+    // Akıllı koruma
+    let enIyi=0,enPuan=-1;
+    const gorulen=new Set();
+
+    liste.forEach(({r},i)=>{
+      const imza=dtTarihImza(r);
+      let p=dtPuanla(r);
+
+      if(imza && gorulen.has(imza)) p=-9999;
+      if(imza) gorulen.add(imza);
+
+      if(p>enPuan){
+        enPuan=p;
+        enIyi=i;
+      }
+    });
+
+    _dtKorunan[_dtSonuc.length] = enIyi;
     _dtSonuc.push({ isim, hizmet, ay, kayitlar: liste });
   }
 
