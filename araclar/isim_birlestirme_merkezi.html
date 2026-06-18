@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>İsim Birleştirme Merkezi</title>
+<style>
+body{font-family:Arial;max-width:900px;margin:auto;padding:20px}
+label{display:block;border:1px solid #ccc;padding:10px;margin:10px 0}
+button{padding:8px 12px;margin:5px}
+</style>
+</head>
+<body>
+<h2>🔧 İsim Birleştirme Merkezi</h2>
+<input type="file" id="jsonFile"><br><br>
+<div id="panel"></div>
+<button onclick="prev()">⬅ Önceki</button>
+<button onclick="nextRec()">➡ Sonraki</button>
+<button onclick="saveJson()">💾 Sonuçları İndir</button>
+<div id="durum"></div>
+
+<script>
+let data=[],idx=0,sec={};
+
+document.getElementById('jsonFile').onchange=e=>{
+ const f=e.target.files[0];
+ const r=new FileReader();
+ r.onload=()=>{
+   data=JSON.parse(r.result);
+   idx=0;
+   show();
+ };
+ r.readAsText(f,'utf-8');
+};
+
+function show(){
+ if(!data.length)return;
+ const k=data[idx];
+ document.getElementById('durum').innerHTML=(idx+1)+' / '+data.length;
+ document.getElementById('panel').innerHTML=`
+ <h3>${k.telefon}</h3>
+ <label><input type="radio" name="i" value="${k.isim1}" ${sec[k.telefon]===k.isim1?'checked':''}> ${k.isim1}</label>
+ <label><input type="radio" name="i" value="${k.isim2}" ${sec[k.telefon]===k.isim2?'checked':''}> ${k.isim2}</label>`;
+}
+function remember(){
+ const s=document.querySelector('input[name=i]:checked');
+ if(s && data[idx]) sec[data[idx].telefon]=s.value;
+}
+function nextRec(){remember(); if(idx<data.length-1){idx++;show();}}
+function prev(){remember(); if(idx>0){idx--;show();}}
+function saveJson(){
+ remember();
+ const out=data.map(x=>({telefon:x.telefon,dogruIsim:sec[x.telefon]||""}));
+ const blob=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='isim_secimleri.json';
+ a.click();
+}
+</script>
+</body>
+</html>
