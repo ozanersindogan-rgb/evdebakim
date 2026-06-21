@@ -3,6 +3,8 @@
 // ADRES & TELEFON YÖNETİMİ
 // ═══════════════════════════════════════════════════════════
 window._adresBilgi = {};
+window._adresIndex={};
+function adresIndexOlustur(){const idx={};(allData||[]).forEach(r=>{const k=r.ISIM_SOYISIM;if(!k)return;if(!idx[k])idx[k]={vd:r,hizmetler:new Set()};if(r['HİZMET'])idx[k].hizmetler.add(r['HİZMET']);});window._adresIndex=idx;}
 
 async function adresBilgiYukle() {
   try {
@@ -140,6 +142,10 @@ function adresSortBy(kol) {
   adresRender();
 }
 
+
+let _adresAramaTimer;
+function adresRenderDebounce(){clearTimeout(_adresAramaTimer);_adresAramaTimer=setTimeout(adresRender,300);}
+
 function adresRender() {
   const araVal    = (document.getElementById('adres-ara')?.value     || '').toUpperCase();
   const mAra      = (document.getElementById('af-mahalle')?.value    || '').toUpperCase();
@@ -150,12 +156,12 @@ function adresRender() {
   const sayac     = document.getElementById('adres-count');
 
   // Manuel ekleme formunu yerleştir
-  const manuelContainer = document.getElementById('adres-manuel-form') || (() => {
+  const manuelContainer = window._adresManuelFormOlustu ? null : (document.getElementById('adres-manuel-form') || (() => {
     const div = document.createElement('div'); div.id = 'adres-manuel-form';
     tablo && tablo.parentNode && tablo.parentNode.insertBefore(div, tablo);
     return div;
   })();
-  if (manuelContainer) {
+  if (manuelContainer) { window._adresManuelFormOlustu=true;
     const mahOpts = getAdresMahalleler().map(m => `<option value="${m}">${m}</option>`).join('');
     manuelContainer.innerHTML = `
       <div style="background:#EEF2FF;border:1.5px solid #c7d2fe;border-radius:12px;padding:14px 16px;margin-bottom:16px">
@@ -229,8 +235,9 @@ function adresRender() {
   // Her isim için önce temel veri objesi oluştur
   let rows = tumIsimler.map(isim => {
     const b   = (window._adresBilgi || {})[isim] || {};
-    const vd  = (allData||[]).find(x => x.ISIM_SOYISIM === isim) || {};
-    const hizmetler = [...new Set((allData||[]).filter(x => x.ISIM_SOYISIM === isim).map(x => x['HİZMET']).filter(Boolean))];
+    const idx=(window._adresIndex||{})[isim]||{};
+    const vd=idx.vd||{};
+    const hizmetler=[...(idx.hizmetler||[])];
     const mahalle   = vd.MAHALLE || b.mahalle || '';
     const dogum     = vd.DOGUM_TARIHI || b.dogum || '';
     const aktifTel  = (b.telAktif === '2' && b.tel2) ? b.tel2 : (b.tel || vd.TELEFON || '');
@@ -1356,3 +1363,5 @@ function adresSekmeAc(sekme) {
   if (tabM) { tabM.style.borderBottomColor = sekme === 'mukerrer' ? '#1A237E' : 'transparent'; tabM.style.color = sekme === 'mukerrer' ? '#1A237E' : '#94a3b8'; }
 }
 window.adresSekmeAc = adresSekmeAc;
+
+let _adresTimer; function adresRenderGecikmeli(){clearTimeout(_adresTimer);_adresTimer=setTimeout(adresRender,300);} 
