@@ -106,6 +106,7 @@ async function adresManuelEkle() {
     ['amh-kadin','amh-erkek','amh-kuafor','amh-temizlik'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
     const aktEl=document.getElementById('am-tel-aktif');if(aktEl)aktEl.value='1';
     showToast('✅ '+isim+' eklendi/güncellendi');
+    adresOnbellekSifirla();
     adresRender();
   } catch(e){showToast('Hata: '+e.message);}
 }
@@ -252,43 +253,75 @@ function adresRender() {
 
   if (!tablo) return;
 
-  // Sadece adres_bilgi koleksiyonundaki isimler (allData birleşimi kaldırıldı)
-  let tumIsimler = Object.keys(window._adresBilgi || {});
+  // ── ÖNBELLEKLENMIŞ SATIRLAR ─────────────────────────────────────────────────
+  // allData büyük olduğunda her render'da 700×allData.length işlem yapılıyor.
+  // Çözüm: allData'dan Map oluştur (O(n)), sonra her isim için O(1) erişim.
+  // Önbellek sadece allData veya _adresBilgi değiştiğinde yeniden inşa edilir.
+  const adresBilgi = window._adresBilgi || {};
+  const adresBilgiHash = Object.keys(adresBilgi).length;
+  const allDataLen = (typeof allData !== 'undefined' ? allData.length : 0);
 
-  // Her isim için önce temel veri objesi oluştur
-  let rows = tumIsimler.map(isim => {
-    const b   = (window._adresBilgi || {})[isim] || {};
-    const vd  = (allData||[]).find(x => x.ISIM_SOYISIM === isim) || {};
-    const hizmetler = [...new Set((allData||[]).filter(x => x.ISIM_SOYISIM === isim).map(x => x['HİZMET']).filter(Boolean))];
-    const mahalle   = vd.MAHALLE || b.mahalle || '';
-    const dogum     = vd.DOGUM_TARIHI || b.dogum || '';
-    const aktifTel  = (b.telAktif === '2' && b.tel2) ? b.tel2 : (b.tel || vd.TELEFON || '');
-    const digerTel  = (b.telAktif === '2' && b.tel2) ? b.tel  : (b.tel2 || vd.TELEFON2 || '');
-    const adresV    = b.adres || vd.ADRES || '';
-    return { isim, b, vd, hizmetler, mahalle, dogum, aktifTel, digerTel, adresV };
-  });
+  if (!window._adresRowCache ||
+      window._adresRowCacheBilgiLen !== adresBilgiHash ||
+      window._adresRowCacheDataLen  !== allDataLen) {
+
+    // allData'dan isim → ilk kayıt (vd) ve hizmetler Map'i tek geçişte oluştur
+    const vdMap  = new Map(); // isim → ilk allData satırı
+    const hzMap  = new Map(); // isim → Set<hizmet>
+    if (typeof allData !== 'undefined') {
+      for (const x of allData) {
+        const isim = x.ISIM_SOYISIM;
+        if (!isim) continue;
+        if (!vdMap.has(isim)) vdMap.set(isim, x);
+        if (!hzMap.has(isim)) hzMap.set(isim, new Set());
+        if (x['HİZMET']) hzMap.get(isim).add(x['HİZMET']);
+      }
+    }
+
+    window._adresRowCache = Object.keys(adresBilgi).map(isim => {
+      const b        = adresBilgi[isim] || {};
+      const vd       = vdMap.get(isim) || {};
+      const hizmetler = [...(hzMap.get(isim) || [])];
+      const mahalle  = vd.MAHALLE || b.mahalle || '';
+      const dogum    = vd.DOGUM_TARIHI || b.dogum || '';
+      const aktifTel = (b.telAktif === '2' && b.tel2) ? b.tel2 : (b.tel || vd.TELEFON || '');
+      const digerTel = (b.telAktif === '2' && b.tel2) ? b.tel  : (b.tel2 || vd.TELEFON2 || '');
+      const adresV   = b.adres || vd.ADRES || '';
+      // Arama için önceden büyük harfe çevir
+      const _isimU   = isim.toUpperCase();
+      const _mahalleU = mahalle.toUpperCase();
+      const _adresU  = adresV.toUpperCase();
+      const _tel1    = aktifTel.replace(/\s/g,'');
+      const _tel2str = digerTel.replace(/\s/g,'');
+      return { isim, b, vd, hizmetler, mahalle, dogum, aktifTel, digerTel, adresV,
+               _isimU, _mahalleU, _adresU, _tel1, _tel2str };
+    });
+    window._adresRowCacheBilgiLen = adresBilgiHash;
+    window._adresRowCacheDataLen  = allDataLen;
+  }
+
+  let rows = window._adresRowCache.slice(); // önbellekten kopyala, orijinali koruma
 
   // HİZMET FİLTRESİ
   if (hzFiltre.size > 0) {
     rows = rows.filter(r => r.hizmetler.some(h => hzFiltre.has(h)));
   }
 
-  // GENEL ARAMA
+  // GENEL ARAMA — önceden hesaplanmış _isimU/_mahalleU/_adresU/_tel1/_tel2str kullan
   if (araVal) {
     rows = rows.filter(r =>
-      r.isim.includes(araVal) ||
-      r.mahalle.toUpperCase().includes(araVal) ||
-      r.adresV.toUpperCase().includes(araVal) ||
-      r.aktifTel.replace(/\s/g,'').includes(araVal) ||
-      r.digerTel.replace(/\s/g,'').includes(araVal)
+      r._isimU.includes(araVal) ||
+      r._mahalleU.includes(araVal) ||
+      r._adresU.includes(araVal) ||
+      r._tel1.includes(araVal) ||
+      r._tel2str.includes(araVal)
     );
   }
 
   // SÜTUN FİLTRELERİ
-  if (mAra) rows = rows.filter(r => r.mahalle.toUpperCase().includes(mAra));
-  if (tAra) rows = rows.filter(r =>
-    r.aktifTel.replace(/\s/g,'').includes(tAra) || r.digerTel.replace(/\s/g,'').includes(tAra));
-  if (aAra) rows = rows.filter(r => r.adresV.toUpperCase().includes(aAra));
+  if (mAra) rows = rows.filter(r => r._mahalleU.includes(mAra));
+  if (tAra) rows = rows.filter(r => r._tel1.includes(tAra) || r._tel2str.includes(tAra));
+  if (aAra) rows = rows.filter(r => r._adresU.includes(aAra));
 
   // SIRALAMA
   const kol = window._adresSortKol || 'isim';
@@ -454,6 +487,11 @@ function adresSayfaGit(no) {
   adresRender();
 }
 window.adresSayfaGit = adresSayfaGit;
+
+// ── ÖNBELLEK SIFIRLA (kayıt ekle/sil/güncelle sonrası çağır) ──────────────
+function adresOnbellekSifirla() { window._adresRowCache = null; }
+window.adresOnbellekSifirla = adresOnbellekSifirla;
+
 async function adresHizmetDegistir(isim, hizmet) {
   const kayitlar = (allData||[]).filter(r => r.ISIM_SOYISIM === isim);
   const mevcutHizmetler = [...new Set(kayitlar.map(r => r['HİZMET']).filter(Boolean))];
@@ -493,6 +531,7 @@ async function adresHizmetDegistir(isim, hizmet) {
     allData.push(yeni);
     showToast(`✅ ${hizmet} eklendi`);
   }
+  adresOnbellekSifirla();
   adresRender();
 }
 window.adresHizmetDegistir = adresHizmetDegistir;
@@ -541,6 +580,7 @@ async function adresSil(isim) {
     await firebase.firestore().collection('adres_bilgi').doc(isim).delete();
     delete window._adresBilgi[isim];
     showToast('🗑️ '+isim+' adres listesinden silindi');
+    adresOnbellekSifirla();
     adresRender();
   } catch(e){showToast('Hata: '+e.message);}
 }
@@ -686,6 +726,7 @@ async function adresEditKaydet() {
     }
     showToast('✅ ' + isim + ' güncellendi');
     adresEditKapat();
+    adresOnbellekSifirla();
     adresRender();
   } catch(e) { showToast('Hata: ' + e.message); }
 }
