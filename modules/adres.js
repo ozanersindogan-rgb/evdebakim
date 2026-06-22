@@ -2,6 +2,17 @@
 // ═══════════════════════════════════════════════════════════
 // ADRES & TELEFON YÖNETİMİ
 // ═══════════════════════════════════════════════════════════
+//
+// ── OPTİMİZASYON NOTU (v2) ─────────────────────────────────
+// 1) ARAMA DEBOUNCE   → adres-ara input'u oninput="window._adresDebounceRender()"
+//                       kullanmalı (300ms gecikme, UI takılmaz)
+// 2) SAYFALAMA        → 50'şer 50'şer gösterim, adres-pagination div'i tablonun altına eklenir
+// 3) SIRT FİLTRE      → Filtre+sıralama önce, sonra slice ile sadece görünen satırlar render
+//
+// HTML'deki arama inputunu şu şekilde güncelle:
+//   <input id="adres-ara" oninput="window._adresDebounceRender()" ...>
+//   (eski: oninput="adresRender()" → bunu değiştir)
+// ────────────────────────────────────────────────────────────
 window._adresBilgi = {};
 
 async function adresBilgiYukle() {
@@ -104,6 +115,22 @@ window._adresSortKol = 'isim';
 window._adresSortDir = 1;
 window._adresHizmetFiltre = new Set(); // boş = HEPSI
 
+// ── SAYFALAMA & DEBOUNCE ────────────────
+window._adresSayfa = 0;       // aktif sayfa (0'dan başlar)
+window._adresSayfaBoyut = 50; // sayfa başına kayıt
+
+// Debounce: kullanıcı yazmayı bıraktıktan 300ms sonra render et
+(function() {
+  let _debTimer = null;
+  window._adresDebounceRender = function() {
+    clearTimeout(_debTimer);
+    _debTimer = setTimeout(() => {
+      window._adresSayfa = 0; // arama değişince 1. sayfaya dön
+      adresRender();
+    }, 300);
+  };
+})();
+
 function adresHizmetFiltre(hz) {
   const s = window._adresHizmetFiltre;
   if (hz === 'HEPSI') { s.clear(); }
@@ -123,6 +150,7 @@ function adresHizmetFiltre(hz) {
     el.style.background = aktif ? renk : '#fff';
     el.style.color       = aktif ? '#fff' : renk;
   });
+  window._adresSayfa = 0;
   adresRender();
 }
 
@@ -137,14 +165,15 @@ function adresFiltreSifirla() {
 function adresSortBy(kol) {
   if (window._adresSortKol === kol) window._adresSortDir *= -1;
   else { window._adresSortKol = kol; window._adresSortDir = 1; }
+  window._adresSayfa = 0;
   adresRender();
 }
 
 function adresRender() {
-  const araVal    = (document.getElementById('adres-ara')?.value     || '').toUpperCase();
-  const mAra      = (document.getElementById('af-mahalle')?.value    || '').toUpperCase();
+  const araVal    = (document.getElementById('adres-ara')?.value     || '').toUpperCase().trim();
+  const mAra      = (document.getElementById('af-mahalle')?.value    || '').toUpperCase().trim();
   const tAra      = (document.getElementById('af-telefon')?.value    || '').replace(/\s/g,'');
-  const aAra      = (document.getElementById('af-adres')?.value      || '').toUpperCase();
+  const aAra      = (document.getElementById('af-adres')?.value      || '').toUpperCase().trim();
   const hzFiltre  = window._adresHizmetFiltre || new Set();
   const tablo     = document.getElementById('adres-table');
   const sayac     = document.getElementById('adres-count');
@@ -275,7 +304,18 @@ function adresRender() {
   };
   rows.sort((a, b) => dir * kolVal(a).localeCompare(kolVal(b), 'tr'));
 
-  if (sayac) sayac.textContent = rows.length + ' kayıt';
+  const toplamKayit = rows.length;
+  if (sayac) sayac.textContent = toplamKayit + ' kayıt';
+
+  // ── SAYFALAMA ────────────────────────────────────────────
+  const sayfaBoyut = window._adresSayfaBoyut || 50;
+  const toplamSayfa = Math.max(1, Math.ceil(toplamKayit / sayfaBoyut));
+  // Sayfa sınırını koru
+  if (window._adresSayfa >= toplamSayfa) window._adresSayfa = toplamSayfa - 1;
+  if (window._adresSayfa < 0) window._adresSayfa = 0;
+  const sayfaBaslangic = window._adresSayfa * sayfaBoyut;
+  const sayfaBitis     = Math.min(sayfaBaslangic + sayfaBoyut, toplamKayit);
+  const sayfadakiRows  = rows.slice(sayfaBaslangic, sayfaBitis);
 
   const HZ_RENK = { 'KADIN BANYO':'#C2185B','ERKEK BANYO':'#1565C0','KUAFÖR':'#2E7D32','TEMİZLİK':'#E65100' };
   const HZ_BG   = { 'KADIN BANYO':'#fce4ec','ERKEK BANYO':'#e3f2fd','KUAFÖR':'#e8f5e9','TEMİZLİK':'#fff3e0' };
@@ -290,6 +330,7 @@ function adresRender() {
 
   if (!rows.length) {
     tablo.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#94a3b8">Kayıt bulunamadı</td></tr>';
+    _adresPaginationRender(0, 0, 1, 0, tablo);
     return;
   }
 
@@ -306,7 +347,7 @@ function adresRender() {
       </tr>
     </thead>
     <tbody>
-      ${rows.map((r, i) => {
+      ${sayfadakiRows.map((r, i) => {
         const dogumInput = (()=>{
           const d = r.dogum;
           if (!d) return '';
@@ -359,9 +400,60 @@ function adresRender() {
         </tr>`;
       }).join('')}
     </tbody>`;
+
+  // Sayfalama kontrollerini çiz
+  _adresPaginationRender(sayfaBaslangic, sayfaBitis, toplamSayfa, toplamKayit, tablo);
 }
 
-// ── İNLINE HİZMET TOGGLE ─────────────────────────────────
+// ── SAYFALAMA KONTROL ÇİZİMİ ─────────────────────────────
+function _adresPaginationRender(baslangic, bitis, toplamSayfa, toplamKayit, tablo) {
+  // Mevcut pagination div'ini bul veya oluştur
+  let pgDiv = document.getElementById('adres-pagination');
+  if (!pgDiv) {
+    pgDiv = document.createElement('div');
+    pgDiv.id = 'adres-pagination';
+    tablo && tablo.parentNode && tablo.parentNode.insertBefore(pgDiv, tablo.nextSibling);
+  }
+  if (toplamSayfa <= 1 && toplamKayit === 0) { pgDiv.innerHTML = ''; return; }
+
+  const sp = window._adresSayfa || 0;
+  const btnBase = "border:1px solid #c7d2fe;border-radius:7px;padding:5px 13px;cursor:pointer;font-size:12px;font-weight:700;";
+  const btnAktif = btnBase + "background:#1A237E;color:#fff;";
+  const btnNormal = btnBase + "background:#fff;color:#1A237E;";
+
+  let btnler = '';
+  // Önceki
+  if (sp > 0) {
+    btnler += `<button onclick="adresSayfaGit(${sp-1})" style="${btnNormal}">‹ Önceki</button>`;
+  }
+  // Sayfa numaraları (max 5 göster)
+  const startPage = Math.max(0, Math.min(sp - 2, toplamSayfa - 5));
+  const endPage   = Math.min(toplamSayfa, startPage + 5);
+  for (let p = startPage; p < endPage; p++) {
+    btnler += `<button onclick="adresSayfaGit(${p})" style="${p === sp ? btnAktif : btnNormal}">${p+1}</button>`;
+  }
+  // Sonraki
+  if (sp < toplamSayfa - 1) {
+    btnler += `<button onclick="adresSayfaGit(${sp+1})" style="${btnNormal}">Sonraki ›</button>`;
+  }
+
+  pgDiv.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
+      padding:10px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0 0 10px 10px;margin-top:-1px">
+      <span style="font-size:12px;color:#64748b">
+        ${toplamKayit > 0 ? `<b>${baslangic+1}–${bitis}</b> / <b>${toplamKayit}</b> kayıt` : 'Kayıt yok'}
+      </span>
+      <div style="display:flex;gap:5px;flex-wrap:wrap">${btnler}</div>
+      <span style="font-size:12px;color:#94a3b8">${toplamSayfa} sayfa</span>
+    </div>`;
+}
+window._adresPaginationRender = _adresPaginationRender;
+
+function adresSayfaGit(no) {
+  window._adresSayfa = no;
+  adresRender();
+}
+window.adresSayfaGit = adresSayfaGit;
 async function adresHizmetDegistir(isim, hizmet) {
   const kayitlar = (allData||[]).filter(r => r.ISIM_SOYISIM === isim);
   const mevcutHizmetler = [...new Set(kayitlar.map(r => r['HİZMET']).filter(Boolean))];
