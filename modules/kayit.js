@@ -1107,7 +1107,8 @@ async function gkRecSil(i) {
   }
   if (silindi || r.tip === 'YAPTIRILAMADI' || r.tip === 'VERİLEMEDİ') {
     window.gkRecs.splice(i,1);
-    renderGkTable(); refreshAll();
+    renderGkTable();
+    if(typeof renderDashboard==='function') try{renderDashboard();}catch(e){}
     showToast('Silindi');
   }
 }
@@ -1305,38 +1306,45 @@ async function saveRec(){
       TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
       TC:tc, ENGEL:engel, ENGEL_ACIKLAMA: engel==='Var' ? engelAciklama : '',
     };
-    allData.push(rec);
-    newRecs.push(rec);
+    // ⚠️ allData.push burada YAPILMIYOR — Firebase başarılı olunca ekliyoruz
     return rec;
   });
   try {
+    // 1) Firebase'e yaz — tüm kayıtları paralel gönder
     await Promise.all(eklenenKayitlar.map(async rec => {
       const fbId = await fbAddDoc(rec);
       rec._fbId = fbId;
     }));
 
-    // adres_bilgi koleksiyonuna da kaydet
+    // 2) Firestore başarılı → şimdi allData ve newRecs'e ekle
+    eklenenKayitlar.forEach(rec => {
+      allData.push(rec);
+      newRecs.push(rec);
+    });
+
+    // adres_bilgi koleksiyonuna da kaydet (bekleme — arka planda)
     if(tel||adres||dogum){
       const bilgi={tel,tel2,telAktif,adres,dogum};
-      await firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
+      firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi).catch(e=>console.warn('adres_bilgi kayıt hatası:',e));
       if(!window._adresBilgi)window._adresBilgi={};
       window._adresBilgi[isim]=bilgi;
+      // Adres önbelleğini sıfırla
+      if(typeof adresOnbellekSifirla==='function') adresOnbellekSifirla();
     }
 
-    refreshAll();
-    renderNewTable();
+    // 3) refreshAll yerine sadece gerekli parçaları güncelle
+    const _safe=(fn,name)=>{try{if(typeof fn==='function')fn();}catch(e){console.warn(name+' hatası:',e);}};
+    _safe(renderNewTable,'renderNewTable');
+    _safe(()=>{ if(typeof gkUpdateIsimler==='function') gkUpdateIsimler(); },'gkUpdateIsimler');
+    _safe(()=>{ if(typeof duUpdateIsimler==='function') duUpdateIsimler(); },'duUpdateIsimler');
+    _safe(()=>{ if(typeof renderDashboard==='function') renderDashboard(); },'renderDashboard');
+    _safe(()=>{ if(typeof filterVat==='function') filterVat(); },'filterVat');
+
     clearForm();
     showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kaydedildi`);
   } catch (e) {
     console.error('Yeni vatandaş kayıt hatası:', e);
-    eklenenKayitlar.forEach(rec => {
-      const iAll = allData.indexOf(rec);
-      if (iAll >= 0) allData.splice(iAll, 1);
-      const iNew = newRecs.indexOf(rec);
-      if (iNew >= 0) newRecs.splice(iNew, 1);
-    });
-    renderNewTable();
-    refreshAll();
+    // allData ve newRecs'e artık başarıdan önce push yapmıyoruz — temizlemeye gerek yok
     showToast('❌ Kayıt tamamlanamadı, tekrar deneyin');
   }
 }
