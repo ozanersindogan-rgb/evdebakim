@@ -25,7 +25,22 @@ function dtTarihImza(r){
 }
 
 
-function dtTara() {
+// Kayıt tamamen boş mu? (tarih, not yok)
+function dtBosmu(r) {
+  const tarihAlanlar = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5','SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'];
+  const notAlanlar   = ['NOT1','NOT2','NOT3'];
+  const tarihVar = tarihAlanlar.some(f => r[f] && String(r[f]).trim());
+  const notVar   = notAlanlar.some(f => r[f] && String(r[f]).trim());
+  return !tarihVar && !notVar;
+}
+
+// İki kaydın içeriği aynı mı? (tarihler + notlar karşılaştır)
+function dtAyniIcerik(a, b) {
+  const alanlar = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5','SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2','NOT1','NOT2','NOT3'];
+  return alanlar.every(f => (a[f]||'').trim() === (b[f]||'').trim());
+}
+
+async function dtTara() {
   _dtSonuc = [];
   _dtKorunan = {};
   _dtSecili = new Set();
@@ -37,35 +52,94 @@ function dtTara() {
     gruplar[key].push({ r, idx });
   });
 
+  // ── OTOMATİK SİL: tamamen boş veya birebir aynı duplikatlar ──
+  const otomatikSilinecek = []; // { r, sebep }
+  const manuelGruplar = [];     // kullanıcıya gösterilecek gruplar
+
   for (const [key, liste] of Object.entries(gruplar)) {
     if (liste.length < 2) continue;
     const [isim, hizmet, ay] = key.split('__');
-    // Akıllı koruma
-    let enIyi=0,enPuan=-1;
-    const gorulen=new Set();
 
-    liste.forEach(({r},i)=>{
-      const imza=dtTarihImza(r);
-      let p=dtPuanla(r);
+    // 1) Tamamen boş olanları ayır
+    const boslar    = liste.filter(({ r }) => dtBosmu(r));
+    const doluListe = liste.filter(({ r }) => !dtBosmu(r));
 
-      if(imza && gorulen.has(imza)) p=-9999;
-      if(imza) gorulen.add(imza);
+    // Boş olanların hepsini sil (en az 1 dolu varsa)
+    if (doluListe.length > 0 && boslar.length > 0) {
+      boslar.forEach(({ r }) => otomatikSilinecek.push({ r, sebep: 'BOŞ' }));
+    } else if (boslar.length > 1) {
+      // Hepsi boşsa — birini koru, gerisini sil
+      boslar.slice(1).forEach(({ r }) => otomatikSilinecek.push({ r, sebep: 'BOŞ' }));
+    }
 
-      if(p>enPuan){
-        enPuan=p;
-        enIyi=i;
+    // 2) Geri kalan dolu liste içinde aynı içerikli olanları bul
+    const kalan = doluListe.length > 0 ? doluListe : boslar.slice(0, 1);
+    const benzersiz = [];
+    const ayniOlanlar = [];
+    kalan.forEach(item => {
+      const zatenVar = benzersiz.find(({ r }) => dtAyniIcerik(r, item.r));
+      if (zatenVar) {
+        // İçerik tamamen aynı → düşük puanlıyı sil
+        const itemPuan = dtPuanla(item.r);
+        const zatenPuan = dtPuanla(zatenVar.r);
+        if (itemPuan <= zatenPuan) {
+          otomatikSilinecek.push({ r: item.r, sebep: 'AYNI İÇERİK' });
+        } else {
+          otomatikSilinecek.push({ r: zatenVar.r, sebep: 'AYNI İÇERİK' });
+          benzersiz.splice(benzersiz.indexOf(zatenVar), 1);
+          benzersiz.push(item);
+        }
+      } else {
+        benzersiz.push(item);
       }
     });
 
-    _dtKorunan[_dtSonuc.length] = enIyi;
-    _dtSonuc.push({ isim, hizmet, ay, kayitlar: liste });
+    // 3) Hâlâ birden fazla benzersiz kayıt varsa → kullanıcıya göster
+    if (benzersiz.length > 1) {
+      let enIyi = 0, enPuan = -1;
+      benzersiz.forEach(({ r }, i) => {
+        const p = dtPuanla(r);
+        if (p > enPuan) { enPuan = p; enIyi = i; }
+      });
+      _dtKorunan[manuelGruplar.length] = enIyi;
+      manuelGruplar.push({ isim, hizmet, ay, kayitlar: benzersiz, tip: 'FARKLI_VERI' });
+    }
   }
 
+  // Otomatik silme: onay al, sonra toplu sil
+  if (otomatikSilinecek.length > 0) {
+    const bosKayitSayisi = otomatikSilinecek.filter(x => x.sebep === 'BOŞ').length;
+    const ayniKayitSayisi = otomatikSilinecek.filter(x => x.sebep === 'AYNI İÇERİK').length;
+    const mesaj = [
+      `🤖 Otomatik silinebilecek duplikatlar bulundu:\n`,
+      bosKayitSayisi   ? `• ${bosKayitSayisi} adet tamamen BOŞ kayıt` : '',
+      ayniKayitSayisi  ? `• ${ayniKayitSayisi} adet BİREBİR AYNI içerikli kayıt` : '',
+      `\nBunlar otomatik silinsin mi?`
+    ].filter(Boolean).join('\n');
+
+    if (confirm(mesaj)) {
+      const db = firebase.firestore();
+      let silinen = 0;
+      for (const { r } of otomatikSilinecek) {
+        if (!r._fbId) continue;
+        try {
+          await db.collection('vatandaslar').doc(r._fbId).delete();
+          const ai = allData.findIndex(x => x._fbId === r._fbId);
+          if (ai !== -1) allData.splice(ai, 1);
+          silinen++;
+        } catch(e) { console.warn('Otomatik silme hatası:', r._fbId, e); }
+      }
+      showToast(`✅ ${silinen} duplikat otomatik silindi`);
+    }
+  }
+
+  _dtSonuc = manuelGruplar;
   _dtRender();
-  if (_dtSonuc.length === 0) {
+
+  if (_dtSonuc.length === 0 && otomatikSilinecek.length === 0) {
     showToast('✅ Duplikat bulunamadı, sistem temiz');
-  } else {
-    showToast(`⚠️ ${_dtSonuc.length} duplikat grup bulundu`);
+  } else if (_dtSonuc.length > 0) {
+    showToast(`⚠️ ${_dtSonuc.length} grup farklı veriler içeriyor — manuel inceleme gerekiyor`);
   }
 }
 
@@ -122,6 +196,7 @@ function _dtRender() {
         <span style="background:${HC[g.hizmet]||'#374151'};color:#fff;border-radius:6px;padding:2px 10px;font-size:11px;font-weight:800">${g.hizmet}</span>
         <span style="background:#eff6ff;color:#1d4ed8;border-radius:6px;padding:2px 10px;font-size:11px;font-weight:800">${g.ay}</span>
         <span style="background:#fee2e2;color:#dc2626;border-radius:6px;padding:2px 10px;font-size:11px;font-weight:800">${g.kayitlar.length} kayıt</span>
+        <span style="background:#fef9c3;color:#92400e;border-radius:6px;padding:2px 10px;font-size:11px;font-weight:800">⚠️ FARKLI VERİ — Manuel Seç</span>
       </div>
       <!-- Kayıt listesi -->
       <div style="display:flex;flex-direction:column;gap:6px">
