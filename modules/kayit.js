@@ -742,6 +742,17 @@ async function gkKaydet() {
   // ── YENİ AY OTOMATİK TAŞIMA ──
   // Girilen tarihin ayı mevcut kayıttan farklıysa → o ay için yeni kayıt oluştur
   if (tarihAyi && rec.AY && rec.AY !== tarihAyi) {
+    // ── DUPLİKAT KORUMASI: O ayda zaten bu vatandaş + hizmet kaydı var mı? ──
+    const mevcutAyKaydi = allData.find(r =>
+      r.AY === tarihAyi &&
+      r['HİZMET'] === rec['HİZMET'] &&
+      r.ISIM_SOYISIM === rec.ISIM_SOYISIM &&
+      (r.DURUM || '').toUpperCase() === 'AKTİF'
+    );
+    if (mevcutAyKaydi) {
+      // Kayıt zaten var — oluşturma, doğrudan kullan
+      rec = mevcutAyKaydi;
+    } else {
     _gkSetBusy(true, `${tarihAyi} ayı için kayıt oluşturuluyor...`);
     try {
       const yeniRec = {
@@ -788,6 +799,7 @@ async function gkKaydet() {
       showToast('❌ Yeni ay kaydı oluşturulamadı: ' + (e.message || e));
       return;
     }
+    } // else: yeni kayıt oluşturma bloğu sonu
   }
 
   const snapshot = JSON.parse(JSON.stringify(rec));
