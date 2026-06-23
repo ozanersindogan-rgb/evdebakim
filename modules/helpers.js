@@ -107,8 +107,7 @@ async function yedekGunlukKontrol() {
 }
 
 // ── YEDEK AL: Firestore'a kaydet (masaüstüne indirme yok) ──
-async function yedekAl(){ console.warn("[Yedek] Geçici olarak devre dışı bırakıldı"); return; }
-/*
+async function yedekAl(aciklama) {
   if (!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   if (!allData.length) { showToast('⚠️ Yedeklenecek veri yok'); return; }
   showToast('💾 Yedek kaydediliyor...');
@@ -276,5 +275,3 @@ async function yedekSil(yedekId, tarih) {
 
 function yedekleriGoster() { navTo('yedekler', document.getElementById('nav-yedekler')); }
 function yedekModalKapat() {}
-
-*/
