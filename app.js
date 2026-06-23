@@ -349,14 +349,24 @@ async function _yeniAyOtomatikTasi() {
   const bugunAy = AY_LISTESI[bugunAyNo];
   if (!bugunAy) return;
 
-  // Daha önce bu ay taşıma yapıldıysa tekrar yapma
   const tasimaKey = 'evdebakim_ayTasima_' + bugunAy + '_' + new Date().getFullYear();
-  if (localStorage.getItem(tasimaKey) === 'tamam') {
-    console.log('[yeniAyTasi] Bu ay zaten taşındı, atlanıyor.');
-    return;
+
+  // ── KİLİT: Firestore'da bu ayın taşıma kaydına bak ──
+  // localStorage DEĞİL — çünkü her kullanıcının tarayıcısı farklı.
+  // Firestore'da tek bir "kilit" belgesi var → kim yazdıysa diğerleri atlıyor.
+  const db = firebase.firestore();
+  try {
+    const lockDoc = await db.collection('_sistem_kilitleri').doc(tasimaKey).get();
+    if (lockDoc.exists) {
+      console.log('[yeniAyTasi] Bu ay zaten taşındı (Firestore kilidi var), atlanıyor.');
+      return;
+    }
+  } catch(e) {
+    console.warn('[yeniAyTasi] Kilit kontrolü başarısız, güvenli tarafta kal:', e.message);
+    return; // Kilit okunamazsa çalıştırma — duplikat riski
   }
 
-  // Bu ay zaten kayıtları olan vatandaş+hizmet kombinasyonlarını bul
+  // ── Bu ay zaten kayıtları olan vatandaş+hizmet kombinasyonlarını bul ──
   const buAydaVar = new Set(
     allData
       .filter(r => r.AY === bugunAy)
@@ -378,14 +388,42 @@ async function _yeniAyOtomatikTasi() {
     !buAydaVar.has(r.ISIM_SOYISIM + '|' + r['HİZMET'])
   );
 
-  if (tasınacaklar.length === 0) return;
+  if (tasınacaklar.length === 0) {
+    // Taşınacak kimse yok ama kilidi yine de yaz — bir daha kontrole girmesin
+    try { await db.collection('_sistem_kilitleri').doc(tasimaKey).set({ tarih: new Date().toISOString(), yapan: currentUser?.ad || 'sistem', kayitSayisi: 0 }); } catch(e) {}
+    return;
+  }
+
+  // ── KİLİDİ YAZ — atomik transaction ile ──
+  // Başka bir kullanıcı aynı anda gelirse sadece biri kazanır
+  try {
+    await db.runTransaction(async (transaction) => {
+      const lockRef = db.collection('_sistem_kilitleri').doc(tasimaKey);
+      const lockSnap = await transaction.get(lockRef);
+      if (lockSnap.exists) {
+        throw new Error('ZATEN_TASINDI'); // Transaction'ı iptal et
+      }
+      transaction.set(lockRef, {
+        tarih: new Date().toISOString(),
+        yapan: currentUser?.ad || 'sistem',
+        kayitSayisi: tasınacaklar.length
+      });
+    });
+  } catch(e) {
+    if (e.message === 'ZATEN_TASINDI') {
+      console.log('[yeniAyTasi] Başka kullanıcı zaten taşıdı, atlanıyor.');
+      return;
+    }
+    console.warn('[yeniAyTasi] Kilit yazma hatası:', e.message);
+    return;
+  }
 
   console.log(`[yeniAyTasi] ${sonAy} → ${bugunAy}: ${tasınacaklar.length} kayıt taşınacak`);
 
   // Firestore batch ile toplu yaz (max 500/batch)
   const BATCH_SIZE = 400;
   for (let i = 0; i < tasınacaklar.length; i += BATCH_SIZE) {
-    const batch = firebase.firestore().batch();
+    const batch = db.batch();
     const chunk = tasınacaklar.slice(i, i + BATCH_SIZE);
     const yeniRecler = [];
 
@@ -411,7 +449,7 @@ async function _yeniAyOtomatikTasi() {
         ENGEL: rec.ENGEL || '',
         ENGEL_ACIKLAMA: rec.ENGEL_ACIKLAMA || '',
       };
-      const docRef = firebase.firestore().collection('vatandaslar').doc();
+      const docRef = db.collection('vatandaslar').doc();
       batch.set(docRef, yeniRec);
       yeniRecler.push({ ...yeniRec, _fbId: docRef.id });
     });
@@ -423,12 +461,9 @@ async function _yeniAyOtomatikTasi() {
     });
   }
 
-  // Başarılı — bir daha çalışmasın
-  localStorage.setItem(tasimaKey, 'tamam');
-
   // İşlem logu
   try {
-    await firebase.firestore().collection('islem_log').add({
+    await db.collection('islem_log').add({
       yapan: typeof currentUser !== 'undefined' ? (currentUser.ad || '') : 'sistem',
       uid:   typeof currentUser !== 'undefined' ? (currentUser.uid || '') : '',
       zaman: firebase.firestore.FieldValue.serverTimestamp(),
