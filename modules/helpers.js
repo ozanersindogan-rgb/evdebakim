@@ -106,7 +106,7 @@ async function yedekGunlukKontrol() {
   }
 }
 
-// ── YEDEK AL: Firestore'a kaydet (masaüstüne indirme yok) ──
+// ── YEDEK AL: Firestore'a kaydet (byte bazlı parçalı yazma) ──
 async function yedekAl(aciklama) {
   if (!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   if (!allData.length) { showToast('⚠️ Yedeklenecek veri yok'); return; }
@@ -119,27 +119,51 @@ async function yedekAl(aciklama) {
       aktif: allData.filter(r => r.DURUM === 'AKTİF').length,
       aylar: [...new Set(allData.map(r => r.AY).filter(Boolean))],
     };
-    const temizVeri = allData.map(r => { const { _fbId, ...rest } = r; return rest; });
-    const icerik = JSON.stringify({
-      meta: { tarih: bugun, zaman, aciklama: aciklama || `Manuel — ${bugun}`, ozet, olusturan: currentUser?.ad || 'Sistem' },
-      veri: temizVeri
-    });
+    const temizVeri = allData.map(r => { const { _fbId, _tpRef, _tpFbId, ...rest } = r; return rest; });
 
-    // Firestore'a kaydet — tarih ID olarak kullan (gün başına 1 yedek)
-    const docId = bugun; // örn: 2026-06-01
-    await firebase.firestore().collection(YEDEK_KOLEKSIYON).doc(docId).set({
+    // ── BYTE BAZLI PARÇALAMA: Firestore tek doc limiti 1MB ──
+    // Her parçanın JSON boyutunu ölçerek 700KB altında tut (güvenli marj)
+    const BYTE_LIMIT = 700 * 1024; // 700KB
+    const parcalar = [];
+    let mevcutParca = [];
+    let mevcutBoyut = 2; // [] için 2 byte
+
+    for (const kayit of temizVeri) {
+      const kayitJson = JSON.stringify(kayit);
+      const kayitBoyut = new TextEncoder().encode(kayitJson).length + 1; // +1 virgül
+      if (mevcutBoyut + kayitBoyut > BYTE_LIMIT && mevcutParca.length > 0) {
+        parcalar.push(mevcutParca);
+        mevcutParca = [];
+        mevcutBoyut = 2;
+      }
+      mevcutParca.push(kayit);
+      mevcutBoyut += kayitBoyut;
+    }
+    if (mevcutParca.length > 0) parcalar.push(mevcutParca);
+
+    const docId = bugun;
+    const db = firebase.firestore();
+
+    // Ana dökümanı yaz (veri içermez, sadece meta)
+    await db.collection(YEDEK_KOLEKSIYON).doc(docId).set({
       tarih: bugun,
       zaman,
       aciklama: aciklama || `Manuel — ${bugun}`,
       olusturan: currentUser?.ad || 'Sistem',
       ozet,
-      veri: icerik, // JSON string olarak sakla
+      parcaSayisi: parcalar.length,
     });
 
-    localStorage.setItem('evdebakim_son_yedek', bugun);
-    showToast(`✅ Yedek kaydedildi — ${ozet.toplamKayit} kayıt`);
+    // Her parçayı alt koleksiyona yaz
+    await Promise.all(parcalar.map((parca, idx) =>
+      db.collection(YEDEK_KOLEKSIYON).doc(docId)
+        .collection('parcalar').doc(String(idx))
+        .set({ veri: JSON.stringify(parca) })
+    ));
 
-    // Sayfadaysa listeyi yenile + 8. günü temizle
+    localStorage.setItem('evdebakim_son_yedek', bugun);
+    showToast(`✅ Yedek kaydedildi — ${ozet.toplamKayit} kayıt (${parcalar.length} parça)`);
+
     await yedekEskilerSil();
     if (document.getElementById('page-yedekler')?.classList.contains('active')) yedekSayfaYukle();
   } catch(e) {
@@ -193,19 +217,27 @@ async function yedekSayfaYukle() {
         const ozet = v.ozet || {};
         const aciklama = v.aciklama || '';
         const otomatik = aciklama.startsWith('Otomatik');
+        // parcaSayisi var ama 0 ise veya hiç veri alanı yoksa bozuk yedek
+        const bozuk = !v.parcaSayisi && !v.veri;
         yedeklerHtml += `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #f1f5f9;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #f1f5f9;gap:10px;${bozuk ? 'background:#fff5f5;' : ''}">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:14px;color:#1e293b">${v.tarih}</div>
+              <div style="font-weight:700;font-size:14px;color:${bozuk ? '#dc2626' : '#1e293b'}">${v.tarih} ${bozuk ? '⚠️ BOZUK' : ''}</div>
               <div style="font-size:12px;color:#64748b;margin-top:2px">
-                ${ozet.toplamKayit || '?'} kayıt · ${ozet.aktif || '?'} aktif
-                &nbsp;·&nbsp; <span style="color:${otomatik ? '#0d9488' : '#7c3aed'}">${otomatik ? '🤖 Otomatik' : '👤 Manuel'}</span>
+                ${bozuk
+                  ? '<span style="color:#dc2626">Bu yedek kaydedilirken hata oluştu — veri içermiyor</span>'
+                  : `${ozet.toplamKayit || '?'} kayıt · ${ozet.aktif || '?'} aktif
+                     &nbsp;·&nbsp; <span style="color:${otomatik ? '#0d9488' : '#7c3aed'}">${otomatik ? '🤖 Otomatik' : '👤 Manuel'}</span>`
+                }
               </div>
             </div>
-            <button onclick="yedekIndir('${doc.id}')"
+            ${!bozuk ? `<button onclick="yedekIndir('${doc.id}')"
               style="background:#1A237E;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
               ⬇️ İndir
-            </button>
+            </button>` : `<button onclick="yedekSil('${doc.id}','${v.tarih}')"
+              style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
+              🗑️ Sil
+            </button>`}
           </div>`;
       });
     }
@@ -242,15 +274,47 @@ async function yedekSayfaYukle() {
   }
 }
 
-// ── İNDİR: Firestore'dan JSON olarak indir ──
+// ── İNDİR: Firestore'dan JSON olarak indir (parçaları birleştirerek) ──
 async function yedekIndir(yedekId) {
   if (!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
   try {
     showToast('⏳ Yedek hazırlanıyor...');
-    const doc = await firebase.firestore().collection(YEDEK_KOLEKSIYON).doc(yedekId).get();
+    const db = firebase.firestore();
+    const doc = await db.collection(YEDEK_KOLEKSIYON).doc(yedekId).get();
     if (!doc.exists) { showToast('❌ Yedek bulunamadı'); return; }
     const v = doc.data();
-    const icerik = v.veri || JSON.stringify({ meta: { tarih: v.tarih }, veri: [] });
+
+    let tumVeri = [];
+
+    if (v.parcaSayisi) {
+      // Yeni format: parçalı alt koleksiyon — sayısal sıralama ile al
+      const parcalarSnap = await db.collection(YEDEK_KOLEKSIYON).doc(yedekId)
+        .collection('parcalar').get();
+      // String ID'leri sayıya çevirerek sırala: "0","1","10","2" → 0,1,2,10
+      const sirali = parcalarSnap.docs.slice().sort((a, b) => parseInt(a.id) - parseInt(b.id));
+      sirali.forEach(pd => {
+        try { tumVeri = tumVeri.concat(JSON.parse(pd.data().veri || '[]')); } catch(e) {}
+      });
+      if (tumVeri.length === 0) {
+        showToast('❌ Yedek boş veya bozuk — bu yedek alınırken hata oluşmuş olabilir');
+        return;
+      }
+    } else if (v.veri) {
+      // Eski format: tek dokümanda veri alanı
+      try {
+        const parsed = JSON.parse(v.veri);
+        tumVeri = parsed.veri || parsed || [];
+      } catch(e) { tumVeri = []; }
+    } else {
+      showToast('❌ Bu yedekte veri yok — muhtemelen kayıt sırasında hata oluştu');
+      return;
+    }
+
+    const icerik = JSON.stringify({
+      meta: { tarih: v.tarih, zaman: v.zaman, aciklama: v.aciklama, ozet: v.ozet, olusturan: v.olusturan },
+      veri: tumVeri
+    }, null, 2);
+
     const blob = new Blob([icerik], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -258,7 +322,7 @@ async function yedekIndir(yedekId) {
     a.download = `evdebakim_yedek_${v.tarih}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    showToast(`✅ ${v.tarih} yedeği indirildi`);
+    showToast(`✅ ${v.tarih} yedeği indirildi — ${tumVeri.length} kayıt`);
   } catch(e) {
     showToast('❌ İndirme hatası: ' + e.message);
   }
@@ -273,5 +337,111 @@ async function yedekSil(yedekId, tarih) {
   } catch(e) { showToast('❌ Silme hatası: ' + e.message); }
 }
 
-function yedekleriGoster() { navTo('yedekler', document.getElementById('nav-yedekler')); }
+// ── GERİ YÜKLEME: JSON dosyasını seç → Firestore'a aktar ──
+async function yedekDosyaSecildi(input) {
+  const dosya = input.files[0];
+  if (!dosya) return;
+  if (!dosya.name.endsWith('.json')) { showToast('❌ Sadece .json dosyası seçin'); return; }
+
+  showToast('⏳ Dosya okunuyor...');
+  try {
+    const metin = await dosya.text();
+    const parsed = JSON.parse(metin);
+
+    // Hem yeni format ({meta, veri}) hem eski format (düz dizi) destekle
+    const veri = Array.isArray(parsed) ? parsed : (parsed.veri || []);
+    const meta = parsed.meta || {};
+
+    if (!veri.length) { showToast('❌ Dosyada kayıt bulunamadı'); return; }
+
+    const onay = confirm(
+      `📂 "${dosya.name}"\n\n` +
+      `${meta.tarih ? 'Tarih: ' + meta.tarih + '\n' : ''}` +
+      `${veri.length} kayıt bulundu.\n\n` +
+      `⚠️ Bu işlem Firestore'a toplu yazma yapar.\n` +
+      `Mevcut veriler SİLİNMEZ — sadece eksik kayıtlar eklenir.\n\n` +
+      `Devam etmek istiyor musunuz?`
+    );
+    if (!onay) { input.value = ''; return; }
+
+    await yedekGeriYukle(veri);
+  } catch(e) {
+    console.error('[Yedek] Geri yükleme hatası:', e);
+    showToast('❌ Dosya okunamadı: ' + e.message);
+  }
+  input.value = ''; // input'u sıfırla, aynı dosya tekrar seçilebilsin
+}
+window.yedekDosyaSecildi = yedekDosyaSecildi;
+
+async function yedekGeriYukle(veri) {
+  if (!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Yetkiniz yok'); return; }
+  if (!veri || !veri.length) { showToast('⚠️ Yüklenecek kayıt yok'); return; }
+
+  const db = firebase.firestore();
+  const BATCH_LIMIT = 400; // Firestore batch max 500, güvenli marj
+
+  showToast(`⏳ ${veri.length} kayıt yükleniyor...`);
+
+  try {
+    // Mevcut _fbId'leri çek — zaten var olanları atla
+    const mevcutSnap = await db.collection('vatandaslar').get();
+    const mevcutIdler = new Set(mevcutSnap.docs.map(d => d.id));
+
+    // Yedek dosyasında _fbId olan kayıtlar → aynı ID ile yaz (overwrite)
+    // _fbId olmayanlar → yeni doc olarak ekle
+    const yazilacaklar = veri.filter(r => {
+      const id = r._fbId || r.id;
+      // Zaten mevcut ve üzerine yazma istemiyoruz — sadece eksik olanları ekle
+      return !id || !mevcutIdler.has(id);
+    });
+
+    if (!yazilacaklar.length) {
+      showToast('✅ Tüm kayıtlar zaten mevcut, ekleme yapılmadı.');
+      return;
+    }
+
+    const onay2 = confirm(
+      `${veri.length} kayıttan ${yazilacaklar.length} tanesi Firestore'da eksik.\n\n` +
+      `Bu ${yazilacaklar.length} kaydı eklemek istiyor musunuz?`
+    );
+    if (!onay2) return;
+
+    let eklenen = 0;
+    for (let i = 0; i < yazilacaklar.length; i += BATCH_LIMIT) {
+      const batch = db.batch();
+      const parca = yazilacaklar.slice(i, i + BATCH_LIMIT);
+      parca.forEach(r => {
+        // _fbId, _tpRef gibi iç alanları temizle
+        const { _fbId, _tpRef, _tpFbId, id, ...temiz } = r;
+        const docRef = _fbId
+          ? db.collection('vatandaslar').doc(_fbId)
+          : db.collection('vatandaslar').doc(); // yeni ID
+        batch.set(docRef, temiz);
+      });
+      await batch.commit();
+      eklenen += parca.length;
+      showToast(`⏳ ${eklenen}/${yazilacaklar.length} kayıt yazıldı...`);
+    }
+
+    showToast(`✅ Geri yükleme tamamlandı — ${eklenen} kayıt eklendi. Sayfayı yenileyiniz.`);
+
+    // Log
+    firebase.firestore().collection('islem_log').add({
+      yapan: currentUser.ad,
+      uid: currentUser.uid,
+      zaman: firebase.firestore.FieldValue.serverTimestamp(),
+      isim: '—',
+      hizmet: '—',
+      degisiklik: 'YEDEK GERİ YÜKLEME',
+      detay: `${eklenen} kayıt eklendi`
+    }).catch(() => {});
+
+  } catch(e) {
+    console.error('[Yedek] Geri yükleme Firestore hatası:', e);
+    showToast('❌ Yükleme hatası: ' + e.message);
+  }
+}
+window.yedekGeriYukle = yedekGeriYukle;
+
+
 function yedekModalKapat() {}
