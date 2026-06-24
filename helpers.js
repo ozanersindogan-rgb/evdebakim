@@ -106,7 +106,7 @@ async function yedekGunlukKontrol() {
   }
 }
 
-// ── YEDEK AL: Firestore'a kaydet (1MB limit aşımını önlemek için parçalı yazma) ──
+// ── YEDEK AL: Firestore'a kaydet (byte bazlı parçalı yazma) ──
 async function yedekAl(aciklama) {
   if (!currentUser || currentUser.uid !== YEDEK_YETKILI_UID) { showToast('⛔ Bu işlem için yetkiniz yok'); return; }
   if (!allData.length) { showToast('⚠️ Yedeklenecek veri yok'); return; }
@@ -121,13 +121,25 @@ async function yedekAl(aciklama) {
     };
     const temizVeri = allData.map(r => { const { _fbId, _tpRef, _tpFbId, ...rest } = r; return rest; });
 
-    // ── PARÇALI YAZMA: Firestore tek doc limiti 1MB ──
-    // Veriyi ~800KB'lık parçalara böl (güvenli marj için 200KB bırak)
-    const PARCA_LIMIT = 200; // kayıt sayısı bazında (her kayıt ortalama ~2-4KB)
+    // ── BYTE BAZLI PARÇALAMA: Firestore tek doc limiti 1MB ──
+    // Her parçanın JSON boyutunu ölçerek 700KB altında tut (güvenli marj)
+    const BYTE_LIMIT = 700 * 1024; // 700KB
     const parcalar = [];
-    for (let i = 0; i < temizVeri.length; i += PARCA_LIMIT) {
-      parcalar.push(temizVeri.slice(i, i + PARCA_LIMIT));
+    let mevcutParca = [];
+    let mevcutBoyut = 2; // [] için 2 byte
+
+    for (const kayit of temizVeri) {
+      const kayitJson = JSON.stringify(kayit);
+      const kayitBoyut = new TextEncoder().encode(kayitJson).length + 1; // +1 virgül
+      if (mevcutBoyut + kayitBoyut > BYTE_LIMIT && mevcutParca.length > 0) {
+        parcalar.push(mevcutParca);
+        mevcutParca = [];
+        mevcutBoyut = 2;
+      }
+      mevcutParca.push(kayit);
+      mevcutBoyut += kayitBoyut;
     }
+    if (mevcutParca.length > 0) parcalar.push(mevcutParca);
 
     const docId = bugun;
     const db = firebase.firestore();
@@ -139,7 +151,7 @@ async function yedekAl(aciklama) {
       aciklama: aciklama || `Manuel — ${bugun}`,
       olusturan: currentUser?.ad || 'Sistem',
       ozet,
-      parcaSayisi: parcalar.length, // kaç parça olduğunu kaydet
+      parcaSayisi: parcalar.length,
     });
 
     // Her parçayı alt koleksiyona yaz
