@@ -217,19 +217,27 @@ async function yedekSayfaYukle() {
         const ozet = v.ozet || {};
         const aciklama = v.aciklama || '';
         const otomatik = aciklama.startsWith('Otomatik');
+        // parcaSayisi var ama 0 ise veya hiç veri alanı yoksa bozuk yedek
+        const bozuk = !v.parcaSayisi && !v.veri;
         yedeklerHtml += `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #f1f5f9;gap:10px">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #f1f5f9;gap:10px;${bozuk ? 'background:#fff5f5;' : ''}">
             <div style="flex:1;min-width:0">
-              <div style="font-weight:700;font-size:14px;color:#1e293b">${v.tarih}</div>
+              <div style="font-weight:700;font-size:14px;color:${bozuk ? '#dc2626' : '#1e293b'}">${v.tarih} ${bozuk ? '⚠️ BOZUK' : ''}</div>
               <div style="font-size:12px;color:#64748b;margin-top:2px">
-                ${ozet.toplamKayit || '?'} kayıt · ${ozet.aktif || '?'} aktif
-                &nbsp;·&nbsp; <span style="color:${otomatik ? '#0d9488' : '#7c3aed'}">${otomatik ? '🤖 Otomatik' : '👤 Manuel'}</span>
+                ${bozuk
+                  ? '<span style="color:#dc2626">Bu yedek kaydedilirken hata oluştu — veri içermiyor</span>'
+                  : `${ozet.toplamKayit || '?'} kayıt · ${ozet.aktif || '?'} aktif
+                     &nbsp;·&nbsp; <span style="color:${otomatik ? '#0d9488' : '#7c3aed'}">${otomatik ? '🤖 Otomatik' : '👤 Manuel'}</span>`
+                }
               </div>
             </div>
-            <button onclick="yedekIndir('${doc.id}')"
+            ${!bozuk ? `<button onclick="yedekIndir('${doc.id}')"
               style="background:#1A237E;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
               ⬇️ İndir
-            </button>
+            </button>` : `<button onclick="yedekSil('${doc.id}','${v.tarih}')"
+              style="background:#dc2626;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
+              🗑️ Sil
+            </button>`}
           </div>`;
       });
     }
@@ -279,18 +287,27 @@ async function yedekIndir(yedekId) {
     let tumVeri = [];
 
     if (v.parcaSayisi) {
-      // Yeni format: parçalı alt koleksiyon
+      // Yeni format: parçalı alt koleksiyon — sayısal sıralama ile al
       const parcalarSnap = await db.collection(YEDEK_KOLEKSIYON).doc(yedekId)
-        .collection('parcalar').orderBy(firebase.firestore.FieldPath.documentId()).get();
-      parcalarSnap.docs.forEach(pd => {
+        .collection('parcalar').get();
+      // String ID'leri sayıya çevirerek sırala: "0","1","10","2" → 0,1,2,10
+      const sirali = parcalarSnap.docs.slice().sort((a, b) => parseInt(a.id) - parseInt(b.id));
+      sirali.forEach(pd => {
         try { tumVeri = tumVeri.concat(JSON.parse(pd.data().veri || '[]')); } catch(e) {}
       });
+      if (tumVeri.length === 0) {
+        showToast('❌ Yedek boş veya bozuk — bu yedek alınırken hata oluşmuş olabilir');
+        return;
+      }
     } else if (v.veri) {
       // Eski format: tek dokümanda veri alanı
       try {
         const parsed = JSON.parse(v.veri);
         tumVeri = parsed.veri || parsed || [];
       } catch(e) { tumVeri = []; }
+    } else {
+      showToast('❌ Bu yedekte veri yok — muhtemelen kayıt sırasında hata oluştu');
+      return;
     }
 
     const icerik = JSON.stringify({
