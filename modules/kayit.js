@@ -462,9 +462,21 @@ function buildMahFilter() {
 }
 function updateFormForHizmet() {} // legacy stub — not used
 function gkUpdateIsimler() {
-  const hizmet = document.getElementById('gk-hizmet').value;
-  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet && r.DURUM==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
+  const hizmet = document.getElementById('gk-hizmet')?.value;
+  if (!hizmet) return;
+
+  // allData henüz yüklenmediyse 300ms sonra tekrar dene
+  if (!allData || allData.length === 0) {
+    const searchEl = document.getElementById('gk-isim-search');
+    if (searchEl) { searchEl.placeholder = 'Veriler yükleniyor...'; searchEl.disabled = true; }
+    setTimeout(() => { gkUpdateIsimler(); }, 300);
+    return;
+  }
+
   const searchEl = document.getElementById('gk-isim-search');
+  if (searchEl) { searchEl.placeholder = 'İsim ara...'; searchEl.disabled = false; }
+
+  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet && (r.DURUM||'').toUpperCase()==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
   if(searchEl) searchEl.value='';
   document.getElementById('gk-isim').value='';
   document.getElementById('gk-mah').value='';

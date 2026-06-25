@@ -388,7 +388,7 @@ function navTo(id, el) {
 
   if (id==='dashboard')     _safe(renderDashboard);
   if (id==='vatandaslar')   _safe(filterVat);
-  if (id==='gunluk-kayit')  _safe(renderGunluk);
+  if (id==='gunluk-kayit')  { _safe(renderGunluk); _safe(gkUpdateIsimler); _safe(duUpdateIsimler); }
   if (id==='mahalle')       _safe(renderMahalle);
   if (id==='export')        { _safe(renderExpStats); _safe(expPreview); }
   if (id==='araclar')       { _safe(arInitMahalleler); _safe(taInit); }
