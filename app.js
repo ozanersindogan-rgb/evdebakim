@@ -254,7 +254,7 @@ function normalizeRecord(r) {
   if (!r || typeof r !== 'object') return r;
   if(!r.MAHALLE) r.MAHALLE = '';
   r.MAHALLE = r.MAHALLE.toString().trim().toUpperCase().replace('SOGUCAK','SOĞUCAK');
-  r.DURUM = (r.DURUM||'').toString().trim();
+  r.DURUM = (r.DURUM||'').toString().trim().toLocaleUpperCase('tr-TR');
   r.AY = (r.AY||'').toString().trim().toUpperCase();
   r['HİZMET'] = (r['HİZMET']||'').toString().trim();
   // İsim her zaman büyük harf
@@ -366,27 +366,12 @@ async function _yeniAyOtomatikTasi() {
     return; // Kilit okunamazsa çalıştırma — duplikat riski
   }
 
-  // ── Firestore'dan güncel bu ayın kayıtlarını çek (bellekteki stale olabilir) ──
-  let buAydaVar;
-  try {
-    const buAySnap = await db.collection('vatandaslar')
-      .where('AY', '==', bugunAy)
-      .get();
-    buAydaVar = new Set(
-      buAySnap.docs.map(d => {
-        const data = d.data();
-        return (data.ISIM_SOYISIM || '') + '|' + (data['HİZMET'] || '');
-      })
-    );
-  } catch(e) {
-    // Firestore okunamazsa allData'ya geri dön (güvenli taraf)
-    console.warn('[yeniAyTasi] Firestore sorgusu başarısız, allData kullanılıyor:', e.message);
-    buAydaVar = new Set(
-      allData
-        .filter(r => r.AY === bugunAy)
-        .map(r => r.ISIM_SOYISIM + '|' + r['HİZMET'])
-    );
-  }
+  // ── Bu ay zaten kayıtları olan vatandaş+hizmet kombinasyonlarını bul ──
+  const buAydaVar = new Set(
+    allData
+      .filter(r => r.AY === bugunAy)
+      .map(r => r.ISIM_SOYISIM + '|' + r['HİZMET'])
+  );
 
   // Son ayı bul (en yakın önceki ay)
   const aySira = AY_LISTESI;
@@ -397,15 +382,9 @@ async function _yeniAyOtomatikTasi() {
   if (!sonAy) return; // Hiç önceki ay yok
 
   // Son ayda AKTİF olup bu ayda kaydı olmayan vatandaşları bul
-  // Her vatandaş+hizmet kombinasyonunu tekil al (son ayda birden fazla kayıt olabilir)
-  const tekil = new Map();
-  allData
-    .filter(r => r.AY === sonAy && (r.DURUM || '').toUpperCase() === 'AKTİF')
-    .forEach(r => {
-      const key = r.ISIM_SOYISIM + '|' + r['HİZMET'];
-      if (!tekil.has(key)) tekil.set(key, r);
-    });
-  const tasınacaklar = [...tekil.values()].filter(r =>
+  const tasınacaklar = allData.filter(r =>
+    r.AY === sonAy &&
+    (r.DURUM || '').toUpperCase() === 'AKTİF' &&
     !buAydaVar.has(r.ISIM_SOYISIM + '|' + r['HİZMET'])
   );
 
@@ -449,13 +428,6 @@ async function _yeniAyOtomatikTasi() {
     const yeniRecler = [];
 
     chunk.forEach(rec => {
-      // Son dakika duplikat kontrolü — buAydaVar setine ekleyerek aynı chunk içinde tekrarı önle
-      const key = rec.ISIM_SOYISIM + '|' + rec['HİZMET'];
-      if (buAydaVar.has(key)) {
-        console.log('[yeniAyTasi] Zaten mevcut, atlanıyor:', key);
-        return;
-      }
-      buAydaVar.add(key); // Bu chunk içinde ikinci kez yazılmasın
       const yeniRec = {
         ONAY_TARIHI: rec.ONAY_TARIHI || '',
         IPTAL_NEDEN: '',
