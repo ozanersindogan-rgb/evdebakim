@@ -341,12 +341,15 @@ async function tara() {
       const tarihAy = tarihtenAy(tarih);
       if (!tarihAy || tarihAy === kayitAy) continue;
 
-      // Doğru ay kaydını bul
-      const dogruKayit = tumData.find(r =>
-        r[isimAlanAdi] === kayit[isimAlanAdi] &&
-        r[ayAlanAdi] === tarihAy &&
-        r._fbId !== kayit._fbId
-      ) || null;
+      // Doğru ay kaydını bul — aynı kişi + aynı ay + aynı HİZMET
+      const kayitHizmet = kayit['HİZMET'] || kayit['HİZMET '] || '';
+      const dogruKayit = tumData.find(r => {
+        const rHizmet = r['HİZMET'] || r['HİZMET '] || '';
+        return r[isimAlanAdi] === kayit[isimAlanAdi] &&
+               r[ayAlanAdi] === tarihAy &&
+               r._fbId !== kayit._fbId &&
+               rHizmet === kayitHizmet;
+      }) || null;
 
       // Eğer hedef kayıt zaten bu tarihi içeriyorsa — yanlış pozitif, atla
       if (dogruKayit) {
@@ -359,6 +362,7 @@ async function tara() {
         kayit, alan, tarih, tarihAy,
         kayitAy, dogruKayit,
         isimAlanAdi, ayAlanAdi,
+        kayitHizmet,
         hizmetFiltre: hizmetFiltresiAlan(alan)
       });
     }
@@ -389,8 +393,8 @@ async function tara() {
 
   islemListesi.forEach((islem, i) => {
     const hedefMetin = islem.dogruKayit
-      ? '<span class="badge b-dogru">' + islem.tarihAy + ' kaydına taşınacak</span>'
-      : '<span class="badge b-olustur">' + islem.tarihAy + ' kaydı oluşturulup taşınacak</span>';
+      ? '<span class="badge b-dogru">' + islem.tarihAy + ' · ' + (islem.dogruKayit['HİZMET'] || islem.kayitHizmet || '') + ' kaydına taşınacak</span>'
+      : '<span class="badge b-olustur">' + islem.tarihAy + ' · ' + (islem.kayitHizmet || '') + ' kaydı oluşturulup taşınacak</span>';
 
     const kart = document.createElement('div');
     kart.className = 'kayit-kart';
@@ -438,7 +442,7 @@ async function uygula() {
 
       let hedef = islem.dogruKayit;
 
-      // 2) Hedef kayıt yoksa oluştur
+      // 2) Hedef kayıt yoksa oluştur — HİZMET alanını kaynak kayıttan kopyala
       if (!hedef) {
         const yeniData = {};
         for (const [k, v] of Object.entries(islem.kayit)) {
@@ -446,6 +450,8 @@ async function uygula() {
           yeniData[k] = TUM_TARIH_ALANLARI.includes(k) ? '' : v;
         }
         yeniData[islem.ayAlanAdi] = islem.tarihAy;
+        // HİZMET'i kaynak kayıttan garantili kopyala
+        yeniData['HİZMET'] = islem.kayitHizmet || islem.kayit['HİZMET'] || '';
 
         const yeniRef = await db.collection('vatandaslar').add(yeniData);
         hedef = { _fbId: yeniRef.id, ...yeniData };
