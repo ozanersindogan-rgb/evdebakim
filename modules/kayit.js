@@ -932,7 +932,8 @@ async function gkKaydet() {
     renderGkTable();
     gkTemizle();
     // Sadece gerekli bileşenleri güncelle (refreshAll tüm sayfayı yeniliyor ve yavaşlatıyor)
-    const _safe = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) { console.warn(name + ' hatasi:', e); } };\n    _safe(gkUpdateIsimler, 'gkUpdateIsimler');
+    const _safe = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) { console.warn(name + ' hatasi:', e); } };
+    _safe(gkUpdateIsimler, 'gkUpdateIsimler');
     _safe(duUpdateIsimler, 'duUpdateIsimler');
     _safe(renderDashboard, 'renderDashboard');
     _safe(renderExpStats, 'renderExpStats');
