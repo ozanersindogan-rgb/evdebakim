@@ -421,7 +421,6 @@ const PAGE_TITLES = {
   takvim:'📆 Ziyaret Takvimi',plan:'🤖 Akıllı Planlama',
   yedekler:'💾 Yedekleme',ayarlar:'⚙️ Ayarlar',
   'gunluk-periyot':'📅 Günlük Periyot',
-  'personel-atama':'🛁 Banyo Tablosu',
 };
 function navTo(id, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
@@ -452,7 +451,6 @@ function navTo(id, el) {
   if (id==='sayi-ver')      _safe(svRender);
   if (id==='plan')          { _safe(renderPlan); _safe(rdvSayfaInit); }
   if (id==='yedekler')      _safe(yedekSayfaYukle);
-  if (id==='personel-atama') _safe(banyoTabloRender);
   if (id==='ayarlar')       _safe(ayarlarPersonelRender);
   if (id==='gunluk-periyot') _safe(periyotYukle);
   if (id==='analiz')        _safe(analizRender);
