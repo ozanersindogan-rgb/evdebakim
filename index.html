@@ -54,7 +54,7 @@
     <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
     <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
     <div class="nav-item" onclick="navTo('temizlik-plan',this)"><span class="icon">📋</span>Temizlik Planı</div>
-    <div class="nav-item" id="nav-banyo-tablo" onclick="navTo('personel-atama',this);setTimeout(()=>{if(typeof banyoTabloRender==='function')banyoTabloRender()},100)"><span class="icon">🛁</span>Banyo Tablosu</div>
+
 
     <!-- ── STOK YÖNETİMİ ───────────────────────── -->
     <div class="nav-section">📦 Stok Yönetimi</div>
@@ -1554,82 +1554,6 @@
 
 
 
-
-      <!-- ─── BANYO TABLOSU SAYFASI ─── -->
-      <div class="page" id="page-personel-atama">
-        <div class="form-section" style="margin-bottom:0;padding:0">
-
-          <!-- Sayfa Başlığı -->
-          <div style="padding:16px 16px 0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-            <div>
-              <div style="font-size:18px;font-weight:900;color:#1e293b">🛁 Banyo Tablosu</div>
-              <div style="font-size:12px;color:#94a3b8;margin-top:2px">Mahalleye · Haftalık Atama</div>
-            </div>
-            <span id="banyo-tablo-count" style="font-size:12px;font-weight:700;color:#64748b;
-                   background:#f1f5f9;border-radius:20px;padding:3px 12px"></span>
-          </div>
-
-          <!-- Kadın / Erkek Seçimi -->
-          <div style="display:flex;gap:8px;padding:12px 16px 0">
-            <button class="banyo-tur-btn" onclick="banyoTurSec('KADIN BANYO',this)"
-              style="flex:1;background:#C2185B;color:#fff;border:none;border-radius:10px;
-                     padding:10px 0;font-size:13px;font-weight:800;cursor:pointer">
-              🛁 Kadın Banyo
-            </button>
-            <button class="banyo-tur-btn" onclick="banyoTurSec('ERKEK BANYO',this)"
-              style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:10px;
-                     padding:10px 0;font-size:13px;font-weight:800;cursor:pointer">
-              🚿 Erkek Banyo
-            </button>
-          </div>
-
-          <!-- Görünüm sekmeleri -->
-          <div style="display:flex;gap:6px;padding:10px 16px 0">
-            <button id="bt-sekme-haftalik" onclick="btSekmeSec('haftalik')"
-              style="flex:1;background:#1e293b;color:#fff;border:none;border-radius:10px;
-                     padding:9px 0;font-size:12px;font-weight:800;cursor:pointer">
-              📅 Haftalık Atama
-            </button>
-            <button id="bt-sekme-mahalle" onclick="btSekmeSec('mahalle')"
-              style="flex:1;background:#f1f5f9;color:#475569;border:none;border-radius:10px;
-                     padding:9px 0;font-size:12px;font-weight:800;cursor:pointer">
-              📍 Mahalleye Göre
-            </button>
-          </div>
-
-          <!-- ── HAFTALIK GÖRÜNÜM ── -->
-          <div id="bt-panel-haftalik" style="padding:12px 12px 80px">
-            <div id="haftalik-tablo-wrap">
-              <div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>
-            </div>
-          </div>
-
-          <!-- ── MAHALLEYE GÖRE GÖRÜNÜM ── -->
-          <div id="bt-panel-mahalle" style="display:none">
-            <!-- Arama -->
-            <div style="padding:10px 16px 8px">
-              <input class="search-box" placeholder="İsim veya mahalle ara..."
-                oninput="window._banyoAra=this.value;banyoTabloRender()"
-                style="width:100%;box-sizing:border-box;margin:0">
-            </div>
-            <!-- Açıklama chip'leri -->
-            <div style="display:flex;gap:6px;padding:0 16px 10px;flex-wrap:wrap">
-              <span style="background:#fdf2f8;border:1px solid #f9a8d4;border-radius:20px;
-                           padding:3px 10px;font-size:11px;font-weight:700;color:#9d174d">🌅 Sabah</span>
-              <span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;
-                           padding:3px 10px;font-size:11px;font-weight:700;color:#1d4ed8">🌇 Öğleden Sonra</span>
-              <span style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:20px;
-                           padding:3px 10px;font-size:11px;font-weight:700;color:#64748b">⬜ Periyod Atanmamış</span>
-            </div>
-            <!-- Tablo container -->
-            <div id="banyo-tablo-container" style="padding:0 12px 80px">
-              <div style="text-align:center;padding:40px;color:#94a3b8">⏳ Yükleniyor...</div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
       <div class="page" id="page-yedekler">
         <div class="form-section" style="margin-bottom:18px">
           <h3>☁️ Yedekleme</h3>
@@ -2141,7 +2065,7 @@
 <script src="./modules/adres.js?v=1775069935"></script>
 <script src="./modules/raporlar.js?v=1775069935"></script>
 <script src="./modules/personel.js?v=1775069935"></script>
-<script src="./modules/atama.js?v=1775069935"></script>
+
 <script src="./modules/analiz.js?v=1775069935"></script>
 <script src="./modules/stok.js?v=1775069935"></script>
 <script src="./modules/medikal.js?v=1775069935"></script>

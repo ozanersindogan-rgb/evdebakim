@@ -835,10 +835,7 @@ function refreshAll() {
   if (aktivSayfa !== 'mahalle')       window._refreshPending.mahalle = true;
   if (aktivSayfa !== 'export')        window._refreshPending.export = true;
   // Banyo tablosu sayfası açıksa güncelle
-  if (typeof banyoTabloRender === 'function') {
-    const banyoPage = document.getElementById('page-personel-atama');
-    if (banyoPage && banyoPage.classList.contains('active')) banyoTabloRender();
-  }
+
 
   const expMahSel = document.getElementById('exp-mah-sel');
   if(expMahSel) {
