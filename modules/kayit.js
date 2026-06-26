@@ -950,6 +950,10 @@ async function gkKaydet() {
     _safe(renderDashboard, 'renderDashboard');
     _safe(renderExpStats, 'renderExpStats');
     _safe(renderMahalle, 'renderMahalle');
+    // TEMİZLİK kaydıysa temizlik planını da güncelle
+    if (hizmet === 'TEMİZLİK' && typeof tpFirestoreYukle === 'function') {
+      tpFirestoreYukle();
+    }
     _gkGunlukListeyiTazele(tarih); // renderGunluk buradan cagriliyor
 
     // ── Vatandaş listesini güncelle ve kaydedilen ayı seç ──

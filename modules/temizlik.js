@@ -122,8 +122,12 @@ function tpAllDatadanUret() {
   return Object.values(byIsim);
 }
 
-// ── Yükle (Firestore yok, sadece allData) ────────────────
+// ── Yükle (allData hazır değilse bekle) ────────────────
 function tpFirestoreYukle() {
+  if (!allData || allData.length === 0) {
+    setTimeout(tpFirestoreYukle, 500);
+    return;
+  }
   TP_DATA.length = 0;
   tpAllDatadanUret().forEach((r, i) => TP_DATA.push({ ...r, _origIdx: i }));
   if (typeof atamaAllDataUygula === 'function') atamaAllDataUygula();
