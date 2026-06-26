@@ -86,7 +86,7 @@ function tpAllDatadanUret() {
       byIsim[key] = {
         isim: r.ISIM_SOYISIM.trim(),
         mahalle: (r.MAHALLE || '').trim(),
-        sonGidilme: maxISO,
+        sonGidilme: maxYil2026 || maxISO, // 2026 tarihi varsa onu tercih et
         sonGidilme2026: maxYil2026,
         durum: r.DURUM || 'AKTİF',
         not_: [r.NOT1, r.NOT2, r.NOT3].filter(Boolean).join(' | '),
@@ -99,8 +99,11 @@ function tpAllDatadanUret() {
     } else {
       // Daha yeni genel tarih
       if (maxISO > byIsim[key].sonGidilme) byIsim[key].sonGidilme = maxISO;
-      // Daha yeni 2026 tarihi
-      if (maxYil2026 > byIsim[key].sonGidilme2026) byIsim[key].sonGidilme2026 = maxYil2026;
+      // Daha yeni 2026 tarihi — varsa sonGidilme olarak da kullan (eski yıl tarihinin önüne geç)
+      if (maxYil2026 > (byIsim[key].sonGidilme2026 || '')) {
+        byIsim[key].sonGidilme2026 = maxYil2026;
+        byIsim[key].sonGidilme = maxYil2026; // 2026 tarihi her zaman kazanır
+      }
       // Mahalle/durum en güncel kayıttan
       if (r.MAHALLE) byIsim[key].mahalle = r.MAHALLE.trim();
       if (r.DURUM)   byIsim[key].durum = r.DURUM;
@@ -353,9 +356,58 @@ async function tpSaveEdit() {
   if (typeof refreshAll === 'function') refreshAll();
   if (r._fbId) {
     try {
-      await firebase.firestore().collection('vatandaslar').doc(r._fbId).update({ DURUM: r.durum, NOT1: r.not_ });
-      showToast('✅ Güncellendi');
-    } catch(e) { showToast("⚠️ Yerel güncellendi, Firestore'a yazılamadı"); }
+      const guncelleme = { DURUM: r.durum, NOT1: r.not_ };
+
+      // sonGidilme varsa — allData'da bu kişinin en uygun BANYO alanına yaz
+      if (r.sonGidilme) {
+        const tarihISO = r.sonGidilme; // YYYY-MM-DD
+        const tarihTR  = tpTR(tarihISO); // DD.MM.YYYY
+
+        // Bu kişinin tüm TEMİZLİK kayıtlarından en uygununu bul
+        const kayitlar = (allData || []).filter(k =>
+          k['HİZMET'] === 'TEMİZLİK' &&
+          (k.ISIM_SOYISIM || '').trim().toUpperCase() === (r.isim || '').trim().toUpperCase()
+        );
+
+        // Tarihin ayını bul
+        const tarihAyNo = tarihISO ? parseInt(tarihISO.split('-')[1], 10) - 1 : -1;
+        const tarihAyi  = tarihAyNo >= 0 && window.AY_LISTESI ? window.AY_LISTESI[tarihAyNo] : '';
+
+        // O aya ait kaydı bul, yoksa en son kaydı kullan
+        const hedefKayit = tarihAyi
+          ? kayitlar.find(k => k.AY === tarihAyi) || kayitlar[kayitlar.length - 1]
+          : kayitlar[kayitlar.length - 1];
+
+        if (hedefKayit && hedefKayit._fbId) {
+          // Boş BANYO alanı bul veya en eskiyi güncelle
+          const banyoAlanlar = ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'];
+          let hedefAlan = banyoAlanlar.find(a => !hedefKayit[a]);
+          if (!hedefAlan) {
+            // Hepsi dolu — en eskiyi bul
+            hedefAlan = banyoAlanlar.reduce((en, a) => {
+              const isoA = tpToISO(hedefKayit[a] || '');
+              const isoEn = tpToISO(hedefKayit[en] || '');
+              return isoA < isoEn ? a : en;
+            }, banyoAlanlar[0]);
+          }
+          hedefKayit[hedefAlan] = tarihTR;
+          guncelleme[hedefAlan] = tarihTR;
+
+          // allData'daki diğer kayıtlarda sonGidilme güncelle (tpAllDatadanUret için)
+          await firebase.firestore().collection('vatandaslar').doc(hedefKayit._fbId).update(guncelleme);
+
+          // TP_DATA'daki _fbId'yi de güncelle (doğru kayıt gösterilsin)
+          r._fbId = hedefKayit._fbId;
+          showToast('✅ Güncellendi');
+        } else {
+          await firebase.firestore().collection('vatandaslar').doc(r._fbId).update(guncelleme);
+          showToast('✅ Güncellendi');
+        }
+      } else {
+        await firebase.firestore().collection('vatandaslar').doc(r._fbId).update(guncelleme);
+        showToast('✅ Güncellendi');
+      }
+    } catch(e) { showToast("⚠️ Yerel güncellendi, Firestore'a yazılamadı: " + e.message); }
   }
 }
 
@@ -388,7 +440,7 @@ function navTo(id, el) {
 
   if (id==='dashboard')     _safe(renderDashboard);
   if (id==='vatandaslar')   _safe(filterVat);
-  if (id==='gunluk-kayit')  { _safe(renderGunluk); _safe(gkUpdateIsimler); _safe(duUpdateIsimler); }
+  if (id==='gunluk-kayit')  _safe(renderGunluk);
   if (id==='mahalle')       _safe(renderMahalle);
   if (id==='export')        { _safe(renderExpStats); _safe(expPreview); }
   if (id==='araclar')       { _safe(arInitMahalleler); _safe(taInit); }
