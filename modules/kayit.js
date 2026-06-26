@@ -432,7 +432,7 @@ function buildAyTabs() {
   const ayBtnler = AY_LISTESI.map((a, idx) => {
     const varMi = mevcutAylar.has(a);
     const gelecekAy = idx > bugunAyIdx;
-    const kapali = gelecekAy && !varMi;
+    const kapali = gelecekAy; // Gelecek ay her zaman kilitli — içinde veri olsa bile
     const aktif = a === vatAy;
     return `<button class="ay-btn${aktif ? ' active' : ''}${kapali ? ' ay-kapali' : ''}"
       data-ay="${a}"
