@@ -110,10 +110,11 @@ function mRenderIc() {
   if (!root) return;
 
   const sekmeler = [
-    { id:'ozet',    ikon:'📊', ad:'Stok Özeti'        },
-    { id:'teslim',  ikon:'📤', ad:'Teslim Edilen'     },
-    { id:'alinan',  ikon:'📥', ad:'İade Alınan'       },
-    { id:'ayarlar', ikon:'⚙️', ad:'Ayarlar'            },
+    { id:'ozet',       ikon:'📊', ad:'Stok Özeti'        },
+    { id:'istatistik', ikon:'📈', ad:'İstatistik'         },
+    { id:'teslim',     ikon:'📤', ad:'Teslim Edilen'     },
+    { id:'alinan',     ikon:'📥', ad:'İade Alınan'       },
+    { id:'ayarlar',    ikon:'⚙️', ad:'Ayarlar'            },
   ];
 
   const renk = '#2563eb';
@@ -155,11 +156,291 @@ function mSekme(sekme) {
 function mSekmeIcerik(sekme) {
   const el = document.getElementById('m-sekme-icerik');
   if (!el) return;
-  if (sekme === 'ozet')    el.innerHTML = mOzetHTML();
-  if (sekme === 'teslim')  el.innerHTML = mTeslimHTML();
-  if (sekme === 'alinan')  el.innerHTML = mAlinanHTML();
-  if (sekme === 'ayarlar') el.innerHTML = mAyarlarHTML();
+  if (sekme === 'ozet')        el.innerHTML = mOzetHTML();
+  if (sekme === 'istatistik')  mIstatistikRender(el);
+  if (sekme === 'teslim')      el.innerHTML = mTeslimHTML();
+  if (sekme === 'alinan')      el.innerHTML = mAlinanHTML();
+  if (sekme === 'ayarlar')     el.innerHTML = mAyarlarHTML();
 }
+
+// ── SEKME: İSTATİSTİK ───────────────────────────────────
+function mIstatistikRender(el) {
+  // Yıl ve ay filtresi state
+  if (!window._mIstYil)  window._mIstYil  = new Date().getFullYear();
+  if (!window._mIstAy)   window._mIstAy   = ''; // '' = tüm aylar
+  if (!window._mIstMalz) window._mIstMalz = ''; // '' = tüm malzemeler
+
+  const AY_ADLARI = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran',
+                     'Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
+
+  // Tarih çözümleyici
+  function toDate(v) {
+    if (!v) return null;
+    if (v?.toDate) return v.toDate();
+    if (typeof v === 'string') return new Date(v + 'T00:00:00');
+    return new Date(v);
+  }
+
+  const yil  = window._mIstYil;
+  const ayNo = window._mIstAy !== '' ? parseInt(window._mIstAy) : null; // 0-11
+  const malz = window._mIstMalz;
+
+  // Filtrele
+  function filtrele(liste) {
+    return liste.filter(k => {
+      const d = toDate(k.tarih || k.iadeTarih);
+      if (!d) return false;
+      if (d.getFullYear() !== yil) return false;
+      if (ayNo !== null && d.getMonth() !== ayNo) return false;
+      if (malz && k.malzeme !== malz) return false;
+      return true;
+    });
+  }
+
+  const teslimler = filtrele(_mData.teslimler);
+  const alinanlar = filtrele(_mData.alinanlar);
+
+  // Tüm mevcut yıllar
+  const yillar = [...new Set([
+    ..._mData.teslimler.map(k => { const d = toDate(k.tarih); return d?.getFullYear(); }),
+    ..._mData.alinanlar.map(k => { const d = toDate(k.tarih); return d?.getFullYear(); }),
+  ].filter(Boolean))].sort((a,b) => b-a);
+
+  if (!yillar.includes(yil) && yillar.length) window._mIstYil = yillar[0];
+
+  // Malzeme listesi (tüm kayıtlardaki)
+  const tumMalzemeler = [...new Set([
+    ..._mData.teslimler.map(k => k.malzeme),
+    ..._mData.alinanlar.map(k => k.malzeme),
+  ].filter(Boolean))].sort((a,b) => a.localeCompare(b,'tr'));
+
+  // ── Özet kartlar ──
+  const topTeslim  = teslimler.reduce((s,k) => s + Number(k.adet||0), 0);
+  const topAlinan  = alinanlar.reduce((s,k) => s + Number(k.adet||0), 0);
+  const aktifTes   = teslimler.filter(k => !k.iade).reduce((s,k) => s + Number(k.adet||0), 0);
+  const kisiSayisi = new Set(teslimler.map(k => (k.kisi||'').trim().toUpperCase()).filter(Boolean)).size;
+
+  // ── Aylık teslim + iade bar chart (SVG) ──
+  const aylikTeslim = Array(12).fill(0);
+  const aylikAlinan = Array(12).fill(0);
+  _mData.teslimler.filter(k => {
+    const d = toDate(k.tarih); return d?.getFullYear() === yil && (!malz || k.malzeme === malz);
+  }).forEach(k => { const d = toDate(k.tarih); if (d) aylikTeslim[d.getMonth()] += Number(k.adet||0); });
+  _mData.alinanlar.filter(k => {
+    const d = toDate(k.tarih); return d?.getFullYear() === yil && (!malz || k.malzeme === malz);
+  }).forEach(k => { const d = toDate(k.tarih); if (d) aylikAlinan[d.getMonth()] += Number(k.adet||0); });
+
+  const maxBar = Math.max(...aylikTeslim, ...aylikAlinan, 1);
+  const barH = 120;
+  const barW = 28;
+  const gap  = 8;
+  const svgW = 12 * (barW * 2 + gap + 4) + 20;
+
+  const barsSVG = AY_ADLARI.map((ad, i) => {
+    const t = aylikTeslim[i];
+    const a = aylikAlinan[i];
+    const th = Math.round((t / maxBar) * barH);
+    const ah = Math.round((a / maxBar) * barH);
+    const x = 10 + i * (barW * 2 + gap + 4);
+    const aktifAy = ayNo !== null && ayNo === i;
+    return `
+      <g>
+        ${t > 0 ? `<rect x="${x}" y="${barH - th + 20}" width="${barW}" height="${th}" rx="4" fill="${aktifAy?'#1d4ed8':'#3b82f6'}"/>
+        <text x="${x + barW/2}" y="${barH - th + 14}" text-anchor="middle" font-size="9" fill="#1d4ed8" font-weight="700">${t}</text>` : ''}
+        ${a > 0 ? `<rect x="${x + barW + 2}" y="${barH - ah + 20}" width="${barW}" height="${ah}" rx="4" fill="${aktifAy?'#059669':'#10b981'}"/>
+        <text x="${x + barW*1.5 + 2}" y="${barH - ah + 14}" text-anchor="middle" font-size="9" fill="#059669" font-weight="700">${a}</text>` : ''}
+        <text x="${x + barW}" y="${barH + 34}" text-anchor="middle" font-size="9" fill="${aktifAy?'#1e293b':'#94a3b8'}" font-weight="${aktifAy?'900':'400'}">${ad.substring(0,3)}</text>
+      </g>`;
+  }).join('');
+
+  // ── Malzeme bazlı dağılım ──
+  const malzMap = {};
+  teslimler.forEach(k => {
+    if (!malzMap[k.malzeme]) malzMap[k.malzeme] = { teslim: 0, alinan: 0, kisi: new Set() };
+    malzMap[k.malzeme].teslim += Number(k.adet||0);
+    if (k.kisi) malzMap[k.malzeme].kisi.add(k.kisi.trim().toUpperCase());
+  });
+  alinanlar.forEach(k => {
+    if (!malzMap[k.malzeme]) malzMap[k.malzeme] = { teslim: 0, alinan: 0, kisi: new Set() };
+    malzMap[k.malzeme].alinan += Number(k.adet||0);
+  });
+  const malzSirali = Object.entries(malzMap).sort((a,b) => b[1].teslim - a[1].teslim);
+
+  // ── Mahalle bazlı ──
+  const mahMap = {};
+  teslimler.forEach(k => {
+    const m = (k.mahalle||'Belirtilmemiş').trim().toUpperCase();
+    if (!mahMap[m]) mahMap[m] = 0;
+    mahMap[m] += Number(k.adet||0);
+  });
+  const mahSirali = Object.entries(mahMap).sort((a,b) => b[1]-a[1]).slice(0, 10);
+
+  // ── Ay bazlı tablo (seçili yıl) ──
+  const ayTabloSatirlar = AY_ADLARI.map((ad, i) => {
+    const t = aylikTeslim[i];
+    const a = aylikAlinan[i];
+    if (t === 0 && a === 0) return '';
+    const net = t - a;
+    return `<tr style="background:${i%2===0?'':'rgba(0,0,0,0.02)'}${ayNo===i?';font-weight:900;background:#eff6ff':''};border-bottom:1px solid var(--border)">
+      <td style="padding:9px 14px">${ad}</td>
+      <td style="padding:9px 12px;text-align:center;color:#2563eb;font-weight:800">${t||'—'}</td>
+      <td style="padding:9px 12px;text-align:center;color:#059669;font-weight:800">${a||'—'}</td>
+      <td style="padding:9px 12px;text-align:center;color:${net>0?'#dc2626':net<0?'#16a34a':'#94a3b8'};font-weight:900">${net>0?'+':''}${net||'—'}</td>
+    </tr>`;
+  }).filter(Boolean).join('');
+
+  el.innerHTML = `
+    <!-- Filtreler -->
+    <div style="display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;align-items:center">
+      <select onchange="window._mIstYil=parseInt(this.value);mSekme('istatistik')"
+        style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;outline:none">
+        ${yillar.map(y => `<option value="${y}" ${y===yil?'selected':''}>${y}</option>`).join('')}
+      </select>
+      <select onchange="window._mIstAy=this.value;mSekme('istatistik')"
+        style="padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;outline:none">
+        <option value="">Tüm Aylar</option>
+        ${AY_ADLARI.map((a,i) => `<option value="${i}" ${ayNo===i?'selected':''}>${a}</option>`).join('')}
+      </select>
+      <select onchange="window._mIstMalz=this.value;mSekme('istatistik')"
+        style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;outline:none">
+        <option value="">Tüm Malzemeler</option>
+        ${tumMalzemeler.map(m => `<option value="${m}" ${m===malz?'selected':''}>${m}</option>`).join('')}
+      </select>
+      ${(window._mIstAy !== '' || window._mIstMalz) ? `<button onclick="window._mIstAy='';window._mIstMalz='';mSekme('istatistik')"
+        style="padding:8px 14px;border:1.5px solid #fca5a5;border-radius:8px;background:#fef2f2;color:#dc2626;font-size:12px;font-weight:800;cursor:pointer">✕ Temizle</button>` : ''}
+    </div>
+
+    <!-- Özet kartlar -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
+      <div class="table-card" style="padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#2563eb">${topTeslim}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">📤 Toplam Teslim</div>
+      </div>
+      <div class="table-card" style="padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#059669">${topAlinan}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">📥 Toplam İade</div>
+      </div>
+      <div class="table-card" style="padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#dc2626">${aktifTes}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">⏳ Teslimde Kalan</div>
+      </div>
+      <div class="table-card" style="padding:14px;text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#7c3aed">${kisiSayisi}</div>
+        <div style="font-size:11px;color:var(--text-soft);margin-top:4px">👤 Farklı Kişi</div>
+      </div>
+    </div>
+
+    <!-- Aylık Bar Chart -->
+    <div class="table-card" style="padding:18px;margin-bottom:20px;overflow-x:auto">
+      <div style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:4px">${yil} Yılı Aylık Hareketler</div>
+      <div style="display:flex;gap:16px;margin-bottom:10px">
+        <span style="font-size:11px;font-weight:700;color:#2563eb">■ Teslim Edilen</span>
+        <span style="font-size:11px;font-weight:700;color:#059669">■ İade Alınan</span>
+      </div>
+      <svg width="${svgW}" height="${barH + 44}" style="min-width:${svgW}px">
+        ${barsSVG}
+        <line x1="10" y1="${barH+20}" x2="${svgW-10}" y2="${barH+20}" stroke="var(--border)" stroke-width="1"/>
+      </svg>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+
+      <!-- Aylık tablo -->
+      <div class="table-card" style="padding:0;overflow:hidden">
+        <div class="table-header" style="background:linear-gradient(135deg,#2563eb18,#2563eb08)">
+          <span class="table-title">📅 Ay Bazlı Özet — ${yil}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#2563eb;color:#fff">
+              <th style="padding:9px 14px;text-align:left">Ay</th>
+              <th style="padding:9px 12px;text-align:center">📤 Teslim</th>
+              <th style="padding:9px 12px;text-align:center">📥 İade</th>
+              <th style="padding:9px 12px;text-align:center">Net</th>
+            </tr>
+          </thead>
+          <tbody>${ayTabloSatirlar || `<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text-soft)">Bu yılda kayıt yok</td></tr>`}</tbody>
+        </table>
+      </div>
+
+      <!-- Mahalle bazlı -->
+      <div class="table-card" style="padding:0;overflow:hidden">
+        <div class="table-header" style="background:linear-gradient(135deg,#7c3aed18,#7c3aed08)">
+          <span class="table-title">📍 Mahalle Bazlı Teslim</span>
+          <span style="font-size:11px;color:var(--text-soft)">İlk 10</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr style="background:#7c3aed;color:#fff">
+              <th style="padding:9px 14px;text-align:left">Mahalle</th>
+              <th style="padding:9px 12px;text-align:center">Adet</th>
+              <th style="padding:9px 12px;text-align:right">Oran</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${mahSirali.length ? mahSirali.map(([m,s],i) => {
+              const oran = topTeslim > 0 ? Math.round(s/topTeslim*100) : 0;
+              return `<tr style="background:${i%2===0?'':'rgba(0,0,0,0.02)'};border-bottom:1px solid var(--border)">
+                <td style="padding:9px 14px;font-weight:700">${m}</td>
+                <td style="padding:9px 12px;text-align:center;font-weight:900;color:#7c3aed">${s}</td>
+                <td style="padding:9px 12px;text-align:right">
+                  <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+                    <div style="width:60px;height:6px;background:#e2e8f0;border-radius:99px;overflow:hidden">
+                      <div style="width:${oran}%;height:100%;background:#7c3aed;border-radius:99px"></div>
+                    </div>
+                    <span style="font-size:11px;color:var(--text-soft);font-weight:700;min-width:28px">%${oran}</span>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('') : `<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-soft)">Kayıt yok</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Malzeme bazlı dağılım -->
+    <div class="table-card" style="padding:0;overflow:hidden">
+      <div class="table-header" style="background:linear-gradient(135deg,#0891b218,#0891b208)">
+        <span class="table-title">📦 Malzeme Bazlı Dağılım</span>
+        <span style="font-size:11px;color:var(--text-soft)">${ayNo !== null ? AY_ADLARI[ayNo] : 'Tüm Aylar'} · ${yil}</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="background:#0891b2;color:#fff">
+            <th style="padding:10px 14px;text-align:left">Malzeme</th>
+            <th style="padding:10px 10px;text-align:center">📤 Teslim</th>
+            <th style="padding:10px 10px;text-align:center">📥 İade</th>
+            <th style="padding:10px 10px;text-align:center">⏳ Teslimde</th>
+            <th style="padding:10px 10px;text-align:center">👤 Kişi</th>
+            <th style="padding:10px 10px;text-align:right">Teslim Oranı</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${malzSirali.length ? malzSirali.map(([m, d], i) => {
+            const net  = d.teslim - d.alinan;
+            const oran = topTeslim > 0 ? Math.round(d.teslim/topTeslim*100) : 0;
+            return `<tr style="background:${i%2===0?'':'rgba(0,0,0,0.02)'};border-bottom:1px solid var(--border)">
+              <td style="padding:10px 14px;font-weight:700">${m}</td>
+              <td style="padding:10px 10px;text-align:center;font-weight:900;color:#2563eb">${d.teslim}</td>
+              <td style="padding:10px 10px;text-align:center;font-weight:800;color:#059669">${d.alinan||'—'}</td>
+              <td style="padding:10px 10px;text-align:center;font-weight:900;color:${net>0?'#dc2626':'#94a3b8'}">${net>0?net:'—'}</td>
+              <td style="padding:10px 10px;text-align:center;color:#7c3aed;font-weight:700">${d.kisi.size}</td>
+              <td style="padding:10px 14px;text-align:right">
+                <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
+                  <div style="width:80px;height:7px;background:#e2e8f0;border-radius:99px;overflow:hidden">
+                    <div style="width:${oran}%;height:100%;background:#0891b2;border-radius:99px"></div>
+                  </div>
+                  <span style="font-size:11px;color:var(--text-soft);font-weight:700;min-width:32px">%${oran}</span>
+                </div>
+              </td>
+            </tr>`;
+          }).join('') : `<tr><td colspan="6" style="text-align:center;padding:32px;color:var(--text-soft)">Bu filtreye ait kayıt yok</td></tr>`}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+window.mIstatistikRender = mIstatistikRender;
 
 // ── SEKME 1: STOK ÖZETİ ─────────────────────────────────
 function mOzetHTML() {
