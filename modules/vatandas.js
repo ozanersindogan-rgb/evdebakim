@@ -446,8 +446,38 @@ function showDetail(isim, hizmet, ay) {
               ${tarihArr.map(t=>`<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:700;color:#1e40af">${fmt(t)}</span>`).join('')}
             </div>
           </div>`).join('');
-      })():tarihler.map(t=>`<div style="display:flex;justify-content:space-between;padding:6px 10px;background:#f8fafc;border-radius:7px;margin-bottom:4px;font-size:12px">
-        <span style="color:#475569;font-weight:600">${t.tip}</span><span style="font-weight:700;color:#1e40af">${fmt(t.tarih)}</span></div>`).join('')}
+      })():(()=>{
+        // Ay bazlı gruplama — accordion
+        const AY_SIRASI=['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
+        const ayMap = {};
+        tumKayitlarHizmet.forEach(kayit => {
+          const ay = (kayit.AY||'').toUpperCase();
+          if (!ay) return;
+          const tarihListesi = [kayit.BANYO1,kayit.BANYO2,kayit.BANYO3,kayit.BANYO4,kayit.BANYO5].filter(Boolean);
+          if (!tarihListesi.length) return;
+          if (!ayMap[ay]) ayMap[ay] = [];
+          tarihListesi.forEach(t => { if (!ayMap[ay].includes(t)) ayMap[ay].push(t); });
+        });
+        const aylar = Object.keys(ayMap).sort((a,b)=>AY_SIRASI.indexOf(b)-AY_SIRASI.indexOf(a));
+        if (!aylar.length) return '<div style="text-align:center;color:#94a3b8;font-size:12px">Tarih yok</div>';
+        return aylar.map((ay, idx) => {
+          const ayTarihleri = ayMap[ay].sort((a,b)=>{
+            const da=parseDate(a),db=parseDate(b); return da&&db?db-da:b.localeCompare(a);
+          });
+          const acikMi = idx === 0; // ilk ay açık gelsin
+          const uid = 'vk-ay-' + ay.replace(/[^A-Z]/g,'') + idx;
+          return `<div style="border:1px solid #e2e8f0;border-radius:10px;margin-bottom:6px;overflow:hidden">
+            <button onclick="(function(id){var c=document.getElementById(id);var icon=document.getElementById(id+'-icon');if(c.style.display==='none'){c.style.display='block';icon.textContent='▲';}else{c.style.display='none';icon.textContent='▼';}}('${uid}'))"
+              style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:9px 13px;background:#f8fafc;border:none;cursor:pointer;font-size:12px;font-weight:800;color:#374151;text-align:left">
+              <span>${ay} <span style="font-weight:500;color:#94a3b8;font-size:11px">${ayTarihleri.length} ziyaret</span></span>
+              <span id="${uid}-icon" style="font-size:10px;color:#94a3b8">${acikMi?'▲':'▼'}</span>
+            </button>
+            <div id="${uid}" style="display:${acikMi?'block':'none'};padding:8px 12px 10px;display:${acikMi?'flex':'none'};flex-wrap:wrap;gap:5px">
+              ${ayTarihleri.map(t=>`<span style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;color:#1e40af">${fmt(t)}</span>`).join('')}
+            </div>
+          </div>`;
+        }).join('');
+      })()}
     </div>`:'<div style="text-align:center;color:#94a3b8;font-size:13px;padding:8px 0">Henüz kayıt yok</div>'}
     ${(typeof hmKartBolumu === 'function') ? hmKartBolumu(r.ISIM_SOYISIM, hz) : ''}
     <div style="display:flex;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid #e2e8f0">

@@ -432,7 +432,7 @@ function buildAyTabs() {
   const ayBtnler = AY_LISTESI.map((a, idx) => {
     const varMi = mevcutAylar.has(a);
     const gelecekAy = idx > bugunAyIdx;
-    const kapali = gelecekAy; // Gelecek ay her zaman kilitli — içinde veri olsa bile
+    const kapali = gelecekAy && !varMi;
     const aktif = a === vatAy;
     return `<button class="ay-btn${aktif ? ' active' : ''}${kapali ? ' ay-kapali' : ''}"
       data-ay="${a}"
@@ -462,21 +462,9 @@ function buildMahFilter() {
 }
 function updateFormForHizmet() {} // legacy stub — not used
 function gkUpdateIsimler() {
-  const hizmet = document.getElementById('gk-hizmet')?.value;
-  if (!hizmet) return;
-
-  // allData henüz yüklenmediyse 300ms sonra tekrar dene
-  if (!allData || allData.length === 0) {
-    const searchEl = document.getElementById('gk-isim-search');
-    if (searchEl) { searchEl.placeholder = 'Veriler yükleniyor...'; searchEl.disabled = true; }
-    setTimeout(() => { gkUpdateIsimler(); }, 300);
-    return;
-  }
-
+  const hizmet = document.getElementById('gk-hizmet').value;
+  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet && r.DURUM==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
   const searchEl = document.getElementById('gk-isim-search');
-  if (searchEl) { searchEl.placeholder = 'İsim ara...'; searchEl.disabled = false; }
-
-  window._gkIsimler = [...new Set(allData.filter(r=>r['HİZMET']===hizmet && (r.DURUM||'').toUpperCase()==='AKTİF').map(r=>r.ISIM_SOYISIM).filter(Boolean))].sort();
   if(searchEl) searchEl.value='';
   document.getElementById('gk-isim').value='';
   document.getElementById('gk-mah').value='';
@@ -754,17 +742,6 @@ async function gkKaydet() {
   // ── YENİ AY OTOMATİK TAŞIMA ──
   // Girilen tarihin ayı mevcut kayıttan farklıysa → o ay için yeni kayıt oluştur
   if (tarihAyi && rec.AY && rec.AY !== tarihAyi) {
-    // ── DUPLİKAT KORUMASI: O ayda zaten bu vatandaş + hizmet kaydı var mı? ──
-    const mevcutAyKaydi = allData.find(r =>
-      r.AY === tarihAyi &&
-      r['HİZMET'] === rec['HİZMET'] &&
-      r.ISIM_SOYISIM === rec.ISIM_SOYISIM &&
-      (r.DURUM || '').toUpperCase() === 'AKTİF'
-    );
-    if (mevcutAyKaydi) {
-      // O ayda kayıt zaten var — o kaydı kullan, eski rec'e DOKUNMA
-      rec = mevcutAyKaydi;
-    } else {
     _gkSetBusy(true, `${tarihAyi} ayı için kayıt oluşturuluyor...`);
     try {
       const yeniRec = {
@@ -793,7 +770,7 @@ async function gkKaydet() {
       yeniRec._fbId = docRef.id;
       if (rec._tpFbId) { yeniRec._tpFbId = rec._tpFbId; yeniRec._tpRef = rec._tpRef; }
       allData.push(yeniRec);
-      rec = yeniRec; // ← artık yeni ay kaydını kullan
+      rec = yeniRec;
       firebase.firestore().collection('islem_log').add({
         yapan: typeof currentUser !== 'undefined' ? currentUser.ad : '',
         uid:   typeof currentUser !== 'undefined' ? currentUser.uid : '',
@@ -811,16 +788,6 @@ async function gkKaydet() {
       showToast('❌ Yeni ay kaydı oluşturulamadı: ' + (e.message || e));
       return;
     }
-    } // else bloğu sonu
-  }
-
-  // ── SON KONTROL: rec hâlâ yanlış aydaysa kesinlikle durdur ──
-  if (tarihAyi && rec.AY && rec.AY !== tarihAyi) {
-    _gkIslemDevam = false;
-    _gkSetBusy(false);
-    showToast(`❌ Hata: Kayıt ${rec.AY} ayına ait, tarih ${tarihAyi} ayına giriyor. İşlem durduruldu.`);
-    console.error('[gkKaydet] AY uyuşmazlığı — rec.AY:', rec.AY, 'tarihAyi:', tarihAyi);
-    return;
   }
 
   const snapshot = JSON.parse(JSON.stringify(rec));
@@ -950,21 +917,7 @@ async function gkKaydet() {
     _safe(renderDashboard, 'renderDashboard');
     _safe(renderExpStats, 'renderExpStats');
     _safe(renderMahalle, 'renderMahalle');
-    // TEMİZLİK kaydıysa temizlik planını da güncelle
-    if (hizmet === 'TEMİZLİK' && typeof tpFirestoreYukle === 'function') {
-      tpFirestoreYukle();
-    }
     _gkGunlukListeyiTazele(tarih); // renderGunluk buradan cagriliyor
-
-    // ── Vatandaş listesini güncelle ve kaydedilen ayı seç ──
-    if (typeof buildAyTabs === 'function') buildAyTabs();
-    if (rec.AY && typeof setAy === 'function') {
-      // Kaydedilen ayın tab butonunu bul ve seç
-      const ayBtn = [...document.querySelectorAll('#ay-tab-vat .ay-btn')]
-        .find(b => b.dataset?.ay === rec.AY || b.textContent?.trim() === rec.AY);
-      if (ayBtn) setAy(rec.AY, ayBtn);
-    }
-    if (typeof filterVat === 'function') filterVat();
     if (typeof navTo === 'function') {
       const navEl = document.querySelector('.nav-item[onclick*="gunluk-kayit"]');
       navTo('gunluk-kayit', navEl || null);
@@ -1482,8 +1435,10 @@ function duKaydet() {
   }
   duRecs.push({isim,hizmet,eskiDurum,yeniDurum,tarih,neden});
   renderDuTable(); duTemizle();
-  refreshAll();
+  // refreshAll() yerine sadece gerekli bileşenler
   if (typeof filterVat === 'function') filterVat();
+  if (typeof buildAyTabs === 'function') buildAyTabs();
+  if (typeof renderDashboard === 'function') renderDashboard();
   showToast(`✅ ${isim} durumu → ${yeniDurum}`);
 }
 function duTemizle() {
