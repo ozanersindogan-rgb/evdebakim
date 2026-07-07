@@ -661,11 +661,8 @@ function gkEngelDegisti() {
 }
 window.gkEngelDegisti = gkEngelDegisti;
 
-// ── PERFORMANS: butonu bir kez bul, önbellekte tut ──
-let _cachedKaydetBtn = null;
 function _gkKaydetBtn() {
-  if (!_cachedKaydetBtn) _cachedKaydetBtn = document.querySelector('[onclick="gkKaydet()"]');
-  return _cachedKaydetBtn;
+  return document.querySelector('[onclick="gkKaydet()"]');
 }
 function _gkSetBusy(isBusy, text) {
   const btn = _gkKaydetBtn();
@@ -913,25 +910,14 @@ async function gkKaydet() {
 
     renderGkTable();
     gkTemizle();
-    // ── PERFORMANS: sadece anlık gerekli alanları güncelle ──
-    // renderDashboard / renderExpStats / renderMahalle aktif sayfa değilse
-    // _refreshPending mekanizmasıyla navTo açılınca yenilenir; burada çağrılmaz.
-    const _safeGk = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) { console.warn(name + ' hatasi:', e); } };
-    _safeGk(gkUpdateIsimler, 'gkUpdateIsimler');
-    _safeGk(duUpdateIsimler, 'duUpdateIsimler');
-    // Aktif sayfa tespiti — sadece açıksa yenile
-    const _aktifSayfa = document.querySelector('.page.active')?.id?.replace('page-', '') || '';
-    if (_aktifSayfa === 'dashboard')  _safeGk(renderDashboard,  'renderDashboard');
-    if (_aktifSayfa === 'mahalle')    _safeGk(renderMahalle,    'renderMahalle');
-    if (_aktifSayfa === 'export')     _safeGk(renderExpStats,   'renderExpStats');
-    // Diğer sayfalar navTo açılınca _refreshPending ile render edilecek
-    if (window._refreshPending) {
-      if (_aktifSayfa !== 'dashboard')    window._refreshPending.dashboard = true;
-      if (_aktifSayfa !== 'mahalle')      window._refreshPending.mahalle   = true;
-      if (_aktifSayfa !== 'export')       window._refreshPending.export    = true;
-      if (_aktifSayfa !== 'vatandaslar')  window._refreshPending.vatandaslar = true;
-    }
-    _gkGunlukListeyiTazele(tarih); // renderGunluk buradan çağrılıyor
+    // Sadece gerekli bileşenleri güncelle (refreshAll tüm sayfayı yeniliyor ve yavaşlatıyor)
+    const _safe = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) { console.warn(name + ' hatasi:', e); } };
+    _safe(gkUpdateIsimler, 'gkUpdateIsimler');
+    _safe(duUpdateIsimler, 'duUpdateIsimler');
+    _safe(renderDashboard, 'renderDashboard');
+    _safe(renderExpStats, 'renderExpStats');
+    _safe(renderMahalle, 'renderMahalle');
+    _gkGunlukListeyiTazele(tarih); // renderGunluk buradan cagriliyor
     if (typeof navTo === 'function') {
       const navEl = document.querySelector('.nav-item[onclick*="gunluk-kayit"]');
       navTo('gunluk-kayit', navEl || null);
@@ -1070,16 +1056,7 @@ function gkVerilemediKaydet() {
   });
   const kaydetBtn=document.querySelector('[onclick="gkKaydet()"]');
   if(kaydetBtn){kaydetBtn.disabled=false;kaydetBtn.style.display='';}
-  // ── PERFORMANS: refreshAll yerine hedefli güncelle ──
-  try { if (typeof gkUpdateIsimler === 'function') gkUpdateIsimler(); } catch(e) {}
-  try { if (typeof renderGunluk === 'function') renderGunluk(); } catch(e) {}
-  if (window._refreshPending) {
-    const _apVer = document.querySelector('.page.active')?.id?.replace('page-', '') || '';
-    if (_apVer !== 'dashboard')   window._refreshPending.dashboard   = true;
-    if (_apVer !== 'mahalle')     window._refreshPending.mahalle     = true;
-    if (_apVer !== 'export')      window._refreshPending.export      = true;
-    if (_apVer !== 'vatandaslar') window._refreshPending.vatandaslar = true;
-  }
+  refreshAll();
   if (typeof _verilemediiBadgeGuncelle === 'function') _verilemediiBadgeGuncelle();
   showToast(isim + ' - hizmet verilemedi notu eklendi ✓');
   // İşlemi logla
@@ -1130,7 +1107,8 @@ async function gkRecSil(i) {
   }
   if (silindi || r.tip === 'YAPTIRILAMADI' || r.tip === 'VERİLEMEDİ') {
     window.gkRecs.splice(i,1);
-    renderGkTable(); refreshAll();
+    renderGkTable();
+    if(typeof renderDashboard==='function') try{renderDashboard();}catch(e){}
     showToast('Silindi');
   }
 }
@@ -1328,38 +1306,45 @@ async function saveRec(){
       TELEFON:tel, TELEFON2:tel2, TELEFON_AKTIF:telAktif, ADRES:adres,
       TC:tc, ENGEL:engel, ENGEL_ACIKLAMA: engel==='Var' ? engelAciklama : '',
     };
-    allData.push(rec);
-    newRecs.push(rec);
+    // ⚠️ allData.push burada YAPILMIYOR — Firebase başarılı olunca ekliyoruz
     return rec;
   });
   try {
+    // 1) Firebase'e yaz — tüm kayıtları paralel gönder
     await Promise.all(eklenenKayitlar.map(async rec => {
       const fbId = await fbAddDoc(rec);
       rec._fbId = fbId;
     }));
 
-    // adres_bilgi koleksiyonuna da kaydet
+    // 2) Firestore başarılı → şimdi allData ve newRecs'e ekle
+    eklenenKayitlar.forEach(rec => {
+      allData.push(rec);
+      newRecs.push(rec);
+    });
+
+    // adres_bilgi koleksiyonuna da kaydet (bekleme — arka planda)
     if(tel||adres||dogum){
       const bilgi={tel,tel2,telAktif,adres,dogum};
-      await firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi);
+      firebase.firestore().collection('adres_bilgi').doc(isim).set(bilgi).catch(e=>console.warn('adres_bilgi kayıt hatası:',e));
       if(!window._adresBilgi)window._adresBilgi={};
       window._adresBilgi[isim]=bilgi;
+      // Adres önbelleğini sıfırla
+      if(typeof adresOnbellekSifirla==='function') adresOnbellekSifirla();
     }
 
-    refreshAll();
-    renderNewTable();
+    // 3) refreshAll yerine sadece gerekli parçaları güncelle
+    const _safe=(fn,name)=>{try{if(typeof fn==='function')fn();}catch(e){console.warn(name+' hatası:',e);}};
+    _safe(renderNewTable,'renderNewTable');
+    _safe(()=>{ if(typeof gkUpdateIsimler==='function') gkUpdateIsimler(); },'gkUpdateIsimler');
+    _safe(()=>{ if(typeof duUpdateIsimler==='function') duUpdateIsimler(); },'duUpdateIsimler');
+    _safe(()=>{ if(typeof renderDashboard==='function') renderDashboard(); },'renderDashboard');
+    _safe(()=>{ if(typeof filterVat==='function') filterVat(); },'filterVat');
+
     clearForm();
     showToast(`✅ ${isim} — ${seciliHizmetler.length} hizmet kaydedildi`);
   } catch (e) {
     console.error('Yeni vatandaş kayıt hatası:', e);
-    eklenenKayitlar.forEach(rec => {
-      const iAll = allData.indexOf(rec);
-      if (iAll >= 0) allData.splice(iAll, 1);
-      const iNew = newRecs.indexOf(rec);
-      if (iNew >= 0) newRecs.splice(iNew, 1);
-    });
-    renderNewTable();
-    refreshAll();
+    // allData ve newRecs'e artık başarıdan önce push yapmıyoruz — temizlemeye gerek yok
     showToast('❌ Kayıt tamamlanamadı, tekrar deneyin');
   }
 }
@@ -1450,8 +1435,10 @@ function duKaydet() {
   }
   duRecs.push({isim,hizmet,eskiDurum,yeniDurum,tarih,neden});
   renderDuTable(); duTemizle();
-  refreshAll();
+  // refreshAll() yerine sadece gerekli bileşenler
   if (typeof filterVat === 'function') filterVat();
+  if (typeof buildAyTabs === 'function') buildAyTabs();
+  if (typeof renderDashboard === 'function') renderDashboard();
   showToast(`✅ ${isim} durumu → ${yeniDurum}`);
 }
 function duTemizle() {
