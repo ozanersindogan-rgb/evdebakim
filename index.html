@@ -32,82 +32,25 @@
 
     <!-- ── GENEL ───────────────────────────────── -->
     <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="icon">🏠</span>Ana Sayfa</div>
-    <div class="nav-item" onclick="navTo('adres-guncelle',this)"><span class="icon">📞</span>Adres & Telefon</div>
     <div class="nav-item" onclick="navTo('vatandaslar',this)"><span class="icon">👥</span>Vatandaşlar</div>
-
-    <!-- ── GÜNLÜK İŞLEMLER ─────────────────────── -->
-    <div class="nav-section">🏥 Klinik</div>
+    <div class="nav-item" onclick="navTo('adres-guncelle',this)"><span class="icon">📞</span>Adres & Telefon</div>
     <div class="nav-item" onclick="navTo('hemsire-takip',this)"><span class="icon">🏥</span>Hemşire Takip</div>
-    <div class="nav-section">📝 Günlük İşlemler</div>
-    <div class="nav-item" onclick="navTo('gunluk-kayit',this)"><span class="icon">📝</span>Hizmet Kaydı</div>
-    <div class="nav-item" onclick="navTo('gunluk',this)"><span class="icon">📅</span>Günlük Liste</div>
-    <div class="nav-item" onclick="navTo('takvim',this)"><span class="icon">📆</span>Ziyaret Takvimi</div>
-    <div class="nav-item" onclick="navTo('durum',this)"><span class="icon">🔄</span>Durum Güncelle</div>
-    <div class="nav-item" onclick="navTo('isim-duzenle',this);idUpdateIsimler()"><span class="icon">✏️</span>İsim / Mahalle Düzenle</div>
-    <div class="nav-item" onclick="navTo('duplikat-temizle',this);dtTara()"><span class="icon">🔍</span>Duplikat Temizle</div>
-    <div class="nav-item" onclick="navTo('yeni-vatandas',this)"><span class="icon">➕</span>Yeni Vatandaş</div>
 
-    <!-- ── HİZMETLER ───────────────────────────── -->
-    <div class="nav-section">🏥 Hizmetler</div>
-    <div class="nav-item" onclick="quickFilter('KADIN BANYO',this)"><span class="icon">🛁</span>Kadın Banyo<span class="hizmet-tag tag-kadin">KB</span></div>
-    <div class="nav-item" onclick="quickFilter('ERKEK BANYO',this)"><span class="icon">🚿</span>Erkek Banyo<span class="hizmet-tag tag-erkek">EB</span></div>
-    <div class="nav-item" onclick="quickFilter('KUAFÖR',this)"><span class="icon">✂️</span>Kuaför<span class="hizmet-tag tag-kuafor">KF</span></div>
-    <div class="nav-item" onclick="quickFilter('TEMİZLİK',this)"><span class="icon">🧹</span>Temizlik<span class="hizmet-tag tag-temizlik">TZ</span></div>
-    <div class="nav-item" onclick="navTo('temizlik-plan',this)"><span class="icon">📋</span>Temizlik Planı</div>
-
-
-    <!-- ── STOK YÖNETİMİ ───────────────────────── -->
+    <!-- ── STOK ───────────────────────────────── -->
     <div class="nav-section">📦 Stok Yönetimi</div>
     <div class="nav-item" onclick="navTo('stok-temizlik',this);stokRender('temizlik')"><span class="icon">🧴</span>Temizlik Malzemesi</div>
     <div class="nav-item" onclick="navTo('stok-medikal',this);medikalRender()"><span class="icon">💊</span>Medikal Malzeme</div>
 
-    <!-- ── RAPORLAMA ────────────────────────────── -->
+    <!-- ── RAPORLAMA ───────────────────────────── -->
     <div class="nav-section">📊 Raporlama</div>
-    <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>Yıllık İstatistik</div>
-    <div class="nav-item" onclick="navTo('analiz',this);analizRender()"><span class="icon">✨</span>Analiz & Grafikler</div>
-    <div class="nav-item" onclick="navTo('sayi-ver',this)"><span class="icon">🔢</span>Sayı Ver</div>
-    <div class="nav-item" onclick="navTo('id-tamamla',this);idTamamlaYukle()"><span class="icon">🪪</span>TC Tamamla</div>
-    <div class="nav-item" onclick="navTo('export',this)"><span class="icon">📥</span>Veri Al</div>
+    <div class="nav-item" onclick="navTo('yillik-ist',this);renderYillikIstatistik()"><span class="icon">📊</span>İstatistikler</div>
 
-    <!-- ── SİSTEM ───────────────────────────────── -->
+    <!-- ── SİSTEM ──────────────────────────────── -->
     <div class="nav-section">⚙️ Sistem</div>
-    <div class="nav-item" onclick="navTo('islem-log',this)"><span class="icon">📋</span>İşlem Logu</div>
     <div class="nav-item" id="nav-ayarlar" onclick="navTo('ayarlar',this)" style="display:none"><span class="icon">⚙️</span>Ayarlar</div>
     <div class="nav-item" id="nav-yedekler" onclick="navTo('yedekler',this)" style="display:none"><span class="icon">💾</span>Yedekler</div>
 
-
-    <!-- ── OZAN ARAÇLAR (sadece Ozan görür) ───────────────── -->
-    <div class="nav-section" id="nav-ozan-section" style="display:none;margin-top:auto;border-top:2px solid #1A237E;padding-top:8px;background:linear-gradient(135deg,#0f172a,#1e1b4b);margin-left:-8px;margin-right:-8px;padding-left:8px;padding-right:8px;border-radius:0 0 0 0">
-      <span style="color:#818cf8;font-size:10px;font-weight:900;letter-spacing:1px">🔧 OZAN ARAÇLAR</span>
-    </div>
-    <div id="nav-ozan-menu" style="display:none">
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/veri_tarama_v5.html')">
-        <span class="icon">🔍</span>Veri Kalitesi Tarama
-      </div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/bilgi_duzelt.html')">
-        <span class="icon">👤</span>Vatandaş Bilgi Düzeltici
-      </div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/isim_duzeltici.html')">
-        <span class="icon">✏️</span>Türkçe İsim Düzeltici
-      </div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/isim.html')">
-        <span class="icon">🔤</span>İsim Normalizasyonu
-      </div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/karsilastirma.html')">
-        <span class="icon">📊</span>Excel/Firestore Karşılaştırma
-      </div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/ykarsilas.html')">
-        <span class="icon">📋</span>Yıllık Karşılaştırma
-      </div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/kuafor.html')">
-        <span class="icon">✂️</span>Kuaför Senkronizasyonu
-      </div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/veri_duzelt.html')">
-        <span class="icon">🗓️</span>Yanlış Tarih Düzeltme
-      </div>
-    </div>
-
-  </nav>
+</nav>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════
