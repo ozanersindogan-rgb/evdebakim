@@ -254,7 +254,7 @@ function normalizeRecord(r) {
   if (!r || typeof r !== 'object') return r;
   if(!r.MAHALLE) r.MAHALLE = '';
   r.MAHALLE = r.MAHALLE.toString().trim().toUpperCase().replace('SOGUCAK','SOĞUCAK');
-  r.DURUM = (r.DURUM||'').toString().trim().toLocaleUpperCase('tr-TR');
+  r.DURUM = (r.DURUM||'').toString().trim();
   r.AY = (r.AY||'').toString().trim().toUpperCase();
   r['HİZMET'] = (r['HİZMET']||'').toString().trim();
   // İsim her zaman büyük harf
@@ -499,9 +499,43 @@ function _yuklemOverlayGizle() {
   if (el) el.style.display = 'none';
 }
 
+// ── OTOMATİK TEMİZLİK: eski banyo/kuaför/temizlik kayıtlarını sil ──────────
+async function _vatandaslarTemizle() {
+  try {
+    console.log('[Temizlik] vatandaslar koleksiyonu temizleniyor...');
+    _yuklemOverlayGoster('Eski veriler temizleniyor... (bu işlem bir kez çalışır)');
+    const db = firebase.firestore();
+    const snap = await db.collection('vatandaslar').get();
+    if (snap.empty) {
+      localStorage.setItem('evdebakim_vt_temizlendi', '1');
+      return;
+    }
+    // 500'er belgelik batch'lerle sil
+    const BATCH_SIZE = 400;
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+      const batch = db.batch();
+      docs.slice(i, i + BATCH_SIZE).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      _yuklemOverlayGoster(`Temizleniyor... ${Math.min(i + BATCH_SIZE, docs.length)} / ${docs.length}`);
+    }
+    localStorage.setItem('evdebakim_vt_temizlendi', '1');
+    console.log(`[Temizlik] ${docs.length} kayıt silindi.`);
+  } catch(e) {
+    console.error('[Temizlik] Hata:', e);
+    // Hata olursa bayrak koyma — bir sonraki açılışta tekrar denensin
+  }
+}
+
 async function fbLoadData() {
   _yuklemOverlayGoster('Veriler yükleniyor...');
   try {
+    // ── OTOMATİK TEMİZLİK: vatandaslar koleksiyonundaki eski hizmet kayıtları sil ──
+    // Sadece bir kez çalışır (localStorage bayrağıyla kontrol edilir)
+    if (!localStorage.getItem('evdebakim_vt_temizlendi')) {
+      await _vatandaslarTemizle();
+    }
+
     const snap = await firebase.firestore()
       .collection('vatandaslar')
       .get();
@@ -549,7 +583,6 @@ async function fbLoadData() {
       // Sidebar ve dropdown'ları render et (hafif)
       const _safeLite = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) {} };
       _safeLite(buildSidebar, 'buildSidebar');
-      _safeLite(buildHizmetTabs, 'buildHizmetTabs');
       _safeLite(buildAyTabs, 'buildAyTabs');
       _safeLite(buildMahFilter, 'buildMahFilter');
       _safeLite(buildFormMah, 'buildFormMah');
@@ -593,7 +626,7 @@ async function fbLoadData() {
 
     // Yeni ay taşıma arka planda
     setTimeout(() => {
-      _yeniAyOtomatikTasi().catch(e => console.warn('[yeniAyTasi] Hata:', e.message));
+      // _yeniAyOtomatikTasi kaldırıldı — artık aylık hizmet kaydı yok
     }, 3000);
 
     // allData yüklendi — randevu defteri sayfası açıksa isim dropdown'ını güncelle
@@ -813,7 +846,6 @@ function refreshAll() {
 
   // Her zaman çalışanlar (sidebar, form dropdown'ları — hafif)
   safe(buildSidebar, 'buildSidebar');
-  safe(buildHizmetTabs, 'buildHizmetTabs');
   safe(buildAyTabs, 'buildAyTabs');
   safe(buildMahFilter, 'buildMahFilter');
   safe(buildFormMah, 'buildFormMah');
@@ -823,19 +855,10 @@ function refreshAll() {
   // Sadece aktif sayfayı render et
   if (aktivSayfa === 'dashboard')      safe(renderDashboard, 'renderDashboard');
   if (aktivSayfa === 'vatandaslar')    safe(filterVat, 'filterVat');
-  if (aktivSayfa === 'gunluk-kayit')   safe(renderGunluk, 'renderGunluk');
   if (aktivSayfa === 'mahalle')        safe(renderMahalle, 'renderMahalle');
   if (aktivSayfa === 'export')         safe(renderExpStats, 'renderExpStats');
 
   // Aktif değilse işaretlenmiş say — navTo açılınca render edilecek
-  window._refreshPending = window._refreshPending || {};
-  if (aktivSayfa !== 'dashboard')     window._refreshPending.dashboard = true;
-  if (aktivSayfa !== 'vatandaslar')   window._refreshPending.vatandaslar = true;
-  if (aktivSayfa !== 'gunluk-kayit')  window._refreshPending['gunluk-kayit'] = true;
-  if (aktivSayfa !== 'mahalle')       window._refreshPending.mahalle = true;
-  if (aktivSayfa !== 'export')        window._refreshPending.export = true;
-  // Banyo tablosu sayfası açıksa güncelle
-
 
   const expMahSel = document.getElementById('exp-mah-sel');
   if(expMahSel) {
@@ -1104,11 +1127,6 @@ async function saveEdit() {
     showToast('✅ Kaydedildi');
   } catch(e) {
     showToast('⚠️ Kaydedilemedi: ' + (e.message || e));
-  }
-}
-if (typeof buildHizmetTabs !== 'function') {
-  function buildHizmetTabs() {
-    console.warn('buildHizmetTabs yok, skip edildi');
   }
 }
 if (typeof buildAyTabs !== 'function') {
