@@ -563,11 +563,8 @@ async function fbLoadData() {
     }
 
     if(allData.length === 0) {
-      const initialData = await loadInitialData();
-      showToast('⏳ İlk kurulum: ' + initialData.length + ' kayıt yükleniyor...');
-      await fbSeedData(initialData);
-      _yuklemOverlayGizle();
-      return;
+      // Firestore boş — yeni sistem, veri yok
+      console.log('[fbLoadData] Firestore boş, yeni başlangıç');
     }
 
     // ── Render + navigasyon sırası ──
@@ -1387,7 +1384,7 @@ window.renderPlan = renderPlan;
 
 // ── OZAN ARAÇLAR — araç sayfasını yeni sekmede aç ────────────
 
-window.ozanAracAc = ozanAracAc;
+// ozanAracAc kaldırıldı
 
 // ══════════════════════════════════════════════════════════════
 // NAVİGASYON — temizlik.js'den taşındı
