@@ -59,10 +59,11 @@ let dashSrch = '';
 // ============ INIT ============
 function initApp() {
   const now = new Date();
-  document.getElementById('current-date').textContent = now.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
-  document.getElementById('gun-date').value = now.toISOString().split('T')[0];
+  const dateEl = document.getElementById('current-date');
+  if (dateEl) dateEl.textContent = now.toLocaleDateString('tr-TR',{day:'2-digit',month:'long',year:'numeric'});
+  const gunEl = document.getElementById('gun-date');
+  if (gunEl) gunEl.value = now.toISOString().split('T')[0];
   fbLoadData().then(()=>{ yedekGunlukKontrol(); if(typeof personelYukle==='function') personelYukle().catch(()=>{}); });
-  kanbanYukle();
 }
 
 

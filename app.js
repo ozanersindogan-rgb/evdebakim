@@ -1388,3 +1388,71 @@ window.renderPlan = renderPlan;
 // ── OZAN ARAÇLAR — araç sayfasını yeni sekmede aç ────────────
 
 window.ozanAracAc = ozanAracAc;
+
+// ══════════════════════════════════════════════════════════════
+// NAVİGASYON — temizlik.js'den taşındı
+// ══════════════════════════════════════════════════════════════
+const PAGE_TITLES = {
+  'hemsire-takip': '🏥 Hemşire Takip',
+  'dashboard':     'Ana Sayfa',
+  'vatandaslar':   'Vatandaşlar',
+  'yeni-vatandas': 'Yeni Vatandaş Kaydı',
+  'durum':         'Durum Güncelle',
+  'export':        'Veri Al',
+  'takvim':        '📆 Ziyaret Takvimi',
+  'yedekler':      '💾 Yedekleme',
+  'ayarlar':       '⚙️ Ayarlar',
+  'analiz':        '✨ Analiz & Grafikler',
+  'stok-temizlik': '🧴 Temizlik Malzemesi',
+  'stok-medikal':  '💊 Medikal Malzeme',
+  'yillik-ist':    '📊 Yıllık İstatistik',
+  'sayi-ver':      '🔢 Sayı Ver',
+  'id-tamamla':    '🪪 TC Tamamla',
+  'islem-log':     '📋 İşlem Logu',
+  'isim-duzenle':  '✏️ İsim / Mahalle Düzenle',
+  'adres-guncelle':'📞 Adres & Telefon',
+  'mahalle':       'Mahalle Raporu',
+};
+
+function navTo(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id)?.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const t = document.getElementById('page-title');
+  if (t) t.textContent = PAGE_TITLES[id] || id;
+  try { localStorage.setItem('evdebakim_sonSayfa', id); } catch(e) {}
+
+  const _safe = (fn) => { try { if (typeof fn === 'function') fn(); } catch(e) {} };
+
+  if (id === 'dashboard')      _safe(renderDashboard);
+  if (id === 'vatandaslar')    _safe(filterVat);
+  if (id === 'mahalle')        _safe(renderMahalle);
+  if (id === 'export')         { _safe(renderExpStats); _safe(expPreview); }
+  if (id === 'islem-log')      _safe(renderIslemLog);
+  if (id === 'adres-guncelle') _safe(adresRender);
+  if (id === 'takvim')         _safe(renderTakvim);
+  if (id === 'sayi-ver')       _safe(svRender);
+  if (id === 'yedekler')       _safe(yedekSayfaYukle);
+  if (id === 'ayarlar')        _safe(ayarlarPersonelRender);
+  if (id === 'analiz')         _safe(analizRender);
+  if (id === 'stok-temizlik')  { if (typeof stokRender === 'function') stokRender('temizlik'); }
+  if (id === 'stok-medikal')   { if (typeof stokRender === 'function') stokRender('medikal'); }
+  if (id === 'hemsire-takip')  _safe(hmYukle);
+  if (id === 'id-tamamla')     _safe(idTamamlaYukle);
+  if (id === 'isim-duzenle')   _safe(idUpdateIsimler);
+  if (id === 'yillik-ist')     _safe(renderYillikIstatistik);
+  if (id === 'gunluk-kayit')   { _safe(gkUpdateIsimler); _safe(duUpdateIsimler); }
+
+  if (typeof mobMenuKapat === 'function') mobMenuKapat();
+
+  // Mobil alt menü
+  const mbnMap = { dashboard:'mbn-dashboard', takvim:'mbn-takvim', vatandaslar:'mbn-vatandaslar' };
+  if (mbnMap[id]) {
+    document.querySelectorAll('.mbn-item').forEach(b => b.classList.remove('active'));
+    document.getElementById(mbnMap[id])?.classList.add('active');
+  }
+}
+
+function buildAyTabs() {}   // hemşire sisteminde ay sekmeleri yok
+function buildHizmetTabs() {} // hemşire sisteminde hizmet sekmeleri yok
