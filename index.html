@@ -58,13 +58,7 @@
     <div class="nav-item" onclick="navTo('islem-log',this)"><span class="icon">📋</span>İşlem Logu</div>
     <div class="nav-item" id="nav-ayarlar" onclick="navTo('ayarlar',this)" style="display:none"><span class="icon">⚙️</span>Ayarlar</div>
     <div class="nav-item" id="nav-yedekler" onclick="navTo('yedekler',this)" style="display:none"><span class="icon">💾</span>Yedekler</div>
-
-    <div class="nav-section" id="nav-ozan-section" style="display:none;margin-top:auto;border-top:2px solid #1A237E;padding-top:8px">
-      <span style="color:#818cf8;font-size:10px;font-weight:900;letter-spacing:1px">🔧 OZAN ARAÇLAR</span>
-    </div>
-    <div id="nav-ozan-menu" style="display:none">
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/veri_tarama_v5.html')"><span class="icon">🔍</span>Veri Kalitesi Tarama</div>
-      <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/bilgi_duzelt.html')"><span class="icon">👤</span>Vatandaş Bilgi Düzeltici</div>
+<div class="nav-item ozan-item" onclick="ozanAracAc('araclar/bilgi_duzelt.html')"><span class="icon">👤</span>Vatandaş Bilgi Düzeltici</div>
       <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/isim_duzeltici.html')"><span class="icon">✏️</span>Türkçe İsim Düzeltici</div>
       <div class="nav-item ozan-item" onclick="ozanAracAc('araclar/veri_duzelt.html')"><span class="icon">🗓️</span>Yanlış Tarih Düzeltme</div>
     </div>
@@ -152,26 +146,10 @@
 }
 
 /* OZAN ARAÇLAR menü stilleri */
-.ozan-item {
-  background: linear-gradient(135deg, #0f172a, #1e1b4b) !important;
-  color: #a5b4fc !important;
-  font-size: 11.5px !important;
-  padding: 7px 12px !important;
-  border-left: 3px solid transparent;
-  transition: all .2s;
-}
-.ozan-item:hover {
-  background: linear-gradient(135deg, #1e1b4b, #312e81) !important;
-  color: #e0e7ff !important;
-  border-left: 3px solid #818cf8 !important;
-}
-.ozan-item .icon { filter: grayscale(0.3); }
-#nav-ozan-section {
-  background: linear-gradient(135deg, #0f172a, #1e1b4b);
-  margin: 8px -8px 0 -8px;
-  padding: 10px 12px 6px 12px;
-  border-radius: 10px 10px 0 0;
-}
+
+
+
+
 </style>
 
 <div id="login-screen" style="display:flex;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center">
@@ -284,7 +262,6 @@
         <span class="date-badge" id="current-date"></span>
         <button class="btn btn-sm" onclick="navTo('plan',null);setTimeout(()=>{if(typeof renderPlan==='function')renderPlan();if(typeof rdvSayfaInit==='function')rdvSayfaInit();},100)" style="background:linear-gradient(135deg,#7c3aed,#9333ea);color:#fff;font-size:11px">🤖 Akıllı Plan</button>
         <button class="btn btn-primary btn-sm" onclick="navTo('yeni-vatandas',null)">+ Yeni Vatandaş</button>
-        <button onclick="navTo('araclar',null)" title="Araçlar" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:5px 9px;font-size:15px;cursor:pointer;line-height:1;display:flex;align-items:center">🔑</button>
         <div id="user-badge" style="display:none;align-items:center;gap:8px;margin-left:2px">
           <div style="text-align:right">
             <div id="ub-ad" style="font-size:11px;font-weight:800;color:#1A237E"></div>
@@ -1327,89 +1304,7 @@
         </div>
       </div>
 
-      <!-- ─── ARAÇLAR ─── -->
-      <div class="page" id="page-araclar">
-        <div class="form-section" style="margin-bottom:18px">
-          <h3>📍 Toplu Mahalle Düzenleyici</h3>
-          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Seçilen mahalledeki tüm kayıtları toplu olarak başka mahalleye taşıyın veya mahalle adını düzeltin.</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Mevcut Mahalle *</label>
-              <select class="form-select" id="ar-eski-mah" onchange="arPreview()">
-                <option value="">— Seçin —</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Hizmet Filtresi</label>
-              <select class="form-select" id="ar-hizmet" onchange="arPreview()">
-                <option value="">Tüm Hizmetler</option>
-                <option value="KADIN BANYO">Kadın Banyo</option>
-                <option value="ERKEK BANYO">Erkek Banyo</option>
-                <option value="KUAFÖR">Kuaför</option>
-                <option value="TEMİZLİK">Temizlik</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Yeni Mahalle Adı *</label>
-              <input type="text" id="ar-yeni-mah" class="form-input" placeholder="Yeni adı yazın veya aşağıdan seçin..." oninput="arPreview()" list="ar-mah-list" autocomplete="off">
-              <datalist id="ar-mah-list"></datalist>
-            </div>
-          </div>
-          <div id="ar-preview" style="margin:10px 0;padding:10px 14px;background:var(--bg-soft);border-radius:8px;font-size:12.5px;color:var(--text-soft);min-height:36px">
-            Mahalle seçin, etkilenecek kayıtlar burada görünür.
-          </div>
-          <div style="display:flex;gap:9px;margin-top:4px">
-            <button class="btn btn-primary" onclick="arUygula()">✅ Uygula</button>
-            <button class="btn btn-cancel" onclick="arTemizle()">Temizle</button>
-          </div>
-        </div>
-
-        <div class="form-section" style="margin-bottom:18px">
-          <h3>📅 Yeni Aya Taşı</h3>
-          <p style="color:var(--text-soft);font-size:13px;margin-bottom:16px">Seçilen aydaki aktif vatandaşları listeler. İstediğinizi işaretleyip taşıyın. Tarihler boş gelir, zaten kayıtlı olanlar atlanır.</p>
-          <div class="form-row">
-            <div class="form-group">
-              <label>Kaynak Ay *</label>
-              <select class="form-select" id="ta-kaynak" onchange="taListele()">
-                <option value="">— Seçin —</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Hizmet Filtresi</label>
-              <select class="form-select" id="ta-hizmet" onchange="taListele()">
-                <option value="">Tüm Hizmetler</option>
-                <option value="KADIN BANYO">Kadın Banyo</option>
-                <option value="ERKEK BANYO">Erkek Banyo</option>
-                <option value="KUAFÖR">Kuaför</option>
-                <option value="TEMİZLİK">Temizlik</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Hedef Ay *</label>
-              <select class="form-select" id="ta-hedef">
-                <option value="">— Seçin —</option>
-              </select>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-            <button class="btn" style="padding:4px 12px;font-size:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer" onclick="taTumunuSec(true)">Tümünü Seç</button>
-            <button class="btn" style="padding:4px 12px;font-size:12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;cursor:pointer" onclick="taTumunuSec(false)">Seçimi Kaldır</button>
-            <span id="ta-secilen" style="font-size:12px;color:var(--text-soft);margin-left:4px">0 seçili</span>
-          </div>
-          <div id="ta-liste" style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--card)">
-            <div style="padding:16px;color:var(--text-soft);font-size:13px;text-align:center">Kaynak ay seçin</div>
-          </div>
-          <div style="display:flex;gap:9px;margin-top:12px;flex-wrap:wrap">
-            <button class="btn btn-primary" onclick="taUygula()">📅 Seçilenleri Taşı</button>
-            <button class="btn" onclick="taHepsiniAktar()" style="background:#0d9488;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-weight:700;font-size:13px;cursor:pointer" title="Kaynak aydaki TÜM aktif kişileri, hedef ayda olmayanları otomatik aktarır">⚡ Tümünü Otomatik Aktar</button>
-          </div>
-        </div>
-
-        <div class="table-card">
-          <div class="table-header"><span class="table-title">Bu Oturumda Yapılan Değişiklikler</span><span class="page-info" id="ar-count">0 işlem</span></div>
-          <div class="scroll-table"><table id="ar-table"></table></div>
-        </div>
-      </div>
+      
 
       <!-- ─── EXPORT ─── -->
       <!-- ─── SAYI VER ─── -->

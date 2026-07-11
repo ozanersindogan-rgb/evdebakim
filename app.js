@@ -1386,7 +1386,5 @@ function renderPlan() {
 window.renderPlan = renderPlan;
 
 // ── OZAN ARAÇLAR — araç sayfasını yeni sekmede aç ────────────
-function ozanAracAc(url) {
-  window.open(url, '_blank');
-}
+
 window.ozanAracAc = ozanAracAc;
