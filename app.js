@@ -580,6 +580,7 @@ async function fbLoadData() {
       // Sidebar ve dropdown'ları render et (hafif)
       const _safeLite = (fn, name) => { try { if (typeof fn === 'function') fn(); } catch(e) {} };
       _safeLite(buildSidebar, 'buildSidebar');
+      _safeLite(buildHizmetTabs, 'buildHizmetTabs');
       _safeLite(buildAyTabs, 'buildAyTabs');
       _safeLite(buildMahFilter, 'buildMahFilter');
       _safeLite(buildFormMah, 'buildFormMah');
@@ -1423,7 +1424,7 @@ function navTo(id, el) {
   const _safe = (fn) => { try { if (typeof fn === 'function') fn(); } catch(e) {} };
 
   if (id === 'dashboard')      _safe(renderDashboard);
-  if (id === 'vatandaslar')    _safe(filterVat);
+  if (id === 'vatandaslar')    { _safe(buildHizmetTabs); _safe(filterVat); }
   if (id === 'mahalle')        _safe(renderMahalle);
   if (id === 'export')         { _safe(renderExpStats); _safe(expPreview); }
   if (id === 'islem-log')      _safe(renderIslemLog);
