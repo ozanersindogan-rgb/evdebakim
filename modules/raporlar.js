@@ -670,8 +670,16 @@ async function svRender() {
     const isHemsire = hz === 'HEMŞİRE';
     let hizmetToplam = 0;
 
+    // Aktif vatandaş sayısı — allData'dan
+    const aktifVatandas = isHemsire
+      ? '—'
+      : new Set(allData.filter(r =>
+          r['HİZMET'] === hz &&
+          (r.DURUM||'').toUpperCase() === 'AKTİF'
+        ).map(r => r.ISIM_SOYISIM)).size;
+
     html += `<tr style="background:${rowBg}">`;
-    html += `<td style="padding:10px 12px;font-weight:800;color:${renk};border-bottom:1px solid #e2e8f0">${icon} ${hz}</td>`;
+    html += `<td style="padding:10px 12px 4px;font-weight:800;color:${renk};border-bottom:none">${icon} ${hz}</td>`;
 
     gosterilecekAylar.forEach(ay => {
       const sayi = isHemsire
@@ -681,11 +689,9 @@ async function svRender() {
       toplamlar[ay] += sayi;
 
       if (isHemsire) {
-        // Hemşire — sadece oku, düzenlenemez
-        html += `<td style="padding:10px 6px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:700;color:${sayi>0?renk:'#94a3b8'}">${sayi>0?sayi:'—'}</td>`;
+        html += `<td style="padding:10px 6px 4px;text-align:center;border-bottom:none;font-weight:700;color:${sayi>0?renk:'#94a3b8'}">${sayi>0?sayi:'—'}</td>`;
       } else {
-        // Manuel — tıklanabilir hücre
-        html += `<td style="padding:4px 3px;text-align:center;border-bottom:1px solid #e2e8f0">
+        html += `<td style="padding:4px 3px;text-align:center;border-bottom:none">
           <input type="number" min="0" value="${sayi||''}" placeholder="—"
             onchange="svHucreKaydet('${yil}','${hz}',${ay},this.value,this)"
             style="width:52px;text-align:center;border:1.5px solid #e2e8f0;border-radius:7px;padding:5px 2px;font-size:13px;font-weight:700;color:${renk};background:transparent;outline:none"
@@ -696,7 +702,16 @@ async function svRender() {
     });
 
     genelToplam += hizmetToplam;
-    html += `<td style="padding:10px 8px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:900;color:${renk}">${hizmetToplam||'—'}</td>`;
+    html += `<td style="padding:10px 8px 4px;text-align:center;border-bottom:none;font-weight:900;color:${renk}">${hizmetToplam||'—'}</td>`;
+    html += '</tr>';
+
+    // Aktif vatandaş alt satırı
+    html += `<tr style="background:${rowBg}">`;
+    html += `<td style="padding:2px 12px 10px 24px;font-size:11px;color:#64748b;border-bottom:2px solid #e2e8f0">👤 Aktif Vatandaş: <b>${aktifVatandas}</b></td>`;
+    gosterilecekAylar.forEach(() => {
+      html += `<td style="border-bottom:2px solid #e2e8f0"></td>`;
+    });
+    html += `<td style="border-bottom:2px solid #e2e8f0"></td>`;
     html += '</tr>';
   });
 
