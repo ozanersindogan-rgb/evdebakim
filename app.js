@@ -1452,4 +1452,3 @@ function navTo(id, el) {
 }
 
 function buildAyTabs() {}   // hemşire sisteminde ay sekmeleri yok
-function buildHizmetTabs() {} // hemşire sisteminde hizmet sekmeleri yok
