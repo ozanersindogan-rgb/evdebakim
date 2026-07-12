@@ -529,7 +529,7 @@ function expGetData() {
 // AYLAR ve AY_KISALT sabitleri dosya başında tanımlandı
 
 function svGetHizmetTurleri() {
-  return ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'];
+  return ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK','HEMŞİRE'];
 }
 
 function svHizmetIcon(h) {
@@ -537,6 +537,7 @@ function svHizmetIcon(h) {
   if(h==='ERKEK BANYO') return '🚿';
   if(h==='KUAFÖR') return '✂️';
   if(h==='TEMİZLİK') return '🧹';
+  if(h==='HEMŞİRE') return '🏥';
   return '';
 }
 
@@ -545,160 +546,193 @@ function svHizmetRenk(h) {
   if(h==='ERKEK BANYO') return '#1565c0';
   if(h==='KUAFÖR') return '#7c3aed';
   if(h==='TEMİZLİK') return '#0d9488';
+  if(h==='HEMŞİRE') return '#dc2626';
   return '#475569';
 }
 
-// Bir tarih string'inden yıl ve ayı çıkar
-function svTarihAyYil(tarihStr) {
-  if (!tarihStr) return null;
-  // YYYY-MM-DD veya DD.MM.YYYY formatları
-  let y, m;
-  if (tarihStr.includes('-')) {
-    const p = tarihStr.split('-');
-    y = parseInt(p[0]); m = parseInt(p[1]);
-  } else if (tarihStr.includes('.')) {
-    const p = tarihStr.split('.');
-    y = parseInt(p[2]); m = parseInt(p[1]);
+// ── Manuel sayılar için Firestore koleksiyonu: hizmet_sayilari ──
+// Döküman ID: "YYYY" (yıl)
+// Yapı: { "KADIN BANYO": { "1": 333, "2": 345, ... }, "ERKEK BANYO": {...}, ... }
+
+let _svManuelCache = {}; // { "2026": { "KADIN BANYO": {1:333,...}, ... } }
+let _svHemsireCache = {}; // { "2026": { 1: 5, 2: 8, ... } }
+
+async function svVeriYukle(yil) {
+  if (!yil) return;
+  const yilStr = String(yil);
+
+  // Manuel veriler
+  if (!_svManuelCache[yilStr]) {
+    try {
+      const doc = await firebase.firestore().collection('hizmet_sayilari').doc(yilStr).get();
+      _svManuelCache[yilStr] = doc.exists ? doc.data() : {};
+    } catch(e) { _svManuelCache[yilStr] = {}; }
   }
-  if (!y || !m || isNaN(y) || isNaN(m)) return null;
-  return { y, m };
+
+  // Hemşire verileri — hemsire_ziyaret koleksiyonundan say
+  if (!_svHemsireCache[yilStr]) {
+    try {
+      const snap = await firebase.firestore().collection('hemsire_ziyaret')
+        .where('yil', '==', parseInt(yilStr))
+        .get();
+      const aylar = {};
+      for (let i = 1; i <= 12; i++) aylar[i] = 0;
+      if (snap.empty) {
+        // yil alanı yoksa tarih alanından hesapla
+        const snap2 = await firebase.firestore().collection('hemsire_ziyaret').get();
+        snap2.forEach(d => {
+          const z = d.data();
+          const tarih = z.ziyaret_tarihi?.toDate ? z.ziyaret_tarihi.toDate() : new Date(z.ziyaret_tarihi || '');
+          if (tarih.getFullYear() === parseInt(yilStr)) {
+            const ay = tarih.getMonth() + 1;
+            aylar[ay] = (aylar[ay] || 0) + 1;
+          }
+        });
+      } else {
+        snap.forEach(d => {
+          const z = d.data();
+          const tarih = z.ziyaret_tarihi?.toDate ? z.ziyaret_tarihi.toDate() : new Date(z.ziyaret_tarihi || '');
+          const ay = tarih.getMonth() + 1;
+          aylar[ay] = (aylar[ay] || 0) + 1;
+        });
+      }
+      _svHemsireCache[yilStr] = aylar;
+    } catch(e) { _svHemsireCache[yilStr] = {}; }
+  }
 }
 
-function svHesapla(yilFiltre, hizmetFiltre) {
-  const tarihAlanlari = {
-    'KADIN BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
-    'ERKEK BANYO': ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
-    'KUAFÖR':      ['SAC1','SAC2','TIRNAK1','TIRNAK2','SAKAL1','SAKAL2'],
-    'TEMİZLİK':   ['BANYO1','BANYO2','BANYO3','BANYO4','BANYO5'],
-  };
-
-  // hizmet → ay(1-12) → { hizmetSayisi, aktifVatandas }
-  const sonuc = {};
-  const hizmetler = hizmetFiltre ? [hizmetFiltre] : svGetHizmetTurleri();
-
-  hizmetler.forEach(hz => {
-    sonuc[hz] = {};
-    for(let ay=1;ay<=12;ay++) sonuc[hz][ay] = { hizmet: 0, aktif: 0, isimler: new Set() };
-  });
-
-  allData.forEach(r => {
-    const hz = r['HİZMET'];
-    if (!sonuc[hz]) return;
-    const alanlar = tarihAlanlari[hz] || [];
-
-    alanlar.forEach(alan => {
-      const val = r[alan];
-      if (!val) return;
-      const parsed = svTarihAyYil(val);
-      if (!parsed) return;
-      if (yilFiltre && parsed.y !== parseInt(yilFiltre)) return;
-      sonuc[hz][parsed.m].hizmet++;
-      sonuc[hz][parsed.m].isimler.add(r.ISIM_SOYISIM);
-    });
-
-  });
-
-  // Aktif vatandaş sayısı — tüm hizmetler için aynı mantık:
-  // allData'da r.AY alanına göre filtreleyerek o ay kaydedilmiş AKTİF kişi sayısı
-  const AY_ADLARI = ['OCAK','ŞUBAT','MART','NİSAN','MAYIS','HAZİRAN','TEMMUZ','AĞUSTOS','EYLÜL','EKİM','KASIM','ARALIK'];
-  hizmetler.forEach(hz => {
-    for(let ay=1;ay<=12;ay++) {
-      const ayAdi = AY_ADLARI[ay-1];
-      sonuc[hz][ay].aktif = allData.filter(r =>
-        r['HİZMET']===hz && r.DURUM==='AKTİF' && r.AY===ayAdi
-      ).length;
-    }
-  });
-
-  return sonuc;
+async function svKaydet(yil, hizmet, ay, sayi) {
+  const yilStr = String(yil);
+  if (!_svManuelCache[yilStr]) _svManuelCache[yilStr] = {};
+  if (!_svManuelCache[yilStr][hizmet]) _svManuelCache[yilStr][hizmet] = {};
+  _svManuelCache[yilStr][hizmet][String(ay)] = parseInt(sayi) || 0;
+  await firebase.firestore().collection('hizmet_sayilari').doc(yilStr).set(
+    _svManuelCache[yilStr], { merge: true }
+  );
 }
 
-function svRender() {
-  const yil = document.getElementById('sv-yil')?.value || '';
-  const hizmetFiltre = document.getElementById('sv-hizmet')?.value || '';
+async function svRender() {
   const el = document.getElementById('sv-tablo');
   if (!el) return;
 
-  const sonuc = svHesapla(yil, hizmetFiltre);
-  const hizmetler = hizmetFiltre ? [hizmetFiltre] : svGetHizmetTurleri();
+  const yil = document.getElementById('sv-yil')?.value || String(new Date().getFullYear());
+  const hizmetFiltre = document.getElementById('sv-hizmet')?.value || '';
 
-  // Hangi ayların verisi var? (Gelecek aylar hiçbir zaman gösterilmez)
+  el.innerHTML = '<div style="text-align:center;padding:30px;color:#94a3b8">⏳ Yükleniyor...</div>';
+
+  await svVeriYukle(yil);
+
+  const manuel = _svManuelCache[yil] || {};
+  const hemsire = _svHemsireCache[yil] || {};
+  const hizmetler = hizmetFiltre
+    ? [hizmetFiltre]
+    : ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK','HEMŞİRE'];
+
   const _bugun = new Date();
-  const _buYil = _bugun.getFullYear();
-  const _buAy  = _bugun.getMonth() + 1; // 1-12
+  const buYil = _bugun.getFullYear();
+  const buAy  = _bugun.getMonth() + 1;
   const aktifAylar = [];
-  for(let ay=1;ay<=12;ay++) {
-    // Mevcut yıl seçiliyse VEYA "Tümü" seçiliyse, gelecek ayları her zaman gizle
-    const seciliYil = yil ? parseInt(yil) : null;
-    const buYilFiltresi = !seciliYil || seciliYil === _buYil;
-    if (buYilFiltresi && ay > _buAy) continue;
-    const toplam = hizmetler.reduce((s,h)=>s+(sonuc[h]?.[ay]?.hizmet||0),0);
-    if(toplam>0) aktifAylar.push(ay);
+  for (let ay = 1; ay <= 12; ay++) {
+    if (parseInt(yil) === buYil && ay > buAy) continue;
+    // En az bir hizmette veri varsa ayı göster
+    const varMi = hizmetler.some(h => {
+      if (h === 'HEMŞİRE') return (hemsire[ay] || 0) > 0;
+      return (parseInt(manuel[h]?.[ay]) || 0) > 0;
+    });
+    if (varMi || parseInt(yil) < buYil) aktifAylar.push(ay);
   }
-  if (!aktifAylar.length) { el.innerHTML='<p style="color:var(--text-soft);text-align:center;padding:30px">Bu filtrede veri yok</p>'; return; }
 
-  // Tablo başlığı
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html += '<thead><tr style="background:var(--primary);color:#fff">';
-  html += '<th style="padding:10px 12px;text-align:left;border-radius:8px 0 0 0">HİZMET</th>';
-  aktifAylar.forEach(ay => {
-    html += `<th style="padding:10px 8px;text-align:center;white-space:nowrap">${AYLAR[ay-1]}</th>`;
-  });
-  html += '<th style="padding:10px 8px;text-align:center;border-radius:0 8px 0 0">TOPLAM</th>';
-  html += '</tr></thead><tbody>';
+  // Aktif aylar yoksa tüm geçmiş ayları göster (veri girilebilsin)
+  const gosterilecekAylar = aktifAylar.length ? aktifAylar :
+    Array.from({length: parseInt(yil) === buYil ? buAy : 12}, (_, i) => i + 1);
 
-  let toplamSatir = {};
-  aktifAylar.forEach(ay => toplamSatir[ay] = {hizmet:0, aktif:0});
+  // ── TABLO ──
+  let html = `
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:500px">
+    <thead>
+      <tr style="background:#1A237E;color:#fff">
+        <th style="padding:10px 12px;text-align:left;min-width:130px">HİZMET</th>
+        ${gosterilecekAylar.map(ay => `<th style="padding:10px 6px;text-align:center;white-space:nowrap">${AYLAR[ay-1]}</th>`).join('')}
+        <th style="padding:10px 8px;text-align:center">TOPLAM</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  let toplamlar = {};
+  gosterilecekAylar.forEach(ay => toplamlar[ay] = 0);
   let genelToplam = 0;
 
   hizmetler.forEach((hz, hi) => {
     const renk = svHizmetRenk(hz);
     const icon = svHizmetIcon(hz);
-    const rowBg = hi%2===0 ? '#fff' : '#f8fafc';
+    const rowBg = hi % 2 === 0 ? '#fff' : '#f8fafc';
+    const isHemsire = hz === 'HEMŞİRE';
     let hizmetToplam = 0;
 
-    // Hizmet sayısı satırı
     html += `<tr style="background:${rowBg}">`;
     html += `<td style="padding:10px 12px;font-weight:800;color:${renk};border-bottom:1px solid #e2e8f0">${icon} ${hz}</td>`;
-    aktifAylar.forEach(ay => {
-      const sayi = sonuc[hz]?.[ay]?.hizmet || 0;
-      hizmetToplam += sayi;
-      toplamSatir[ay].hizmet += sayi;
-      html += `<td style="padding:10px 8px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:${sayi>0?'700':'400'};color:${sayi>0?renk:'#94a3b8'}">${sayi>0?sayi:'—'}</td>`;
-    });
-    genelToplam += hizmetToplam;
-    html += `<td style="padding:10px 8px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:900;color:${renk}">${hizmetToplam}</td>`;
-    html += '</tr>';
 
-    // Aktif vatandaş satırı
-    html += `<tr style="background:${rowBg}">`;
-    html += `<td style="padding:4px 12px 10px 24px;font-size:11px;color:#64748b;border-bottom:2px solid #e2e8f0">👤 Aktif Vatandaş</td>`;
-    aktifAylar.forEach(ay => {
-      const aktif = sonuc[hz]?.[ay]?.aktif || 0;
-      toplamSatir[ay].aktif += aktif;
-      html += `<td style="padding:4px 8px 10px;text-align:center;border-bottom:2px solid #e2e8f0;font-size:11px;color:#64748b">${aktif>0?aktif:'—'}</td>`;
+    gosterilecekAylar.forEach(ay => {
+      const sayi = isHemsire
+        ? (hemsire[ay] || 0)
+        : (parseInt(manuel[hz]?.[String(ay)]) || 0);
+      hizmetToplam += sayi;
+      toplamlar[ay] += sayi;
+
+      if (isHemsire) {
+        // Hemşire — sadece oku, düzenlenemez
+        html += `<td style="padding:10px 6px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:700;color:${sayi>0?renk:'#94a3b8'}">${sayi>0?sayi:'—'}</td>`;
+      } else {
+        // Manuel — tıklanabilir hücre
+        html += `<td style="padding:4px 3px;text-align:center;border-bottom:1px solid #e2e8f0">
+          <input type="number" min="0" value="${sayi||''}" placeholder="—"
+            onchange="svHucreKaydet('${yil}','${hz}',${ay},this.value,this)"
+            style="width:52px;text-align:center;border:1.5px solid #e2e8f0;border-radius:7px;padding:5px 2px;font-size:13px;font-weight:700;color:${renk};background:transparent;outline:none"
+            onfocus="this.style.borderColor='${renk}';this.style.background='#fff'"
+            onblur="this.style.borderColor='#e2e8f0';this.style.background='transparent'">
+        </td>`;
+      }
     });
-    html += `<td style="border-bottom:2px solid #e2e8f0"></td>`;
+
+    genelToplam += hizmetToplam;
+    html += `<td style="padding:10px 8px;text-align:center;border-bottom:1px solid #e2e8f0;font-weight:900;color:${renk}">${hizmetToplam||'—'}</td>`;
     html += '</tr>';
   });
 
   // Toplam satırı
-  html += '<tr style="background:#f0f9ff;font-weight:900">';
-  html += '<td style="padding:10px 12px;color:#1e40af">📊 TOPLAM HİZMET</td>';
-  aktifAylar.forEach(ay => {
-    html += `<td style="padding:10px 8px;text-align:center;color:#1e40af">${toplamSatir[ay].hizmet||'—'}</td>`;
-  });
-  html += `<td style="padding:10px 8px;text-align:center;color:#1e40af">${genelToplam}</td>`;
-  html += '</tr>';
+  html += `<tr style="background:#eff6ff;font-weight:900">
+    <td style="padding:10px 12px;color:#1e40af">📊 TOPLAM</td>
+    ${gosterilecekAylar.map(ay => `<td style="padding:10px 6px;text-align:center;color:#1e40af">${toplamlar[ay]||'—'}</td>`).join('')}
+    <td style="padding:10px 8px;text-align:center;color:#1e40af">${genelToplam||'—'}</td>
+  </tr>`;
 
-  html += '</tbody></table>';
+  html += '</tbody></table></div>';
   el.innerHTML = html;
 }
 
+async function svHucreKaydet(yil, hizmet, ay, deger, inputEl) {
+  try {
+    inputEl.style.borderColor = '#f59e0b';
+    await svKaydet(yil, hizmet, ay, deger);
+    inputEl.style.borderColor = '#16a34a';
+    setTimeout(() => { inputEl.style.borderColor = '#e2e8f0'; }, 1500);
+    // Toplamı güncelle
+    svRender();
+  } catch(e) {
+    inputEl.style.borderColor = '#dc2626';
+    showToast('❌ Kaydedilemedi: ' + e.message);
+  }
+}
+
+window.svHucreKaydet = svHucreKaydet;
+
 async function svIndir() {
-  const yil = document.getElementById('sv-yil')?.value || '2026';
+  const yil = document.getElementById('sv-yil')?.value || String(new Date().getFullYear());
   const hizmetFiltre = document.getElementById('sv-hizmet')?.value || '';
-  const sonuc = svHesapla(yil, hizmetFiltre);
+  await svVeriYukle(yil);
+  const manuel = _svManuelCache[yil] || {};
+  const hemsire = _svHemsireCache[yil] || {};
   const hizmetler = hizmetFiltre ? [hizmetFiltre] : svGetHizmetTurleri();
 
   try {
@@ -786,13 +820,17 @@ async function svIndir() {
       rows.push([{v:S(hz),s:si},{v:S(''),s:si},{v:S(''),s:si},{v:S(''),s:si}]);
 
       for(let ay=1;ay<=12;ay++) {
-        const hs = sonuc[hz]?.[ay]?.hizmet || 0;
-        const ak = sonuc[hz]?.[ay]?.aktif  || 0;
+        const hs = hz === 'HEMŞİRE'
+          ? (hemsire[ay] || 0)
+          : (parseInt(manuel[hz]?.[String(ay)]) || 0);
+        const ak = 0;
         if (hs === 0) continue;
         rows.push([{v:S(''),s:si},{v:S(AYLAR[ay-1]),s:si},{v:hs,s:5,n:true},{v:ak,s:6,n:true}]);
       }
 
-      const toplam = Object.values(sonuc[hz]||{}).reduce((s,v)=>s+(v.hizmet||0),0);
+      const toplam = hz === 'HEMŞİRE'
+        ? Object.values(hemsire||{}).reduce((s,v)=>s+v,0)
+        : Object.entries(manuel[hz]||{}).reduce((s,[,v])=>s+(parseInt(v)||0),0);
       if (toplam > 0) {
         rows.push([{v:S(hz+' TOPLAM'),s:7},{v:S('—'),s:7},{v:toplam,s:7,n:true},{v:S(''),s:7}]);
         rows.push([{v:S(''),s:9},{v:S(''),s:9},{v:S(''),s:9},{v:S(''),s:9}]);
