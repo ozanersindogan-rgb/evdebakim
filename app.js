@@ -500,40 +500,33 @@ function _yuklemOverlayGizle() {
 }
 
 // ── OTOMATİK TEMİZLİK: eski banyo/kuaför/temizlik kayıtlarını sil ──────────
+// Arka planda eski verileri sil — sistemi engelleme
+function _vatandaslarTemizleArkaplan() {
+  localStorage.setItem('evdebakim_vt_temizlendi', '1');
+  const db = firebase.firestore();
+  db.collection('vatandaslar').limit(400).get().then(snap => {
+    if (snap.empty) return;
+    // Sadece eski hizmet kayıtlarını sil (HİZMET alanı olanlar)
+    const eskiler = snap.docs.filter(d => ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'].includes(d.data()['HİZMET']));
+    if (!eskiler.length) return;
+    const batch = db.batch();
+    eskiler.forEach(d => batch.delete(d.ref));
+    return batch.commit().then(() => {
+      console.log(`[Temizlik] ${eskiler.length} eski kayıt silindi`);
+    });
+  }).catch(e => console.warn('[Temizlik]', e.message));
+}
+
 async function _vatandaslarTemizle() {
-  try {
-    console.log('[Temizlik] vatandaslar koleksiyonu temizleniyor...');
-    _yuklemOverlayGoster('Eski veriler temizleniyor... (bu işlem bir kez çalışır)');
-    const db = firebase.firestore();
-    const snap = await db.collection('vatandaslar').get();
-    if (snap.empty) {
-      localStorage.setItem('evdebakim_vt_temizlendi', '1');
-      return;
-    }
-    // 500'er belgelik batch'lerle sil
-    const BATCH_SIZE = 400;
-    const docs = snap.docs;
-    for (let i = 0; i < docs.length; i += BATCH_SIZE) {
-      const batch = db.batch();
-      docs.slice(i, i + BATCH_SIZE).forEach(d => batch.delete(d.ref));
-      await batch.commit();
-      _yuklemOverlayGoster(`Temizleniyor... ${Math.min(i + BATCH_SIZE, docs.length)} / ${docs.length}`);
-    }
-    localStorage.setItem('evdebakim_vt_temizlendi', '1');
-    console.log(`[Temizlik] ${docs.length} kayıt silindi.`);
-  } catch(e) {
-    console.error('[Temizlik] Hata:', e);
-    // Hata olursa bayrak koyma — bir sonraki açılışta tekrar denensin
-  }
+  // Artık kullanılmıyor
 }
 
 async function fbLoadData() {
   _yuklemOverlayGoster('Veriler yükleniyor...');
   try {
-    // ── OTOMATİK TEMİZLİK: vatandaslar koleksiyonundaki eski hizmet kayıtları sil ──
-    // Sadece bir kez çalışır (localStorage bayrağıyla kontrol edilir)
+    // Eski veriler varsa arka planda temizle (sistemi engellemez)
     if (!localStorage.getItem('evdebakim_vt_temizlendi')) {
-      await _vatandaslarTemizle();
+      setTimeout(_vatandaslarTemizleArkaplan, 5000);
     }
 
     const snap = await firebase.firestore()
