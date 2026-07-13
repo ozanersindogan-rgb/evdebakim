@@ -109,7 +109,7 @@ async function idDuzenleKaydet() {
 
     // vatandaslar — eski isimle eşleşen TÜM kayıtları güncelle
     const snap = await firebase.firestore()
-      .collection('vatandaslar')
+      .collection('vatandaslar_bilgi')
       .where('ISIM_SOYISIM', '==', eskiIsim)
       .get();
 
@@ -456,7 +456,7 @@ async function idTrHepsiniKaydet() {
   for (const item of hazirlar) {
     try {
       const snap = await firebase.firestore()
-        .collection('vatandaslar')
+        .collection('vatandaslar_bilgi')
         .where('ISIM_SOYISIM', '==', item.original)
         .get();
       for (const doc of snap.docs) {

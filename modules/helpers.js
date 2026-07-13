@@ -384,7 +384,7 @@ async function yedekGeriYukle(veri) {
 
   try {
     // Mevcut _fbId'leri çek — zaten var olanları atla
-    const mevcutSnap = await db.collection('vatandaslar').get();
+    const mevcutSnap = await db.collection('vatandaslar_bilgi').get();
     const mevcutIdler = new Set(mevcutSnap.docs.map(d => d.id));
 
     // Yedek dosyasında _fbId olan kayıtlar → aynı ID ile yaz (overwrite)
@@ -414,8 +414,8 @@ async function yedekGeriYukle(veri) {
         // _fbId, _tpRef gibi iç alanları temizle
         const { _fbId, _tpRef, _tpFbId, id, ...temiz } = r;
         const docRef = _fbId
-          ? db.collection('vatandaslar').doc(_fbId)
-          : db.collection('vatandaslar').doc(); // yeni ID
+          ? db.collection('vatandaslar_bilgi').doc(_fbId)
+          : db.collection('vatandaslar_bilgi').doc(); // yeni ID
         batch.set(docRef, temiz);
       });
       await batch.commit();

@@ -63,7 +63,7 @@ async function _gunlukKaydiSil(rec, iso, alan, opts={}) {
     if (rec._fbId) {
       // Sadece değişen alanları gönder — tam payload ile yarış koşulundan kaçın
       const degisen = { [hedefAlan]: '', NOT1: rec.NOT1, NOT2: rec.NOT2, NOT3: rec.NOT3 };
-      await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(degisen);
+      await firebase.firestore().collection('vatandaslar_bilgi').doc(rec._fbId).update(degisen);
       // Silme işlemini logla
       if (typeof currentUser !== 'undefined' && currentUser) {
         firebase.firestore().collection('islem_log').add({
@@ -214,7 +214,7 @@ async function gunlukDuzenleKaydet() {
     if (r._fbId) {
       const degisen = { NOT1: r.NOT1, NOT2: r.NOT2 };
       if (al && r[al] !== undefined) degisen[al] = r[al];
-      await firebase.firestore().collection('vatandaslar').doc(r._fbId).update(degisen);
+      await firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update(degisen);
     }
     // Temizlik planını da güncelle
     if (r._tpRef && r._tpFbId) {
@@ -683,7 +683,7 @@ function _gkSetBusy(isBusy, text) {
 async function _gkVatandasKaydet(rec) {
   if (!rec || !rec._fbId) throw new Error('Kayıt kimliği bulunamadı');
   const payload = Object.fromEntries(Object.entries(rec).filter(([k]) => !k.startsWith('_')));
-  await firebase.firestore().collection('vatandaslar').doc(rec._fbId).update(payload);
+  await firebase.firestore().collection('vatandaslar_bilgi').doc(rec._fbId).update(payload);
   return payload;
 }
 async function _gkTemizlikPlanKaydet(rec, data) {
@@ -766,7 +766,7 @@ async function gkKaydet() {
         ENGEL_ACIKLAMA: rec.ENGEL_ACIKLAMA || '',
       };
       const fbPayload = Object.fromEntries(Object.entries(yeniRec).filter(([k]) => !k.startsWith('_')));
-      const docRef = await firebase.firestore().collection('vatandaslar').add(fbPayload);
+      const docRef = await firebase.firestore().collection('vatandaslar_bilgi').add(fbPayload);
       yeniRec._fbId = docRef.id;
       if (rec._tpFbId) { yeniRec._tpFbId = rec._tpFbId; yeniRec._tpRef = rec._tpRef; }
       allData.push(yeniRec);
@@ -883,7 +883,7 @@ async function gkKaydet() {
               const batch = firebase.firestore().batch();
               tcGuncellenecek.slice(i, i + BATCH_SIZE).forEach(r => {
                 r.TC = tc;
-                batch.update(firebase.firestore().collection('vatandaslar').doc(r._fbId), { TC: tc });
+                batch.update(firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId), { TC: tc });
               });
               await batch.commit();
             }

@@ -99,7 +99,7 @@ async function adresManuelEkle() {
     if(Object.keys(changes).length){
       // Hizmet seçiliyse sadece o hizmetlerin kayıtlarını güncelle, değilse tümünü
       const ilgili=allData.filter(r=>r.ISIM_SOYISIM===isim&&r._fbId&&(!hizmetler.length||hizmetler.includes(r['HİZMET'])));
-      await Promise.all(ilgili.map(r=>firebase.firestore().collection('vatandaslar').doc(r._fbId).update(changes)));
+      await Promise.all(ilgili.map(r=>firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update(changes)));
     }
     ['am-isim','am-tel','am-tel2','am-adres','am-dogum'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
     const mahEl=document.getElementById('am-mahalle');if(mahEl)mahEl.value='';
@@ -503,7 +503,7 @@ async function adresHizmetDegistir(isim, hizmet) {
     const ilgili = kayitlar.filter(r => r['HİZMET'] === hizmet && r._fbId);
     await Promise.all(ilgili.map(r => {
       r.DURUM = 'İPTAL';
-      return firebase.firestore().collection('vatandaslar').doc(r._fbId).update({ DURUM: 'İPTAL' });
+      return firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update({ DURUM: 'İPTAL' });
     }));
     showToast(`✅ ${hizmet} pasife alındı`);
   } else {
@@ -565,7 +565,7 @@ async function _adresVatandasAlanlariniTemizle(durumEl) {
   for(let i=0; i<targets.length; i+=400) {
     const chunk = targets.slice(i, i+400);
     await Promise.all(chunk.map(r =>
-      firebase.firestore().collection('vatandaslar').doc(r._fbId).update(bos)
+      firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update(bos)
     ));
     sayi += chunk.length;
     if(durumEl) durumEl.innerHTML = `<div style="color:#b45309;font-size:13px">⏳ Vatandaş kayıtları temizleniyor... (${sayi}/${targets.length})</div>`;
@@ -721,7 +721,7 @@ async function adresEditKaydet() {
     if(Object.keys(changes).length) {
       const ilgili = allData.filter(r => r.ISIM_SOYISIM === isim && r._fbId);
       await Promise.all(ilgili.map(r =>
-        firebase.firestore().collection('vatandaslar').doc(r._fbId).update(changes)
+        firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update(changes)
       ));
     }
     showToast('✅ ' + isim + ' güncellendi');
@@ -1000,7 +1000,7 @@ async function adresYukle(input) {
     if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ Vatandaş adres alanları sıfırlanıyor...</div>`;
     for(const r of allData) Object.assign(r, bos);
     for(let i=0;i<vatTargets.length;i+=400){
-      await Promise.all(vatTargets.slice(i,i+400).map(r=>firebase.firestore().collection('vatandaslar').doc(r._fbId).update(bos)));
+      await Promise.all(vatTargets.slice(i,i+400).map(r=>firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update(bos)));
     }
 
     if(durumEl)durumEl.innerHTML=`<div style="color:#0369a1;font-size:13px">⏳ ${eklenen} yeni adres kaydı yazılıyor...</div>`;
@@ -1026,7 +1026,7 @@ async function adresYukle(input) {
         r.DOGUM_TARIHI=b.dogum || '';
         r.MAHALLE=b.mahalle || '';
         vatGuncellenen++;
-        return firebase.firestore().collection('vatandaslar').doc(r._fbId).update({
+        return firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update({
           TELEFON: r.TELEFON,
           TELEFON2: r.TELEFON2,
           TELEFON_AKTIF: r.TELEFON_AKTIF,
@@ -1423,7 +1423,7 @@ window.mkRender = mkRender;
 async function mkKayitSil(fbId) {
   if (!confirm('Bu kaydı silmek istediğinize emin misiniz?')) return;
   try {
-    await firebase.firestore().collection('vatandaslar').doc(fbId).delete();
+    await firebase.firestore().collection('vatandaslar_bilgi').doc(fbId).delete();
     const i = allData.findIndex(r => r._fbId === fbId);
     if (i !== -1) allData.splice(i, 1);
     showToast('✅ Kayıt silindi');
@@ -1456,7 +1456,7 @@ async function mkGrupSil(gi) {
   if (!confirm(`${silinecekler.length} kopya kayıt silinecek. Devam?`)) return;
 
   for (const fbId of silinecekler) {
-    await firebase.firestore().collection('vatandaslar').doc(fbId).delete();
+    await firebase.firestore().collection('vatandaslar_bilgi').doc(fbId).delete();
     const i = allData.findIndex(r => r._fbId === fbId);
     if (i !== -1) allData.splice(i, 1);
   }
@@ -1472,7 +1472,7 @@ async function mkBirlestir(isim1, isim2) {
   if (!confirm(`"${isim2}" → "${isim1}" olarak değiştirilecek.\n${ilgili.length} kayıt güncellenecek. Devam?`)) return;
   for (const r of ilgili) {
     r.ISIM_SOYISIM = isim1;
-    await firebase.firestore().collection('vatandaslar').doc(r._fbId).update({ ISIM_SOYISIM: isim1 });
+    await firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId).update({ ISIM_SOYISIM: isim1 });
   }
   showToast(`✅ ${ilgili.length} kayıt "${isim1}" olarak güncellendi`);
   mkTara();

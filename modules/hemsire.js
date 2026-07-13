@@ -373,7 +373,7 @@ async function hmKaydet() {
           const batch = firebase.firestore().batch();
           tcGuncellenecek.slice(i, i + BATCH_SIZE).forEach(r => {
             r.TC = hmTc;
-            batch.update(firebase.firestore().collection('vatandaslar').doc(r._fbId), { TC: hmTc });
+            batch.update(firebase.firestore().collection('vatandaslar_bilgi').doc(r._fbId), { TC: hmTc });
           });
           await batch.commit();
         }

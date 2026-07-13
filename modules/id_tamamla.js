@@ -417,7 +417,7 @@ async function idTumKaydet(fbId) {
 
     // vatandaslar koleksiyonunda aynı isimli tüm kayıtlara yansıt
     const isim = r.AD_SOYAD || '';
-    const snap = await firebase.firestore().collection('vatandaslar').where('ISIM_SOYISIM','==',isim).get();
+    const snap = await firebase.firestore().collection('vatandaslar_bilgi').where('ISIM_SOYISIM','==',isim).get();
     let guncellenen = 0;
     for (const doc of snap.docs) {
       await doc.ref.update(guncelleme);
@@ -573,7 +573,7 @@ async function idQuickKaydet(fbId) {
 
     // vatandaslar koleksiyonunda aynı isimli tüm kayıtlara TC + doğum tarihi yaz
     const isim = r.AD_SOYAD || '';
-    const snap = await firebase.firestore().collection('vatandaslar').where('ISIM_SOYISIM','==',isim).get();
+    const snap = await firebase.firestore().collection('vatandaslar_bilgi').where('ISIM_SOYISIM','==',isim).get();
     let guncellenen = 0;
     for (const doc of snap.docs) {
       await doc.ref.update(guncelleme);
@@ -777,7 +777,7 @@ async function _idYuklemeUygula(islenecek) {
       const bilgiRec = _idTumData.find(x => x._fbId === item.fbId);
       if (bilgiRec) {
         const isim = bilgiRec.AD_SOYAD || item.ad;
-        const snap = await firebase.firestore().collection('vatandaslar').where('ISIM_SOYISIM','==',isim).get();
+        const snap = await firebase.firestore().collection('vatandaslar_bilgi').where('ISIM_SOYISIM','==',isim).get();
         for (const doc of snap.docs) await doc.ref.update(guncelleme);
 
         // allData güncelle

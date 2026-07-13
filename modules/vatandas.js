@@ -516,7 +516,7 @@ async function silVatandas(globalIdx) {
       : globalIdx;
     if (guncelIdx === -1) { showToast('⚠️ Kayıt bulunamadı, zaten silinmiş olabilir'); refreshAll(); return; }
     if(hedefFbId) {
-      await firebase.firestore().collection('vatandaslar').doc(hedefFbId).delete();
+      await firebase.firestore().collection('vatandaslar_bilgi').doc(hedefFbId).delete();
     }
     allData.splice(guncelIdx, 1);
     filterVat();
