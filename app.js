@@ -449,7 +449,7 @@ async function _yeniAyOtomatikTasi() {
         ENGEL: rec.ENGEL || '',
         ENGEL_ACIKLAMA: rec.ENGEL_ACIKLAMA || '',
       };
-      const docRef = db.collection('vatandaslar').doc();
+      const docRef = db.collection('vatandaslar_bilgi').doc();
       batch.set(docRef, yeniRec);
       yeniRecler.push({ ...yeniRec, _fbId: docRef.id });
     });
@@ -505,7 +505,7 @@ async function fbLoadData() {
   _yuklemOverlayGoster('Veriler yükleniyor...');
   try {
     const snap = await firebase.firestore()
-      .collection('vatandaslar')
+      .collection('vatandaslar_bilgi')
       .get();
 
     allData = [];
@@ -612,7 +612,7 @@ async function fbSeedData(initialData) {
   for(let i=0; i<initialData.length; i+=batch_size) {
     const chunk = initialData.slice(i, i+batch_size);
     await Promise.all(chunk.map(async rec => {
-      const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
+      const docRef = await firebase.firestore().collection('vatandaslar_bilgi').add(rec);
       const idx = allData.length;
       allData.push({...normalizeRecord({ ...rec }), _fbId: docRef.id});
       _docsMap[docRef.id] = idx;
@@ -720,7 +720,7 @@ async function _flushSaveQueue() {
     for (const item of pending) {
       try {
         if (item.type === 'update') {
-          await firebase.firestore().collection('vatandaslar').doc(item.fbId).update(item.changes);
+          await firebase.firestore().collection('vatandaslar_bilgi').doc(item.fbId).update(item.changes);
           // log'u fire-and-forget bırak — await etmiyoruz, UI'ı bloklamasın
           if (currentUser) {
             firebase.firestore().collection('islem_log').add({
@@ -792,7 +792,7 @@ async function fbAddDoc(rec) {
     isim: rec.ISIM_SOYISIM,
     degisiklik: 'YENİ KAYIT'
   };
-  const docRef = await firebase.firestore().collection('vatandaslar').add(rec);
+  const docRef = await firebase.firestore().collection('vatandaslar_bilgi').add(rec);
   // log fire-and-forget — UI'ı bloklamasın
   firebase.firestore().collection('islem_log').add(logEntry).catch(()=>{});
   return docRef.id;
