@@ -501,34 +501,9 @@ function _yuklemOverlayGizle() {
 
 // ── OTOMATİK TEMİZLİK: eski banyo/kuaför/temizlik kayıtlarını sil ──────────
 // Arka planda eski verileri sil — sistemi engelleme
-function _vatandaslarTemizleArkaplan() {
-  localStorage.setItem('evdebakim_vt_temizlendi', '1');
-  const db = firebase.firestore();
-  db.collection('vatandaslar').limit(400).get().then(snap => {
-    if (snap.empty) return;
-    // Sadece eski hizmet kayıtlarını sil (HİZMET alanı olanlar)
-    const eskiler = snap.docs.filter(d => ['KADIN BANYO','ERKEK BANYO','KUAFÖR','TEMİZLİK'].includes(d.data()['HİZMET']));
-    if (!eskiler.length) return;
-    const batch = db.batch();
-    eskiler.forEach(d => batch.delete(d.ref));
-    return batch.commit().then(() => {
-      console.log(`[Temizlik] ${eskiler.length} eski kayıt silindi`);
-    });
-  }).catch(e => console.warn('[Temizlik]', e.message));
-}
-
-async function _vatandaslarTemizle() {
-  // Artık kullanılmıyor
-}
-
 async function fbLoadData() {
   _yuklemOverlayGoster('Veriler yükleniyor...');
   try {
-    // Eski veriler varsa arka planda temizle (sistemi engellemez)
-    if (!localStorage.getItem('evdebakim_vt_temizlendi')) {
-      setTimeout(_vatandaslarTemizleArkaplan, 5000);
-    }
-
     const snap = await firebase.firestore()
       .collection('vatandaslar')
       .get();
