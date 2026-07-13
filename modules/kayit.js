@@ -359,9 +359,16 @@ function expGunBugün(){document.getElementById('gun-date').value=new Date().toI
 // ============ VATANDAŞLAR ============
 function buildHizmetTabs() {
   const tabs = [['','Tümü','all'],...HIZMET_KEYS.map(h=>[h,`${HIZMET_ICONS[h]} ${h}`,HIZMET_COLORS[h]])];
-  document.getElementById('hizmet-tabs-vat').innerHTML = tabs.map(([h,l,c])=>
-    `<button class="htab${h===vatHizmet?' active-'+(h?c:'all'):''}" data-hizmet="${h}" onclick="setVatHizmet('${h}',this)">${l}</button>`
-  ).join('');
+  const bosCount = allData.filter(r => !r['HİZMET'] || r['HİZMET'].trim() === '').length;
+  document.getElementById('hizmet-tabs-vat').innerHTML =
+    tabs.map(([h,l,c])=>
+      `<button class="htab${h===vatHizmet?' active-'+(h?c:'all'):''}" data-hizmet="${h}" onclick="setVatHizmet('${h}',this)">${l}</button>`
+    ).join('') +
+    `<button class="htab${vatHizmet==='__BOS__'?' active-all':''}"
+      onclick="setVatHizmet('__BOS__',this)"
+      style="background:${vatHizmet==='__BOS__'?'#dc2626':'#fef2f2'};color:${vatHizmet==='__BOS__'?'#fff':'#dc2626'};border:1.5px solid #fca5a5;font-weight:800">
+      ⚠️ Hizmet Adı Yok${bosCount>0?' ('+bosCount+')':''}
+    </button>`;
 }
 function setVatHizmet(h,el) {
   vatHizmet=h; vatPage=1;
@@ -1494,7 +1501,9 @@ function filterVat() {
   };
 
   vatFiltered = allData.filter(r => {
-    const hOk = !vatHizmet || r['HİZMET'] === vatHizmet;
+    const hOk = vatHizmet === '__BOS__'
+      ? (!r['HİZMET'] || r['HİZMET'].trim() === '')
+      : (!vatHizmet || r['HİZMET'] === vatHizmet);
     const aOk = vatAy ? r.AY === vatAy : true;
     const sOk = !srch || (r.ISIM_SOYISIM||'').toLocaleLowerCase('tr-TR').includes(srch) || (r.MAHALLE||'').toLocaleLowerCase('tr-TR').includes(srch);
     const mOk = !mah || r.MAHALLE === mah;
