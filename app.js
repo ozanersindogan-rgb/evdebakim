@@ -252,12 +252,17 @@ const DATA_MANIFEST_URL = './manifest.json';
 
 function normalizeRecord(r) {
   if (!r || typeof r !== 'object') return r;
+
+  // ── Alan adı dönüşümü: vatandaslar_bilgi koleksiyonu ──
+  if (!r.ISIM_SOYISIM && r.AD_SOYAD)  r.ISIM_SOYISIM = r.AD_SOYAD;
+  if (!r['HİZMET']   && r.HIZMET)     r['HİZMET']    = r.HIZMET;
+  if (!r.ISIM_SOYISIM && r.ISIM)      r.ISIM_SOYISIM = r.ISIM;
+
   if(!r.MAHALLE) r.MAHALLE = '';
   r.MAHALLE = r.MAHALLE.toString().trim().toUpperCase().replace('SOGUCAK','SOĞUCAK');
-  r.DURUM = (r.DURUM||'').toString().trim();
+  r.DURUM = (r.DURUM||'').toString().trim().toLocaleUpperCase('tr-TR');
   r.AY = (r.AY||'').toString().trim().toUpperCase();
   r['HİZMET'] = (r['HİZMET']||'').toString().trim();
-  // İsim her zaman büyük harf
   if (r.ISIM_SOYISIM) r.ISIM_SOYISIM = r.ISIM_SOYISIM.toString().trim().toLocaleUpperCase('tr-TR');
   return r;
 }
