@@ -256,6 +256,7 @@ function normalizeRecord(r) {
   // ── Alan adı dönüşümü: vatandaslar_bilgi koleksiyonu ──
   if (!r.ISIM_SOYISIM && r.AD_SOYAD)  r.ISIM_SOYISIM = r.AD_SOYAD;
   if (!r['HİZMET']   && r.HIZMET)     r['HİZMET']    = r.HIZMET;
+  if (!r['HİZMET']   && Array.isArray(r.HIZMETLER) && r.HIZMETLER.length) r['HİZMET'] = r.HIZMETLER[0];
   if (!r.ISIM_SOYISIM && r.ISIM)      r.ISIM_SOYISIM = r.ISIM;
 
   if(!r.MAHALLE) r.MAHALLE = '';
